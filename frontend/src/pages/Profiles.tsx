@@ -57,19 +57,19 @@ function Profiles() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Profiles</h1>
+        <h1 className="text-xl font-semibold text-foreground">Profiles</h1>
         <button
           onClick={handleNew}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium transition-colors"
+          className="px-3 py-1.5 bg-accent text-accent-foreground hover:bg-accent/90 rounded text-sm font-medium transition-colors"
         >
           + Add Profile
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
+        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
           {error}
-          <button onClick={() => setError('')} className="ml-2 text-red-400 hover:text-red-300">x</button>
+          <button onClick={() => setError('')} className="ml-2 text-destructive/80 hover:text-destructive">x</button>
         </div>
       )}
 
@@ -81,7 +81,7 @@ function Profiles() {
           onCancel={() => setEditingProfile(null)}
         />
       ) : profiles.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
+        <div className="text-center text-muted-foreground py-12">
           No profiles yet. Create one to configure environment variables.
         </div>
       ) : (
@@ -113,15 +113,15 @@ function ProfileCard({
   const secretCount = (p.secret_keys || []).length
 
   return (
-    <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg border border-gray-700">
+    <div className="flex items-center justify-between p-4 bg-card rounded-lg border border-border hover:border-primary/30 transition-all">
       <div className="flex items-center gap-3">
         <div
           className="w-3 h-3 rounded-full"
           style={{ backgroundColor: p.color || '#6B7280' }}
         />
         <div>
-          <div className="font-medium">{p.name}</div>
-          <div className="text-sm text-gray-400">
+          <div className="font-medium text-foreground">{p.name}</div>
+          <div className="text-sm text-muted-foreground">
             {p.description && <span>{p.description} | </span>}
             {envCount} var{envCount !== 1 ? 's' : ''}
             {secretCount > 0 && `, ${secretCount} secret${secretCount !== 1 ? 's' : ''}`}
@@ -132,13 +132,13 @@ function ProfileCard({
       <div className="flex gap-2">
         <button
           onClick={() => onEdit(p)}
-          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
+          className="px-3 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded text-sm transition-colors"
         >
           Edit
         </button>
         <button
           onClick={() => onDelete(p.id)}
-          className="px-3 py-1 bg-red-800 hover:bg-red-700 rounded text-sm transition-colors"
+          className="px-3 py-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded text-sm transition-colors"
         >
           Delete
         </button>
@@ -301,13 +301,13 @@ function ProfileForm({
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-      <h2 className="text-lg font-semibold mb-4">
+    <div className="bg-card rounded-lg border border-border p-6">
+      <h2 className="text-lg font-semibold text-foreground mb-4">
         {isNew ? 'New Profile' : 'Edit Profile'}
       </h2>
 
       {error && (
-        <div className="mb-3 p-2 bg-red-900/50 border border-red-700 rounded text-red-200 text-sm">
+        <div className="mb-3 p-2 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
           {error}
         </div>
       )}
@@ -315,36 +315,36 @@ function ProfileForm({
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Name</label>
+            <label className="block text-sm text-muted-foreground mb-1">Name</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g., Maxx Proxy"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Description</label>
+            <label className="block text-sm text-muted-foreground mb-1">Description</label>
             <input
               type="text"
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Optional description"
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Color</label>
+          <label className="block text-sm text-muted-foreground mb-1">Color</label>
           <div className="flex gap-2">
             {PRESET_COLORS.map(c => (
               <button
                 key={c}
                 onClick={() => setColor(c)}
                 className={`w-6 h-6 rounded-full border-2 transition-colors ${
-                  color === c ? 'border-white' : 'border-transparent'
+                  color === c ? 'border-foreground' : 'border-transparent'
                 }`}
                 style={{ backgroundColor: c }}
               />
@@ -354,17 +354,17 @@ function ProfileForm({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-gray-400">Environment Variables</label>
+            <label className="text-sm text-muted-foreground">Environment Variables</label>
             <div className="flex gap-2">
               <button
                 onClick={() => setShowBulkImport(true)}
-                className="text-sm text-green-400 hover:text-green-300"
+                className="text-sm text-primary hover:text-primary/80"
               >
                 Bulk Import
               </button>
               <button
                 onClick={addEntry}
-                className="text-sm text-blue-400 hover:text-blue-300"
+                className="text-sm text-accent hover:text-accent/80"
               >
                 + Add Variable
               </button>
@@ -372,7 +372,7 @@ function ProfileForm({
           </div>
 
           {envEntries.length === 0 ? (
-            <p className="text-sm text-gray-500 py-2">No variables. Click "Add Variable" to add one.</p>
+            <p className="text-sm text-muted-foreground py-2">No variables. Click "Add Variable" to add one.</p>
           ) : (
             <div className="space-y-2">
               {envEntries.map((entry, idx) => (
@@ -382,16 +382,16 @@ function ProfileForm({
                     value={entry.key}
                     onChange={e => updateEntry(idx, 'key', e.target.value)}
                     placeholder="KEY"
-                    className="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
+                    className="flex-1 px-3 py-1.5 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                   <input
                     type={entry.isSecret ? 'password' : 'text'}
                     value={entry.value}
                     onChange={e => updateEntry(idx, 'value', e.target.value)}
                     placeholder={entry.isSecret ? '(stored in Keychain)' : 'value'}
-                    className="flex-1 px-3 py-1.5 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono"
+                    className="flex-1 px-3 py-1.5 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
                   />
-                  <label className="flex items-center gap-1 text-xs text-gray-400 whitespace-nowrap cursor-pointer">
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
                     <input
                       type="checkbox"
                       checked={entry.isSecret}
@@ -402,7 +402,7 @@ function ProfileForm({
                   </label>
                   <button
                     onClick={() => removeEntry(idx)}
-                    className="text-gray-500 hover:text-red-400 px-1"
+                    className="text-muted-foreground hover:text-destructive px-1"
                   >
                     x
                   </button>
@@ -416,14 +416,14 @@ function ProfileForm({
       <div className="flex justify-end gap-2 mt-6">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={saving || !name.trim()}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium transition-colors"
+          className="px-4 py-2 bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50 rounded text-sm font-medium transition-colors"
         >
           {saving ? 'Saving...' : 'Save'}
         </button>
@@ -449,13 +449,13 @@ function BulkImportModal({
   const [text, setText] = useState('')
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 w-96">
-        <h3 className="text-lg font-semibold mb-3">Bulk Import Variables</h3>
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-card rounded-lg border border-border p-6 w-96 shadow-lg">
+        <h3 className="text-lg font-semibold text-foreground mb-3">Bulk Import Variables</h3>
 
-        <div className="mb-3 text-sm text-gray-400">
+        <div className="mb-3 text-sm text-muted-foreground">
           <p className="mb-2">Supported formats:</p>
-          <div className="bg-gray-900 p-2 rounded text-xs font-mono space-y-1">
+          <div className="bg-muted p-2 rounded text-xs font-mono space-y-1 text-foreground">
             <div>export KEY=value</div>
             <div>KEY=value</div>
             <div>KEY="quoted value"</div>
@@ -468,20 +468,20 @@ function BulkImportModal({
           onChange={e => setText(e.target.value)}
           placeholder="Paste your environment variables here..."
           rows={8}
-          className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm font-mono resize"
+          className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono resize placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
         <div className="flex justify-end gap-2 mt-4">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={() => onImport(text)}
             disabled={!text.trim()}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded text-sm font-medium transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded text-sm font-medium transition-colors"
           >
             Import
           </button>
