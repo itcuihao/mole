@@ -7,6 +7,7 @@ import (
 	"mole/internal/config"
 	"mole/internal/profile"
 	"mole/internal/session"
+	"mole/internal/terminal"
 )
 
 // App struct holds the application state and managers.
@@ -63,6 +64,11 @@ func (a *App) AttachSession(tmuxName string) error {
 	return a.sessionMgr.Attach(tmuxName)
 }
 
+// AttachSessionWithTerminal opens a specific terminal and attaches to a tmux session.
+func (a *App) AttachSessionWithTerminal(tmuxName, terminalID string) error {
+	return a.sessionMgr.AttachWithTerminal(tmuxName, terminalID)
+}
+
 // UpdateSession updates a session's profile and command, recreating the tmux session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
 	return a.sessionMgr.Update(sessionID, profileID, command)
@@ -71,4 +77,39 @@ func (a *App) UpdateSession(sessionID, profileID, command string) error {
 // KillSession terminates a tmux session.
 func (a *App) KillSession(tmuxName string) error {
 	return a.sessionMgr.Kill(tmuxName)
+}
+
+// GetInstalledTerminals returns all installed terminal applications.
+func (a *App) GetInstalledTerminals() []terminal.TerminalApp {
+	return terminal.DetectInstalled()
+}
+
+// GetDefaultTerminal returns the user's configured default terminal.
+func (a *App) GetDefaultTerminal() (string, error) {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return "", err
+	}
+
+	// If no default set, auto-detect best available
+	if settings.DefaultTerminal == "" {
+		bestTerminal := terminal.GetDefaultTerminal()
+		if bestTerminal != nil {
+			return bestTerminal.ID, nil
+		}
+		return terminal.TerminalApple, nil
+	}
+
+	return settings.DefaultTerminal, nil
+}
+
+// SetDefaultTerminal sets the user's default terminal.
+func (a *App) SetDefaultTerminal(terminalID string) error {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		settings = &config.Settings{}
+	}
+
+	settings.DefaultTerminal = terminalID
+	return config.SaveSettings(settings)
 }

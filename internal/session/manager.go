@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"mole/internal/launcher"
+	"mole/internal/config"
 	"mole/internal/profile"
+	"mole/internal/terminal"
 )
 
 var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -164,7 +165,29 @@ func (m *Manager) Kill(tmuxName string) error {
 	return m.store.DeleteByTmuxName(tmuxName)
 }
 
-// Attach opens Terminal.app and attaches to a tmux session.
+// Attach opens the user's preferred terminal and attaches to a tmux session.
 func (m *Manager) Attach(tmuxName string) error {
-	return launcher.AttachInTerminal(tmuxName)
+	// Load user's preferred terminal
+	settings, err := config.LoadSettings()
+	if err != nil {
+		settings = &config.Settings{}
+	}
+
+	// Use configured terminal or auto-detect best one
+	terminalID := settings.DefaultTerminal
+	if terminalID == "" {
+		bestTerminal := terminal.GetDefaultTerminal()
+		if bestTerminal != nil {
+			terminalID = bestTerminal.ID
+		} else {
+			terminalID = terminal.TerminalApple
+		}
+	}
+
+	return terminal.AttachSession(terminalID, tmuxName)
+}
+
+// AttachWithTerminal opens a specific terminal and attaches to a tmux session.
+func (m *Manager) AttachWithTerminal(tmuxName, terminalID string) error {
+	return terminal.AttachSession(terminalID, tmuxName)
 }

@@ -102,3 +102,28 @@ export namespace session {
 
 }
 
+export namespace terminal {
+	
+	export class TerminalApp {
+	    ID: string;
+	    Name: string;
+	    BundleID: string;
+	    AppPath: string;
+	    IsInstalled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TerminalApp(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.BundleID = source["BundleID"];
+	        this.AppPath = source["AppPath"];
+	        this.IsInstalled = source["IsInstalled"];
+	    }
+	}
+
+}
+

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
 import { profile } from '../../wailsjs/go/models'
+import { Button } from "@/components/ui/button"
+import { Plus, Pencil, Trash2, Upload, X, Check } from "lucide-react"
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -58,18 +60,18 @@ function Profiles() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-foreground">Profiles</h1>
-        <button
-          onClick={handleNew}
-          className="px-3 py-1.5 bg-accent text-accent-foreground hover:bg-accent/90 rounded text-sm font-medium transition-colors"
-        >
-          + Add Profile
-        </button>
+        <Button onClick={handleNew} size="sm">
+          <Plus className="w-4 h-4" />
+          Add Profile
+        </Button>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
-          {error}
-          <button onClick={() => setError('')} className="ml-2 text-destructive/80 hover:text-destructive">x</button>
+        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
+          <span className="flex-1">{error}</span>
+          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
+            <X className="w-3.5 h-3.5" />
+          </Button>
         </div>
       )}
 
@@ -130,18 +132,14 @@ function ProfileCard({
       </div>
 
       <div className="flex gap-2">
-        <button
-          onClick={() => onEdit(p)}
-          className="px-3 py-1 bg-secondary text-secondary-foreground hover:bg-secondary/80 rounded text-sm transition-colors"
-        >
+        <Button onClick={() => onEdit(p)} variant="secondary" size="sm">
+          <Pencil className="w-3.5 h-3.5" />
           Edit
-        </button>
-        <button
-          onClick={() => onDelete(p.id)}
-          className="px-3 py-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded text-sm transition-colors"
-        >
+        </Button>
+        <Button onClick={() => onDelete(p.id)} variant="destructive" size="sm">
+          <Trash2 className="w-3.5 h-3.5" />
           Delete
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -343,11 +341,14 @@ function ProfileForm({
               <button
                 key={c}
                 onClick={() => setColor(c)}
-                className={`w-6 h-6 rounded-full border-2 transition-colors ${
-                  color === c ? 'border-foreground' : 'border-transparent'
-                }`}
+                className="w-8 h-8 rounded-full border-2 transition-all relative flex items-center justify-center border-border hover:scale-105"
                 style={{ backgroundColor: c }}
-              />
+                title={c}
+              >
+                {color === c && (
+                  <Check className="w-4 h-4 text-white drop-shadow-md" strokeWidth={3} />
+                )}
+              </button>
             ))}
           </div>
         </div>
@@ -356,18 +357,22 @@ function ProfileForm({
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm text-muted-foreground">Environment Variables</label>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => setShowBulkImport(true)}
-                className="text-sm text-primary hover:text-primary/80"
+                variant="ghost"
+                size="sm"
               >
+                <Upload className="w-3.5 h-3.5" />
                 Bulk Import
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={addEntry}
-                className="text-sm text-accent hover:text-accent/80"
+                variant="ghost"
+                size="sm"
               >
-                + Add Variable
-              </button>
+                <Plus className="w-3.5 h-3.5" />
+                Add Variable
+              </Button>
             </div>
           </div>
 
@@ -400,12 +405,14 @@ function ProfileForm({
                     />
                     Secret
                   </label>
-                  <button
+                  <Button
                     onClick={() => removeEntry(idx)}
-                    className="text-muted-foreground hover:text-destructive px-1"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
                   >
-                    x
-                  </button>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               ))}
             </div>
@@ -414,19 +421,15 @@ function ProfileForm({
       </div>
 
       <div className="flex justify-end gap-2 mt-6">
-        <button
-          onClick={onCancel}
-          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <Button onClick={onCancel} variant="ghost">
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleSubmit}
           disabled={saving || !name.trim()}
-          className="px-4 py-2 bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-50 rounded text-sm font-medium transition-colors"
         >
           {saving ? 'Saving...' : 'Save'}
-        </button>
+        </Button>
       </div>
 
       {showBulkImport && (
@@ -472,19 +475,15 @@ function BulkImportModal({
         />
 
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
+          <Button onClick={onClose} variant="ghost">
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => onImport(text)}
             disabled={!text.trim()}
-            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 rounded text-sm font-medium transition-colors"
           >
             Import
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -6,12 +6,24 @@ export function AttachSession(arg1) {
   return window['go']['main']['App']['AttachSession'](arg1);
 }
 
+export function AttachSessionWithTerminal(arg1, arg2) {
+  return window['go']['main']['App']['AttachSessionWithTerminal'](arg1, arg2);
+}
+
 export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
 export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
+}
+
+export function GetDefaultTerminal() {
+  return window['go']['main']['App']['GetDefaultTerminal']();
+}
+
+export function GetInstalledTerminals() {
+  return window['go']['main']['App']['GetInstalledTerminals']();
 }
 
 export function KillSession(arg1) {
@@ -28,6 +40,10 @@ export function ListSessions() {
 
 export function SaveProfile(arg1, arg2) {
   return window['go']['main']['App']['SaveProfile'](arg1, arg2);
+}
+
+export function SetDefaultTerminal(arg1) {
+  return window['go']['main']['App']['SetDefaultTerminal'](arg1);
 }
 
 export function UpdateSession(arg1, arg2, arg3) {
