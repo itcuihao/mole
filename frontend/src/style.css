@@ -5,52 +5,87 @@
 @import "@fontsource/jetbrains-mono/700.css";
 
 :root {
-  /* Light Theme - Clean Terminal */
-  --background: 210 20% 98%;
-  --foreground: 215 25% 15%;
+  /* Light Theme - Professional & Clean */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
   --card: 0 0% 100%;
-  --card-foreground: 215 25% 15%;
+  --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
-  --popover-foreground: 215 25% 15%;
-  --primary: 160 84% 39%;
+  --popover-foreground: 222 47% 11%;
+
+  /* Primary - Refined Emerald for actions */
+  --primary: 158 64% 52%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 160 30% 92%;
-  --secondary-foreground: 160 84% 25%;
-  --muted: 210 20% 94%;
-  --muted-foreground: 215 15% 45%;
-  --accent: 45 93% 47%;
-  --accent-foreground: 215 25% 15%;
-  --destructive: 0 72% 51%;
+
+  /* Secondary - Subtle gray for less important actions */
+  --secondary: 210 20% 96%;
+  --secondary-foreground: 222 47% 11%;
+
+  /* Muted - Background elements */
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  /* Accent - Highlights and info */
+  --accent: 212 100% 48%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Destructive - Warnings and delete */
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border: 214 20% 88%;
-  --input: 214 20% 88%;
-  --ring: 160 84% 39%;
+
+  /* Warning - Caution states */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 100%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 158 64% 52%;
   --radius: 0.5rem;
-  --terminal-glow: 160 84% 39%;
 }
 
 .dark {
-  /* Dark Theme - Terminal Noir */
-  --background: 222 47% 6%;
-  --foreground: 160 75% 85%;
-  --card: 222 47% 8%;
-  --card-foreground: 160 75% 85%;
-  --popover: 222 47% 8%;
-  --popover-foreground: 160 75% 85%;
-  --primary: 160 84% 39%;
-  --primary-foreground: 222 47% 6%;
-  --secondary: 222 47% 12%;
-  --secondary-foreground: 160 75% 85%;
-  --muted: 222 47% 12%;
-  --muted-foreground: 160 30% 55%;
-  --accent: 45 93% 47%;
-  --accent-foreground: 222 47% 6%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 160 75% 85%;
-  --border: 222 47% 15%;
-  --input: 222 47% 12%;
-  --ring: 160 84% 39%;
-  --terminal-glow: 160 84% 39%;
+  /* Dark Theme - Terminal Refined */
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 13%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 47% 13%;
+  --popover-foreground: 210 40% 98%;
+
+  /* Primary - Softer emerald to reduce eye strain */
+  --primary: 158 64% 52%;
+  --primary-foreground: 222 47% 11%;
+
+  /* Secondary - Subtle contrast */
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+
+  /* Muted */
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+
+  /* Accent - Slightly muted blue */
+  --accent: 212 100% 48%;
+  --accent-foreground: 210 40% 98%;
+
+  /* Destructive - Softer red */
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Warning */
+  --warning: 38 92% 50%;
+  --warning-foreground: 222 47% 11%;
+
+  --border: 217 33% 17%;
+  --input: 217 33% 17%;
+  --ring: 158 64% 52%;
+}
+
+/* Smooth theme transition - CRITICAL for preventing flash */
+html,
+body,
+#root {
+  transition: background-color 200ms ease-in-out, color 200ms ease-in-out;
 }
 
 * {
@@ -64,7 +99,7 @@ body {
   position: relative;
 }
 
-/* Terminal scanline effect */
+/* Subtle scanline effect - reduced opacity */
 body::before {
   content: "";
   position: fixed;
@@ -74,25 +109,26 @@ body::before {
   height: 100%;
   background: repeating-linear-gradient(
     0deg,
-    rgba(0, 0, 0, 0.03),
-    rgba(0, 0, 0, 0.03) 1px,
+    rgba(0, 0, 0, 0.015),
+    rgba(0, 0, 0, 0.015) 1px,
     transparent 1px,
     transparent 2px
   );
   pointer-events: none;
-  opacity: 0.3;
+  opacity: 1;
   z-index: 9999;
+  transition: opacity 200ms ease-in-out;
 }
 
 .dark body::before {
   background: repeating-linear-gradient(
     0deg,
-    rgba(16, 185, 129, 0.02),
-    rgba(16, 185, 129, 0.02) 1px,
+    rgba(16, 185, 129, 0.01),
+    rgba(16, 185, 129, 0.01) 1px,
     transparent 1px,
     transparent 2px
   );
-  opacity: 0.15;
+  opacity: 1;
 }
 
 /* Monospace font utility */
@@ -101,43 +137,55 @@ body::before {
   font-feature-settings: "liga" 1, "calt" 1;
 }
 
-/* Terminal glow effect for cards */
+/* Smooth transitions for all interactive elements */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card transitions */
 .terminal-card {
   position: relative;
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark .terminal-card {
   box-shadow:
-    0 0 0 1px hsla(var(--terminal-glow), 0.1),
-    0 4px 12px hsla(var(--terminal-glow), 0.05);
+    0 0 0 1px hsla(158 64% 52%, 0.05),
+    0 2px 8px hsla(0, 0%, 0%, 0.1);
 }
 
 .dark .terminal-card:hover {
   box-shadow:
-    0 0 0 1px hsla(var(--terminal-glow), 0.3),
-    0 0 20px hsla(var(--terminal-glow), 0.1),
-    0 8px 24px hsla(var(--terminal-glow), 0.08);
-  border-color: hsla(var(--terminal-glow), 0.4);
+    0 0 0 1px hsla(158 64% 52%, 0.2),
+    0 0 16px hsla(158 64% 52%, 0.08),
+    0 4px 16px hsla(0, 0%, 0%, 0.15);
+  border-color: hsla(158 64% 52%, 0.3);
+  transform: translateY(-1px);
 }
 
-/* Status indicator with pulse */
+/* Status indicator with smooth pulse */
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 1;
-    box-shadow: 0 0 4px currentColor;
+    box-shadow: 0 0 3px currentColor;
   }
   50% {
-    opacity: 0.7;
-    box-shadow: 0 0 8px currentColor;
+    opacity: 0.8;
+    box-shadow: 0 0 6px currentColor;
   }
 }
 
 .status-dot {
-  animation: pulse-glow 2s ease-in-out infinite;
+  animation: pulse-glow 2.5s ease-in-out infinite;
+  transition: all 150ms ease-in-out;
 }
 
 /* Terminal prompt indicator */
@@ -146,6 +194,28 @@ body::before {
   margin-right: 0.5rem;
   color: hsl(var(--primary));
   font-weight: 600;
+  transition: color 150ms ease-in-out;
+}
+
+/* Button state improvements */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transition: opacity 150ms ease-in-out;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Focus states for accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  transition: outline 150ms ease-in-out;
 }
 
 #root {
