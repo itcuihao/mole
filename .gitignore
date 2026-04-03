@@ -1,0 +1,45 @@
+# Binaries
+build/
+*.app
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+*.o
+*.a
+*.test
+*.out
+vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/wails.json
+
+# Config & Secrets
+.env
+.env.local
+*.key
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Mole runtime
+.mole-env-*.sh
+
+# Logs
+*.log
+.playwright-mcp/
+mole
