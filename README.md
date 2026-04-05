@@ -27,6 +27,18 @@ Mole is a desktop application that manages tmux sessions with profile-based envi
 
 ## Development
 
+### Quick Start
+
+```bash
+# Run in development mode (auto-checks dependencies)
+./scripts/run.sh
+
+# Build for production
+./scripts/build.sh
+```
+
+### Manual Commands
+
 ```bash
 # Install dependencies
 cd frontend && npm install
