@@ -75,3 +75,20 @@ func SaveSettings(settings *Settings) error {
 
 	return os.WriteFile(SettingsPath(), data, 0644)
 }
+
+// InitSettings creates settings.json with default values if it doesn't exist
+func InitSettings() error {
+	path := SettingsPath()
+
+	// Check if settings file already exists
+	if _, err := os.Stat(path); err == nil {
+		return nil // File exists, nothing to do
+	}
+
+	// Create default settings
+	defaultSettings := &Settings{
+		DefaultTerminal: "", // Empty string means auto-detect
+	}
+
+	return SaveSettings(defaultSettings)
+}

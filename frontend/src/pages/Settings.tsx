@@ -33,7 +33,8 @@ function Settings() {
         GetDefaultTerminal()
       ])
       setTerminals(installed || [])
-      setDefaultTerminal(current || '')
+      // Convert empty string from backend to "auto" for UI
+      setDefaultTerminal(current === '' ? 'auto' : current)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
     }
@@ -43,7 +44,9 @@ function Settings() {
     setSaving(true)
     setMessage(null)
     try {
-      await SetDefaultTerminal(terminalID)
+      // Convert "auto" to empty string for backend
+      const value = terminalID === 'auto' ? '' : terminalID
+      await SetDefaultTerminal(value)
       setDefaultTerminal(terminalID)
       setMessage({ type: 'success', text: 'Default terminal updated' })
       setTimeout(() => setMessage(null), 3000)
@@ -94,8 +97,8 @@ function Settings() {
                 <SelectTrigger className="bg-background w-full">
                   <SelectValue placeholder="Select a terminal" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4}>
-                  <SelectItem value="">
+                <SelectContent>
+                  <SelectItem value="auto">
                     <div className="flex items-center gap-2">
                       <span>✨</span>
                       <span>Auto-detect (Best Available)</span>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, ListProfiles, GetInstalledTerminals } from '../../wailsjs/go/main/App'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal } from '../../wailsjs/go/main/App'
 import { session, profile, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,9 +22,11 @@ const TERMINAL_ICONS: Record<string, string> = {
 function Sessions() {
   const [sessions, setSessions] = useState<session.SessionStatus[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
+  const [defaultTerminal, setDefaultTerminal] = useState<string>('')
   const [showNewModal, setShowNewModal] = useState(false)
   const [editingSession, setEditingSession] = useState<session.SessionStatus | null>(null)
   const [error, setError] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -39,6 +41,10 @@ function Sessions() {
       GetInstalledTerminals()
         .then(t => setTerminals(t || []))
         .catch(() => {})
+
+      GetDefaultTerminal()
+        .then(term => setDefaultTerminal(term || ''))
+        .catch(() => {})
     }
   }, [])
 
@@ -51,16 +57,33 @@ function Sessions() {
   const handleAttach = async (tmuxName: string) => {
     try {
       await AttachSession(tmuxName)
+      // Use default terminal for hint check
+      showAttachHint(defaultTerminal)
     } catch (err) {
-      setError(String(err))
+      const errorMsg = String(err)
+      console.error('❌ Attach failed:', errorMsg)
+      setError(errorMsg)
     }
   }
 
   const handleAttachWithTerminal = async (tmuxName: string, terminalID: string) => {
     try {
       await AttachSessionWithTerminal(tmuxName, terminalID)
+      showAttachHint(terminalID)
     } catch (err) {
-      setError(String(err))
+      const errorMsg = String(err)
+      console.error('❌ AttachWithTerminal failed:', errorMsg)
+      setError(errorMsg)
+    }
+  }
+
+  const showAttachHint = (terminalID: string) => {
+    // Terminals that need manual paste (auto-paste failed or not supported)
+    const needsManualPaste = ['warp', 'alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
+
+    if (needsManualPaste) {
+      setInfoMessage('✨ Terminal opened! Command copied to clipboard — Press Cmd+V to paste, then Enter.')
+      setTimeout(() => setInfoMessage(''), 7000)
     }
   }
 
@@ -87,6 +110,18 @@ function Sessions() {
         <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
           <span className="flex-1">{error}</span>
           <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
+
+      {infoMessage && (
+        <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg text-foreground text-sm flex items-start justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-2 flex-1">
+            <span className="text-lg mt-0.5">💡</span>
+            <span className="flex-1 leading-relaxed">{infoMessage}</span>
+          </div>
+          <Button onClick={() => setInfoMessage('')} variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-primary/20 rounded-full">
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -172,9 +207,9 @@ function SessionCard({
 
   return (
     <div className="flex items-center justify-between p-4 bg-card rounded-lg border border-border hover:border-primary/30 transition-all">
-      <div className="flex items-center gap-3">
-        <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-        <div>
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor}`} />
+        <div className="flex-1 min-w-0">
           <div className="font-medium text-foreground">{s.name}</div>
           <div className="text-sm text-muted-foreground">
             {s.profile_name && (
@@ -193,6 +228,11 @@ function SessionCard({
             <span className="mx-1 text-muted-foreground/50">|</span>
             {s.windows} window{s.windows !== 1 ? 's' : ''}
           </div>
+          {s.command && (
+            <div className="text-xs text-muted-foreground/70 font-mono mt-1.5 truncate" title={`Auto-runs on first attach: ${s.command}`}>
+              ⚡ {s.command}
+            </div>
+          )}
         </div>
       </div>
 
@@ -308,7 +348,7 @@ function NewSessionModal({
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                <SelectContent>
                   {profiles.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -332,14 +372,14 @@ function NewSessionModal({
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Startup Command (Optional)</label>
-            <input
-              type="text"
+            <textarea
               value={command}
               onChange={e => setCommand(e.target.value)}
-              placeholder="e.g., claude, python, or leave empty for shell"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g., ssh -J jumphost.com user@target-host&#10;or: claude&#10;or: ./scripts/setup.sh&#10;Leave empty for default shell"
+              rows={3}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
             />
-            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment</p>
+            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment. Multi-line supported.</p>
           </div>
         </div>
 
@@ -421,7 +461,7 @@ function EditSessionModal({
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
-                <SelectContent position="popper" sideOffset={4} className="z-[100]">
+                <SelectContent>
                   {profiles.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -432,14 +472,14 @@ function EditSessionModal({
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Startup Command (Optional)</label>
-            <input
-              type="text"
+            <textarea
               value={command}
               onChange={e => setCommand(e.target.value)}
-              placeholder="e.g., claude, python, or leave empty for shell"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="e.g., ssh -J jumphost.com user@target-host&#10;or: claude&#10;or: ./scripts/setup.sh&#10;Leave empty for default shell"
+              rows={3}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
             />
-            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment</p>
+            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment. Multi-line supported.</p>
           </div>
         </div>
 

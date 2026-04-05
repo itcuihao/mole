@@ -184,10 +184,20 @@ func (m *Manager) Attach(tmuxName string) error {
 		}
 	}
 
-	return terminal.AttachSession(terminalID, tmuxName)
+	err = terminal.AttachSession(terminalID, tmuxName)
+	if err != nil {
+		// Log error for debugging
+		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
+	}
+	return err
 }
 
 // AttachWithTerminal opens a specific terminal and attaches to a tmux session.
 func (m *Manager) AttachWithTerminal(tmuxName, terminalID string) error {
-	return terminal.AttachSession(terminalID, tmuxName)
+	err := terminal.AttachSession(terminalID, tmuxName)
+	if err != nil {
+		// Log error for debugging
+		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
+	}
+	return err
 }

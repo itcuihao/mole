@@ -30,6 +30,11 @@ func (a *App) startup(ctx context.Context) {
 		log.Printf("Failed to create config directory: %v", err)
 	}
 
+	// Initialize settings.json if it doesn't exist
+	if err := config.InitSettings(); err != nil {
+		log.Printf("Failed to initialize settings: %v", err)
+	}
+
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.sessionMgr = session.NewManager(config.SessionsPath(), a.profileMgr)
 }

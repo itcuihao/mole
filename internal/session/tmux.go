@@ -44,6 +44,21 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 		envCmds.WriteString(fmt.Sprintf("export %s='%s'\n", k, escapedVal))
 	}
 
+	// Add startup command to env script (only runs once per session)
+	if command != "" {
+		envCmds.WriteString("\n# Auto-run startup command (once per session)\n")
+		envCmds.WriteString("# Check tmux session-level environment variable\n")
+		envCmds.WriteString("if [ -n \"$TMUX\" ]; then\n")
+		envCmds.WriteString("  _session=$(tmux display-message -p '#S')\n")
+		envCmds.WriteString("  _ran=$(tmux showenv -t \"$_session\" MOLE_CMD_RAN 2>/dev/null | cut -d= -f2)\n")
+		envCmds.WriteString("  if [ -z \"$_ran\" ]; then\n")
+		envCmds.WriteString("    tmux setenv -t \"$_session\" MOLE_CMD_RAN 1\n")
+		envCmds.WriteString(fmt.Sprintf("    echo '🚀 Running startup command: %s'\n", strings.ReplaceAll(command, "'", "'\\''")))
+		envCmds.WriteString(fmt.Sprintf("    %s\n", command))
+		envCmds.WriteString("  fi\n")
+		envCmds.WriteString("fi\n")
+	}
+
 	if err := os.WriteFile(envScriptPath, []byte(envCmds.String()), 0600); err != nil {
 		return fmt.Errorf("failed to create env script: %w", err)
 	}
@@ -56,13 +71,8 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 
 	// Build the command to run
 	var shellCmd string
-	if command != "" {
-		// Run specific command with env vars, keep shell open after command exits
-		shellCmd = fmt.Sprintf("source %s && %s; exec %s", envScriptPath, command, shell)
-	} else {
-		// Just start interactive shell with env vars
-		shellCmd = fmt.Sprintf("source %s && exec %s", envScriptPath, shell)
-	}
+	// Just start interactive shell with env vars loaded
+	shellCmd = fmt.Sprintf("source %s && exec %s", envScriptPath, shell)
 
 	args := []string{"new-session", "-d", "-s", name, shell, "-c", shellCmd}
 
@@ -72,10 +82,14 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 		return fmt.Errorf("tmux new-session failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
-	// Also set environment variables at tmux session level for new windows/panes
+	// Set environment variables at tmux session level for new windows/panes
 	for k, v := range env {
 		setenvArgs := []string{"setenv", "-t", name, k, v}
 		exec.CommandContext(ctx, "tmux", setenvArgs...).Run()
+	}
+
+	if command != "" {
+		fmt.Printf("✅ Startup command will auto-run on first shell: %s\n", command)
 	}
 
 	return nil
