@@ -10,7 +10,6 @@ Mole is a macOS desktop application that manages tmux sessions with profile-base
 
 **Key Dependencies**:
 - tmux (user must have installed)
-- macOS Keychain (for secret storage)
 
 ## Development Commands
 
@@ -32,7 +31,7 @@ cd frontend && npm run dev
 
 ### Data Flow
 ```
-Frontend (React) → Wails Bridge → Go Backend → tmux CLI / Keychain
+Frontend (React) → Wails Bridge → Go Backend → tmux CLI
 ```
 
 ### Module Breakdown
@@ -40,10 +39,11 @@ Frontend (React) → Wails Bridge → Go Backend → tmux CLI / Keychain
 **`app.go`** - Wails app entry, exposes Go methods to frontend via binding. All frontend API calls go through this file.
 
 **`internal/profile/`**
-- `Manager` - Orchestrates profile CRUD + Keychain operations
+
+- `Manager` - Orchestrates profile CRUD operations
 - `Store` - Reads/writes `~/.config/mole/profiles.json`
-- `keychain.go` - macOS Keychain wrapper (service: "mole", account: "{profile_id}:{key_name}")
-- Profile contains: plain env vars (stored in JSON) + secret keys list (values in Keychain)
+- Profile contains: all env vars stored in JSON (including secrets)
+- `SecretKeys []string` is just a UI hint to show password input, not separate storage
 
 **`internal/session/`**
 - `Manager` - Session lifecycle + tmux integration
@@ -70,7 +70,7 @@ Frontend (React) → Wails Bridge → Go Backend → tmux CLI / Keychain
 
 ### Key Patterns
 
-1. **Secret Handling**: Secret values NEVER stored in JSON. Profile contains `SecretKeys: []string`, actual values in Keychain. When creating session, `Manager.GetFullEnv()` merges plain vars + Keychain secrets.
+1. **Secret Handling**: All values stored in JSON. `SecretKeys []string` marks which vars should use password input (UI only). No Keychain involved.
 
 2. **Session Naming**: User provides simple name like "work", tmux session becomes "mole-work". This prevents collisions with user's existing tmux sessions.
 
@@ -88,11 +88,12 @@ Frontend (React) → Wails Bridge → Go Backend → tmux CLI / Keychain
 
 ### Working with Profiles
 
-Profiles have two types of env vars:
-- Plain: stored in `EnvVars map[string]string` in profiles.json
-- Secret: keys listed in `SecretKeys []string`, values in Keychain
+All env vars stored in `EnvVars map[string]string` in profiles.json.
 
-When saving: `profileMgr.Save(profile, secrets map[string]string)` where secrets contains key→value for secret keys.
+- `SecretKeys []string` marks which vars use password input (UI only)
+- All values (including secrets) stored in same JSON field
+
+When saving: `profileMgr.Save(profile, secrets map[string]string)` merges secrets into profile.EnvVars before saving.
 
 ### tmux Integration
 
@@ -109,13 +110,13 @@ All tmux commands executed via `exec.Command("tmux", ...)`.
 - **Frontend**: `frontend/src/`
 - **Wails config**: `wails.json`
 - **User data**: `~/.config/mole/` (profiles.json, sessions.json, settings.json)
-- **Secrets**: macOS Keychain (not filesystem)
 
 ## Testing
 
 Currently no automated tests. Manual testing workflow:
+
 1. Create profile with env vars
-2. Mark some as secrets
+2. Mark some as secrets (UI will use password input)
 3. Create session from profile
 4. Verify tmux session created: `tmux ls`
 5. Attach via UI
@@ -123,7 +124,8 @@ Currently no automated tests. Manual testing workflow:
 
 ## Design Constraints
 
-- **macOS only** - Uses Keychain, AppleScript, macOS app detection
+- **macOS only** - Uses AppleScript for terminal launching, macOS app detection
 - **Requires tmux** - App won't work without it
 - **Session lifecycle** - Machine reboot kills all tmux sessions, app auto-cleans stale metadata
 - **Wails tray limitation** - Dynamic tray menu requires rebuilding entire menu on change
+- **Security** - All env vars (including secrets) stored in plain JSON at `~/.config/mole/profiles.json`

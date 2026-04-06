@@ -1,7 +1,5 @@
 package profile
 
-import "fmt"
-
 // Manager combines Profile file store with Keychain operations.
 type Manager struct {
 	store *Store
@@ -31,58 +29,38 @@ func (m *Manager) Get(id string) (Profile, error) {
 	return m.store.Get(id)
 }
 
-// Save stores a profile. Plain env vars go to JSON, secret values go to Keychain.
+// Save stores a profile. All env vars (including secrets) go to JSON.
 // The secrets map contains key->value pairs for keys listed in profile.SecretKeys.
+// SecretKeys is just a UI hint to hide input, not separate storage.
 func (m *Manager) Save(p Profile, secrets map[string]string) error {
-	// Store secret values in Keychain
-	for _, key := range p.SecretKeys {
-		val, ok := secrets[key]
-		if !ok || val == "" {
-			continue
-		}
-		if err := SetSecret(p.ID, key, val); err != nil {
-			return fmt.Errorf("failed to store secret %q: %w", key, err)
+	// Merge secrets into EnvVars (all stored in JSON now)
+	for key, value := range secrets {
+		if value != "" {
+			p.EnvVars[key] = value
 		}
 	}
 
-	// Store profile metadata (without secret values) in JSON
+	// Store profile with all values in JSON
 	return m.store.Save(p)
 }
 
-// Delete removes a profile and all its Keychain secrets.
+// Delete removes a profile.
 func (m *Manager) Delete(id string) error {
-	p, err := m.store.Get(id)
-	if err != nil {
-		return err
-	}
-
-	// Clean up Keychain entries
-	DeleteAllSecrets(id, p.SecretKeys)
-
 	return m.store.Delete(id)
 }
 
-// GetFullEnv merges plain env vars with Keychain secrets into a single map.
+// GetFullEnv returns all environment variables for a profile.
+// All values are stored in EnvVars (no Keychain), SecretKeys is just a UI hint.
 func (m *Manager) GetFullEnv(profileID string) (map[string]string, error) {
 	p, err := m.store.Get(profileID)
 	if err != nil {
 		return nil, err
 	}
 
-	env := make(map[string]string, len(p.EnvVars)+len(p.SecretKeys))
-
-	// Copy plain env vars
+	// Return a copy of all env vars
+	env := make(map[string]string, len(p.EnvVars))
 	for k, v := range p.EnvVars {
 		env[k] = v
-	}
-
-	// Fetch secret values from Keychain
-	for _, key := range p.SecretKeys {
-		val, err := GetSecret(profileID, key)
-		if err != nil {
-			continue // skip missing secrets
-		}
-		env[key] = val
 	}
 
 	return env, nil

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
-import { Plus, Pencil, Trash2, Upload, X, Check } from "lucide-react"
+import { Plus, Pencil, Trash2, Upload, X, Check, Copy } from "lucide-react"
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -12,6 +12,7 @@ const PRESET_COLORS = [
 function Profiles() {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [editingProfile, setEditingProfile] = useState<profile.Profile | null>(null)
+  const [viewingProfile, setViewingProfile] = useState<profile.Profile | null>(null)
   const [isNew, setIsNew] = useState(false)
   const [error, setError] = useState('')
 
@@ -40,6 +41,10 @@ function Profiles() {
   const handleEdit = (p: profile.Profile) => {
     setEditingProfile(p)
     setIsNew(false)
+  }
+
+  const handleView = (p: profile.Profile) => {
+    setViewingProfile(p)
   }
 
   const handleDelete = async (id: string) => {
@@ -92,11 +97,19 @@ function Profiles() {
             <ProfileCard
               key={p.id}
               profile={p}
+              onView={handleView}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />
           ))}
         </div>
+      )}
+
+      {viewingProfile && (
+        <ViewProfileModal
+          profile={viewingProfile}
+          onClose={() => setViewingProfile(null)}
+        />
       )}
     </div>
   )
@@ -104,10 +117,12 @@ function Profiles() {
 
 function ProfileCard({
   profile: p,
+  onView,
   onEdit,
   onDelete,
 }: {
   profile: profile.Profile
+  onView: (p: profile.Profile) => void
   onEdit: (p: profile.Profile) => void
   onDelete: (id: string) => void
 }) {
@@ -132,6 +147,10 @@ function ProfileCard({
       </div>
 
       <div className="flex gap-2">
+        <Button onClick={() => onView(p)} variant="outline" size="sm" title="View and copy environment variables">
+          <Copy className="w-3.5 h-3.5" />
+          Copy
+        </Button>
         <Button onClick={() => onEdit(p)} variant="secondary" size="sm">
           <Pencil className="w-3.5 h-3.5" />
           Edit
@@ -168,14 +187,16 @@ function ProfileForm({
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>(() => {
     const entries: EnvEntry[] = []
     const secretKeys = new Set(initial.secret_keys || [])
+
+    // Load all env vars (secrets are now also in env_vars)
     for (const [key, value] of Object.entries(initial.env_vars || {})) {
-      entries.push({ key, value, isSecret: false })
+      entries.push({
+        key,
+        value,
+        isSecret: secretKeys.has(key) // Mark as secret if in secret_keys list
+      })
     }
-    for (const key of secretKeys) {
-      if (!entries.find(e => e.key === key)) {
-        entries.push({ key, value: '', isSecret: true })
-      }
-    }
+
     return entries
   })
   const [saving, setSaving] = useState(false)
@@ -393,7 +414,7 @@ function ProfileForm({
                     type={entry.isSecret ? 'password' : 'text'}
                     value={entry.value}
                     onChange={e => updateEntry(idx, 'value', e.target.value)}
-                    placeholder={entry.isSecret ? '(stored in Keychain)' : 'value'}
+                    placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
                     className="flex-1 px-3 py-1.5 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                   <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
@@ -483,6 +504,114 @@ function BulkImportModal({
             disabled={!text.trim()}
           >
             Import
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ViewProfileModal({
+  profile: p,
+  onClose,
+}: {
+  profile: profile.Profile
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+
+  // Generate export format text
+  const generateExportText = () => {
+    const lines: string[] = []
+    lines.push(`# Profile: ${p.name}`)
+    if (p.description) {
+      lines.push(`# ${p.description}`)
+    }
+    lines.push('')
+
+    // Add all env vars (secrets are also in env_vars now)
+    for (const [key, value] of Object.entries(p.env_vars || {})) {
+      // Escape single quotes in value
+      const escapedValue = value.replace(/'/g, "'\\''")
+      lines.push(`export ${key}='${escapedValue}'`)
+    }
+
+    return lines.join('\n')
+  }
+
+  const handleCopy = () => {
+    const text = generateExportText()
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const envCount = Object.keys(p.env_vars || {}).length
+  const secretCount = (p.secret_keys || []).length
+
+  return (
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-card rounded-lg border border-border p-6 w-150 max-h-[80vh] overflow-y-auto shadow-lg">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-4 h-4 rounded-full"
+              style={{ backgroundColor: p.color || '#6B7280' }}
+            />
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">{p.name}</h3>
+              {p.description && (
+                <p className="text-sm text-muted-foreground">{p.description}</p>
+              )}
+            </div>
+          </div>
+          <Button onClick={onClose} variant="ghost" size="sm" className="h-6 w-6 p-0">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="mb-4 text-sm text-muted-foreground">
+          {envCount} variable{envCount !== 1 ? 's' : ''}
+          {secretCount > 0 && ` (including ${secretCount} secret${secretCount !== 1 ? 's' : ''})`}
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-foreground">Environment Variables</label>
+            <Button onClick={handleCopy} size="sm" variant="outline">
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy All
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="bg-muted p-3 rounded text-xs font-mono space-y-1 text-foreground max-h-100 overflow-y-auto">
+            <div className="text-muted-foreground"># Profile: {p.name}</div>
+            {p.description && <div className="text-muted-foreground"># {p.description}</div>}
+            <div></div>
+            {Object.entries(p.env_vars || {}).map(([key, value]) => {
+              const isSecret = (p.secret_keys || []).includes(key)
+              return (
+                <div key={key} className={isSecret ? 'text-primary' : ''}>
+                  export {key}='{value}'
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={onClose} variant="secondary">
+            Close
           </Button>
         </div>
       </div>
