@@ -1,3 +1,104 @@
+export namespace inventory {
+	
+	export class Host {
+	    id: string;
+	    name: string;
+	    host: string;
+	    user: string;
+	    port: number;
+	    bastion_id: string;
+	    identity_file: string;
+	    tags: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Host(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.user = source["user"];
+	        this.port = source["port"];
+	        this.bastion_id = source["bastion_id"];
+	        this.identity_file = source["identity_file"];
+	        this.tags = source["tags"];
+	    }
+	}
+	export class HostDefaults {
+	    user: string;
+	    port: number;
+	    identity_file: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostDefaults(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.user = source["user"];
+	        this.port = source["port"];
+	        this.identity_file = source["identity_file"];
+	    }
+	}
+	export class HostGroup {
+	    id: string;
+	    name: string;
+	    host_ids: string[];
+	    tags: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new HostGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.host_ids = source["host_ids"];
+	        this.tags = source["tags"];
+	    }
+	}
+	export class Inventory {
+	    version: number;
+	    defaults: HostDefaults;
+	    hosts: Host[];
+	    groups: HostGroup[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Inventory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.defaults = this.convertValues(source["defaults"], HostDefaults);
+	        this.hosts = this.convertValues(source["hosts"], Host);
+	        this.groups = this.convertValues(source["groups"], HostGroup);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace profile {
 	
 	export class Profile {

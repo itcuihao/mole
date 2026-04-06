@@ -91,9 +91,8 @@ end tell`, attachCmd)
 
 // launchGhostty launches Ghostty
 func launchGhostty(session string) error {
-	// Use simple attach since it's a new window
-	attachCmd := getSimpleTmuxCommand(session)
-	cmd := exec.Command("open", "-a", "Ghostty", "--args", "-e", attachCmd)
+	// Split command into separate arguments for proper parsing
+	cmd := exec.Command("open", "-a", "Ghostty", "--args", "-e", "tmux", "attach", "-t", session)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
 	}
@@ -102,9 +101,8 @@ func launchGhostty(session string) error {
 
 // launchRio launches Rio terminal
 func launchRio(session string) error {
-	// Use simple attach since it's a new window
-	attachCmd := getSimpleTmuxCommand(session)
-	cmd := exec.Command("open", "-a", "Rio", "--args", "-e", attachCmd)
+	// Split command into separate arguments for proper parsing
+	cmd := exec.Command("open", "-a", "Rio", "--args", "-e", "tmux", "attach", "-t", session)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("Rio failed: %s: %w", string(output), err)
 	}
@@ -134,8 +132,8 @@ func launchWarp(session string) error {
 		return nil
 	}
 
-	// Method 3: Open Warp and use clipboard with smart command
-	log.Printf("⚠️  Warp methods 1-2 failed, using clipboard + auto-paste")
+	// Method 3: Open Warp and copy command to clipboard (manual paste)
+	log.Printf("⚠️  Warp methods 1-2 failed, using clipboard (manual paste)")
 	copyToClipboard(smartCmd)
 
 	cmd = exec.Command("open", "-a", "Warp")
@@ -144,9 +142,7 @@ func launchWarp(session string) error {
 		return fmt.Errorf("Warp failed: %s: %w", string(output), err)
 	}
 
-	// Activate Warp and auto-paste the command
-	autoPasteToWarp()
-	log.Printf("💡 Smart command copied to clipboard, attempting auto-paste")
+	log.Printf("💡 Smart command copied to clipboard (user can paste manually)")
 
 	return nil
 }
@@ -188,20 +184,6 @@ func launchGeneric(appPath, session string) error {
 func copyToClipboard(text string) {
 	cmd := exec.Command("bash", "-c", fmt.Sprintf("echo -n %q | pbcopy", text))
 	_ = cmd.Run()
-}
-
-// autoPasteToWarp activates Warp and auto-pastes the command from clipboard
-func autoPasteToWarp() {
-	// Use AppleScript to activate Warp, wait for it to be ready, then paste
-	script := `tell application "Warp"
-	activate
-end tell
-delay 0.8
-tell application "System Events"
-	keystroke "v" using command down
-end tell`
-	cmd := exec.Command("osascript", "-e", script)
-	_ = cmd.Run() // Best effort, ignore errors
 }
 
 // getSimpleTmuxCommand returns a simple tmux attach command for new terminal windows

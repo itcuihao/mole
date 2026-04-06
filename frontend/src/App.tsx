@@ -1,5 +1,6 @@
 import Sessions from './pages/Sessions'
 import Profiles from './pages/Profiles'
+import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -29,6 +30,9 @@ function App() {
               <TabsTrigger value="profiles" className="font-mono text-xs px-4">
                 profiles
               </TabsTrigger>
+              <TabsTrigger value="hosts" className="font-mono text-xs px-4">
+                hosts
+              </TabsTrigger>
               <TabsTrigger value="settings" className="font-mono text-xs px-4">
                 settings
               </TabsTrigger>
@@ -43,6 +47,10 @@ function App() {
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
           <Profiles />
+        </TabsContent>
+
+        <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
+          <Hosts />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">

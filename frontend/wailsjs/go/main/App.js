@@ -14,6 +14,14 @@ export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
+export function DeleteHost(arg1) {
+  return window['go']['main']['App']['DeleteHost'](arg1);
+}
+
+export function DeleteHostGroup(arg1) {
+  return window['go']['main']['App']['DeleteHostGroup'](arg1);
+}
+
 export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
@@ -26,6 +34,10 @@ export function GetInstalledTerminals() {
   return window['go']['main']['App']['GetInstalledTerminals']();
 }
 
+export function GetInventory() {
+  return window['go']['main']['App']['GetInventory']();
+}
+
 export function KillSession(arg1) {
   return window['go']['main']['App']['KillSession'](arg1);
 }
@@ -36,6 +48,22 @@ export function ListProfiles() {
 
 export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
+}
+
+export function SaveHost(arg1) {
+  return window['go']['main']['App']['SaveHost'](arg1);
+}
+
+export function SaveHostGroup(arg1) {
+  return window['go']['main']['App']['SaveHostGroup'](arg1);
+}
+
+export function SaveInventory(arg1) {
+  return window['go']['main']['App']['SaveInventory'](arg1);
+}
+
+export function SaveInventoryDefaults(arg1) {
+  return window['go']['main']['App']['SaveInventoryDefaults'](arg1);
 }
 
 export function SaveProfile(arg1, arg2) {

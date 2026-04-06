@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal } from '../../wailsjs/go/main/App'
-import { session, profile, terminal } from '../../wailsjs/go/models'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
+import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -17,6 +17,40 @@ const TERMINAL_ICONS: Record<string, string> = {
   'alacritty': '⚡',
   'warp': '🚀',
   'kitty': '🐱',
+}
+
+const EMPTY_INVENTORY = inventory.Inventory.createFrom({
+  version: 1,
+  defaults: { user: '', port: 22, identity_file: '' },
+  hosts: [],
+  groups: [],
+})
+
+const buildSSHCommand = (
+  host: inventory.Host,
+  defaults: inventory.HostDefaults,
+  hostMap: Map<string, inventory.Host>
+) => {
+  if (!host.host) return ''
+  const user = host.user || defaults.user
+  const port = host.port || defaults.port
+  const identity = host.identity_file || defaults.identity_file
+  const bastion = host.bastion_id ? hostMap.get(host.bastion_id) : null
+
+  const parts = ['ssh']
+  if (identity) {
+    parts.push('-i', identity)
+  }
+  if (port && port !== 22) {
+    parts.push('-p', String(port))
+  }
+  if (bastion && bastion.host) {
+    const bastionUser = bastion.user || defaults.user
+    const bastionTarget = `${bastionUser ? `${bastionUser}@` : ''}${bastion.host}`
+    parts.push('-J', bastionTarget)
+  }
+  parts.push(`${user ? `${user}@` : ''}${host.host}`)
+  return parts.join(' ')
 }
 
 function Sessions() {
@@ -297,6 +331,8 @@ function NewSessionModal({
 }) {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState('')
+  const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
+  const [selectedHostId, setSelectedHostId] = useState('')
   const [sessionName, setSessionName] = useState('')
   const [command, setCommand] = useState('')
   const [creating, setCreating] = useState(false)
@@ -310,8 +346,21 @@ function NewSessionModal({
           if (p && p.length > 0) setSelectedProfile(p[0].id)
         })
         .catch(err => setError(String(err)))
+
+      GetInventory()
+        .then(data => setInv(data || EMPTY_INVENTORY))
+        .catch(() => {})
     }
   }, [])
+
+  const hostMap = useMemo(() => {
+    const map = new Map<string, inventory.Host>()
+    inv.hosts.forEach(h => map.set(h.id, h))
+    return map
+  }, [inv.hosts])
+
+  const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
+  const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
 
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
@@ -354,6 +403,51 @@ function NewSessionModal({
                   ))}
                 </SelectContent>
               </Select>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Host (Optional)</label>
+            {inv.hosts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab.</p>
+            ) : (
+              <Select
+                value={selectedHostId || 'none'}
+                onValueChange={value => {
+                  const nextId = value === 'none' ? '' : value
+                  setSelectedHostId(nextId)
+                  const host = nextId ? hostMap.get(nextId) : null
+                  if (host && !command.trim()) {
+                    const nextCommand = buildSSHCommand(host, inv.defaults, hostMap)
+                    if (nextCommand) setCommand(nextCommand)
+                  }
+                }}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select a host" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {inv.hosts.map(h => (
+                    <SelectItem key={h.id} value={h.id}>
+                      {h.name || h.host}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedHost && hostCommand && (
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="font-mono truncate">{hostCommand}</span>
+                <Button
+                  onClick={() => setCommand(hostCommand)}
+                  size="sm"
+                  variant="secondary"
+                  className="h-7"
+                >
+                  Use Command
+                </Button>
+              </div>
             )}
           </div>
 
@@ -411,6 +505,8 @@ function EditSessionModal({
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState(initialSession.profile_id)
   const [command, setCommand] = useState(initialSession.command || '')
+  const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
+  const [selectedHostId, setSelectedHostId] = useState('')
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
 
@@ -419,8 +515,21 @@ function EditSessionModal({
       ListProfiles()
         .then(p => setProfiles(p || []))
         .catch(err => setError(String(err)))
+
+      GetInventory()
+        .then(data => setInv(data || EMPTY_INVENTORY))
+        .catch(() => {})
     }
   }, [])
+
+  const hostMap = useMemo(() => {
+    const map = new Map<string, inventory.Host>()
+    inv.hosts.forEach(h => map.set(h.id, h))
+    return map
+  }, [inv.hosts])
+
+  const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
+  const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
@@ -467,6 +576,46 @@ function EditSessionModal({
                   ))}
                 </SelectContent>
               </Select>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Host (Optional)</label>
+            {inv.hosts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab.</p>
+            ) : (
+              <Select
+                value={selectedHostId || 'none'}
+                onValueChange={value => {
+                  const nextId = value === 'none' ? '' : value
+                  setSelectedHostId(nextId)
+                }}
+              >
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Select a host" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {inv.hosts.map(h => (
+                    <SelectItem key={h.id} value={h.id}>
+                      {h.name || h.host}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedHost && hostCommand && (
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="font-mono truncate">{hostCommand}</span>
+                <Button
+                  onClick={() => setCommand(hostCommand)}
+                  size="sm"
+                  variant="secondary"
+                  className="h-7"
+                >
+                  Use Command
+                </Button>
+              </div>
             )}
           </div>
 

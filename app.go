@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"mole/internal/config"
+	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/session"
 	"mole/internal/terminal"
@@ -15,6 +16,7 @@ type App struct {
 	ctx        context.Context
 	profileMgr *profile.Manager
 	sessionMgr *session.Manager
+	invMgr     *inventory.Manager
 }
 
 // NewApp creates a new App instance.
@@ -37,6 +39,7 @@ func (a *App) startup(ctx context.Context) {
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.sessionMgr = session.NewManager(config.SessionsPath(), a.profileMgr)
+	a.invMgr = inventory.NewManager(config.HostsPath())
 }
 
 // ListProfiles returns all profiles.
@@ -117,4 +120,39 @@ func (a *App) SetDefaultTerminal(terminalID string) error {
 
 	settings.DefaultTerminal = terminalID
 	return config.SaveSettings(settings)
+}
+
+// GetInventory returns the current host inventory.
+func (a *App) GetInventory() (inventory.Inventory, error) {
+	return a.invMgr.GetInventory()
+}
+
+// SaveInventory replaces the entire host inventory.
+func (a *App) SaveInventory(inv inventory.Inventory) error {
+	return a.invMgr.SaveInventory(inv)
+}
+
+// SaveInventoryDefaults updates default SSH values.
+func (a *App) SaveInventoryDefaults(defaults inventory.HostDefaults) error {
+	return a.invMgr.SaveDefaults(defaults)
+}
+
+// SaveHost creates or updates a host.
+func (a *App) SaveHost(h inventory.Host) error {
+	return a.invMgr.SaveHost(h)
+}
+
+// DeleteHost removes a host by ID.
+func (a *App) DeleteHost(id string) error {
+	return a.invMgr.DeleteHost(id)
+}
+
+// SaveHostGroup creates or updates a host group.
+func (a *App) SaveHostGroup(g inventory.HostGroup) error {
+	return a.invMgr.SaveGroup(g)
+}
+
+// DeleteHostGroup removes a host group by ID.
+func (a *App) DeleteHostGroup(id string) error {
+	return a.invMgr.DeleteGroup(id)
 }

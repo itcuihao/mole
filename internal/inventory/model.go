@@ -1,0 +1,50 @@
+package inventory
+
+// HostDefaults are applied when a host field is empty.
+type HostDefaults struct {
+	User         string `json:"user"`
+	Port         int    `json:"port"`
+	IdentityFile string `json:"identity_file"`
+}
+
+// Host represents a single SSH target.
+type Host struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Host         string   `json:"host"`
+	User         string   `json:"user"`
+	Port         int      `json:"port"`
+	BastionID    string   `json:"bastion_id"`
+	IdentityFile string   `json:"identity_file"`
+	Tags         []string `json:"tags"`
+}
+
+// HostGroup represents a named collection of hosts.
+type HostGroup struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	HostIDs []string `json:"host_ids"`
+	Tags    []string `json:"tags"`
+}
+
+// Inventory is the root object stored in hosts.json.
+type Inventory struct {
+	Version  int          `json:"version"`
+	Defaults HostDefaults `json:"defaults"`
+	Hosts    []Host       `json:"hosts"`
+	Groups   []HostGroup  `json:"groups"`
+}
+
+// DefaultInventory returns an initialized inventory.
+func DefaultInventory() Inventory {
+	return Inventory{
+		Version: 1,
+		Defaults: HostDefaults{
+			User:         "",
+			Port:         22,
+			IdentityFile: "",
+		},
+		Hosts:  []Host{},
+		Groups: []HostGroup{},
+	}
+}

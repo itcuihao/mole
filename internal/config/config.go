@@ -37,6 +37,11 @@ func SettingsPath() string {
 	return filepath.Join(Dir(), "settings.json")
 }
 
+// HostsPath returns the path to hosts.json.
+func HostsPath() string {
+	return filepath.Join(Dir(), "hosts.json")
+}
+
 // EnsureDir creates the config directory if it doesn't exist.
 func EnsureDir() error {
 	return os.MkdirAll(Dir(), 0755)
