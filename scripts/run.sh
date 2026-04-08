@@ -49,5 +49,13 @@ echo ""
 echo "🚀 Starting Mole in development mode..."
 echo ""
 
+# Ensure app icon exists in build/ for Wails
+if [ -f "assets/appicon.png" ]; then
+    mkdir -p build
+    cp assets/appicon.png build/appicon.png
+else
+    echo -e "${YELLOW}⚠ assets/appicon.png not found; using existing build icon if present${NC}"
+fi
+
 # Run wails dev
 wails dev

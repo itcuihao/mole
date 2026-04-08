@@ -29,6 +29,14 @@ fi
 echo "🔨 Building production binary..."
 echo ""
 
+# Ensure app icon exists in build/ for Wails
+if [ -f "assets/appicon.png" ]; then
+    mkdir -p build
+    cp assets/appicon.png build/appicon.png
+else
+    echo -e "${YELLOW}⚠ assets/appicon.png not found; using existing build icon if present${NC}"
+fi
+
 # Build
 wails build
 
