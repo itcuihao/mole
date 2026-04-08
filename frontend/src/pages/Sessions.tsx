@@ -3,10 +3,11 @@ import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, Cr
 import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight } from "lucide-react"
+import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal } from "lucide-react"
 import type { AppTab } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom'
@@ -130,6 +131,7 @@ function Sessions({
   const [editingSession, setEditingSession] = useState<session.SessionStatus | null>(null)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [profileCount, setProfileCount] = useState(0)
   const [inventoryCount, setInventoryCount] = useState(0)
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' } | null>(null)
@@ -234,14 +236,48 @@ function Sessions({
     }
   }
 
+  const normalizedQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
+  const filteredSessions = useMemo(() => {
+    if (!normalizedQuery) return sessions
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+    return sessions.filter(s => {
+      const name = (s.name || '').toLowerCase()
+      return tokens.every(token => name.includes(token))
+    })
+  }, [sessions, normalizedQuery])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-foreground">Sessions</h1>
-        <Button onClick={() => setShowNewModal(true)} size="sm">
-          <Plus className="w-4 h-4" />
-          New Session
-        </Button>
+        <div className="flex items-center gap-2">
+          {sessions.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search sessions"
+                aria-label="Search sessions by name"
+                className="h-9 w-56 pl-8 pr-8"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+          <Button onClick={() => setShowNewModal(true)} size="sm">
+            <Plus className="w-4 h-4" />
+            New Session
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -273,20 +309,33 @@ function Sessions({
           onNavigate={onNavigate}
         />
       ) : (
-        <div className="grid gap-3">
-          {sessions.map(s => (
-            <SessionCard
-              key={s.id}
-              session={s}
-              terminals={terminals}
-              onOpen={handleOpenSession}
-              onKill={handleKill}
-              onEdit={setEditingSession}
-              isWorking={sessionAction?.id === s.id}
-              currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
-            />
-          ))}
-        </div>
+        <>
+          {searchQuery && (
+            <div className="mb-3 text-xs text-muted-foreground">
+              Showing {filteredSessions.length} of {sessions.length}
+            </div>
+          )}
+          {filteredSessions.length === 0 ? (
+            <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
+              No sessions match “{searchQuery}”. Try a different name.
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {filteredSessions.map(s => (
+                <SessionCard
+                  key={s.id}
+                  session={s}
+                  terminals={terminals}
+                  onOpen={handleOpenSession}
+                  onKill={handleKill}
+                  onEdit={setEditingSession}
+                  isWorking={sessionAction?.id === s.id}
+                  currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {showNewModal && (
@@ -325,19 +374,23 @@ function SessionCard({
   currentAction: 'open' | 'kill' | null
 }) {
   const [showTerminalMenu, setShowTerminalMenu] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const terminalMenuRef = useRef<HTMLDivElement>(null)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowTerminalMenu(false)
-      }
+      const target = event.target as Node
+      if (terminalMenuRef.current && terminalMenuRef.current.contains(target)) return
+      if (moreMenuRef.current && moreMenuRef.current.contains(target)) return
+      setShowTerminalMenu(false)
+      setShowMoreMenu(false)
     }
-    if (showTerminalMenu) {
+    if (showTerminalMenu || showMoreMenu) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showTerminalMenu])
+  }, [showTerminalMenu, showMoreMenu])
 
   const statusColor = !s.alive
     ? 'bg-muted-foreground/70'
@@ -389,7 +442,7 @@ function SessionCard({
       </div>
 
       <div className="flex gap-2">
-        <div className="relative" ref={menuRef}>
+        <div className="relative" ref={terminalMenuRef}>
           <div className="flex">
             <Button
               onClick={() => onOpen(s)}
@@ -402,7 +455,10 @@ function SessionCard({
             </Button>
             {terminals.length > 0 && (
               <Button
-                onClick={() => setShowTerminalMenu(!showTerminalMenu)}
+                onClick={() => {
+                  setShowTerminalMenu(!showTerminalMenu)
+                  setShowMoreMenu(false)
+                }}
                 size="sm"
                 className="rounded-l-none pl-1 pr-1.5 border-l border-primary-foreground/20"
                 disabled={isWorking}
@@ -429,14 +485,45 @@ function SessionCard({
             </div>
           )}
         </div>
-        <Button onClick={() => onEdit(s)} variant="secondary" size="sm" disabled={isWorking}>
-          <Pencil className="w-3.5 h-3.5" />
-          Edit
-        </Button>
-        <Button onClick={() => onKill(s)} variant="destructive" size="sm" disabled={isWorking}>
-          <Trash2 className="w-3.5 h-3.5" />
-          {destructiveLabel}
-        </Button>
+        <div className="relative" ref={moreMenuRef}>
+          <Button
+            onClick={() => {
+              setShowMoreMenu(!showMoreMenu)
+              setShowTerminalMenu(false)
+            }}
+            variant="secondary"
+            size="sm"
+            className="w-9 px-0 bg-secondary text-secondary-foreground hover:bg-secondary/90"
+            aria-label="More actions"
+            disabled={isWorking}
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </Button>
+          {showMoreMenu && (
+            <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border rounded-md shadow-lg z-50 py-1">
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false)
+                  onEdit(s)
+                }}
+                className="w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors flex items-center gap-2"
+              >
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+                <span>Edit</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false)
+                  onKill(s)
+                }}
+                className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{destructiveLabel}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
