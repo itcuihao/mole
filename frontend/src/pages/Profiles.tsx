@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
+import { ModalShell } from "@/components/ui/modal-shell"
 import { Plus, Pencil, Trash2, Upload, X, Check, Copy } from "lucide-react"
 
 const PRESET_COLORS = [
@@ -80,14 +81,7 @@ function Profiles() {
         </div>
       )}
 
-      {editingProfile ? (
-        <ProfileForm
-          profile={editingProfile}
-          isNew={isNew}
-          onSave={handleSave}
-          onCancel={() => setEditingProfile(null)}
-        />
-      ) : profiles.length === 0 ? (
+      {profiles.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
           No profiles yet. Create one to configure environment variables.
         </div>
@@ -103,6 +97,15 @@ function Profiles() {
             />
           ))}
         </div>
+      )}
+
+      {editingProfile && (
+        <ProfileForm
+          profile={editingProfile}
+          isNew={isNew}
+          onSave={handleSave}
+          onCancel={() => setEditingProfile(null)}
+        />
       )}
 
       {viewingProfile && (
@@ -320,138 +323,152 @@ function ProfileForm({
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border p-6">
-      <h2 className="text-lg font-semibold text-foreground mb-4">
-        {isNew ? 'New Profile' : 'Edit Profile'}
-      </h2>
-
-      {error && (
-        <div className="mb-3 p-2 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g., Maxx Proxy"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+    <>
+      <ModalShell
+        title={isNew ? 'New Profile' : `Edit Profile: ${initial.name}`}
+        description="Profiles hold environment variables and secret flags used when sessions start."
+        onClose={onCancel}
+        contentClassName="max-w-[920px]"
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button onClick={onCancel} variant="ghost">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={saving || !name.trim()}
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
           </div>
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Description</label>
-            <input
-              type="text"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Optional description"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+        )}
+      >
+        {error && (
+          <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
           </div>
-        </div>
+        )}
 
-        <div>
-          <label className="block text-sm text-muted-foreground mb-1">Color</label>
-          <div className="flex gap-2">
-            {PRESET_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setColor(c)}
-                className="w-8 h-8 rounded-full border-2 transition-all relative flex items-center justify-center border-border hover:scale-105"
-                style={{ backgroundColor: c }}
-                title={c}
-              >
-                {color === c && (
-                  <Check className="w-4 h-4 text-white drop-shadow-md" strokeWidth={3} />
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm text-muted-foreground">Environment Variables</label>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setShowBulkImport(true)}
-                variant="ghost"
-                size="sm"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                Bulk Import
-              </Button>
-              <Button
-                onClick={addEntry}
-                variant="ghost"
-                size="sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Variable
-              </Button>
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="e.g., Maxx Proxy"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Description</label>
+              <input
+                type="text"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Optional description"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
             </div>
           </div>
 
-          {envEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-2">No variables. Click "Add Variable" to add one.</p>
-          ) : (
-            <div className="space-y-2">
-              {envEntries.map((entry, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={entry.key}
-                    onChange={e => updateEntry(idx, 'key', e.target.value)}
-                    placeholder="KEY"
-                    className="flex-1 px-3 py-1.5 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <input
-                    type={entry.isSecret ? 'password' : 'text'}
-                    value={entry.value}
-                    onChange={e => updateEntry(idx, 'value', e.target.value)}
-                    placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
-                    className="flex-1 px-3 py-1.5 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={entry.isSecret}
-                      onChange={e => updateEntry(idx, 'isSecret', e.target.checked)}
-                      className="rounded"
-                    />
-                    Secret
-                  </label>
-                  <Button
-                    onClick={() => removeEntry(idx)}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
+          <div>
+            <label className="block text-sm text-muted-foreground mb-2">Color</label>
+            <div className="flex flex-wrap gap-2">
+              {PRESET_COLORS.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full border-2 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-ring ${
+                    color === c ? 'border-foreground shadow-sm' : 'border-border'
+                  }`}
+                  style={{ backgroundColor: c }}
+                  title={c}
+                >
+                  {color === c && (
+                    <Check className="h-4 w-4 text-white drop-shadow-md" strokeWidth={3} />
+                  )}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <div className="flex justify-end gap-2 mt-6">
-        <Button onClick={onCancel} variant="ghost">
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={saving || !name.trim()}
-        >
-          {saving ? 'Saving...' : 'Save'}
-        </Button>
-      </div>
+          <div className="rounded-xl border border-border bg-muted/10 p-4">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <label className="text-sm font-medium text-foreground">Environment Variables</label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Mark sensitive keys as secret so the UI treats them differently.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setShowBulkImport(true)}
+                  variant="ghost"
+                  size="sm"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Bulk Import
+                </Button>
+                <Button
+                  onClick={addEntry}
+                  variant="secondary"
+                  size="sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Variable
+                </Button>
+              </div>
+            </div>
+
+            {envEntries.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">No variables yet. Add one or import a block.</p>
+            ) : (
+              <div className="space-y-2">
+                {envEntries.map((entry, idx) => (
+                  <div
+                    key={idx}
+                    className="grid gap-2 rounded-lg border border-border/70 bg-background/80 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
+                  >
+                    <input
+                      type="text"
+                      value={entry.key}
+                      onChange={e => updateEntry(idx, 'key', e.target.value)}
+                      placeholder="KEY"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <input
+                      type={entry.isSecret ? 'password' : 'text'}
+                      value={entry.value}
+                      onChange={e => updateEntry(idx, 'value', e.target.value)}
+                      placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <label className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={entry.isSecret}
+                        onChange={e => updateEntry(idx, 'isSecret', e.target.checked)}
+                        className="rounded"
+                      />
+                      Secret
+                    </label>
+                    <Button
+                      onClick={() => removeEntry(idx)}
+                      variant="ghost"
+                      size="sm"
+                      className="h-11 w-11 p-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </ModalShell>
 
       {showBulkImport && (
         <BulkImportModal
@@ -459,7 +476,7 @@ function ProfileForm({
           onClose={() => setShowBulkImport(false)}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -473,29 +490,14 @@ function BulkImportModal({
   const [text, setText] = useState('')
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border border-border p-6 w-96 shadow-lg">
-        <h3 className="text-lg font-semibold text-foreground mb-3">Bulk Import Variables</h3>
-
-        <div className="mb-3 text-sm text-muted-foreground">
-          <p className="mb-2">Supported formats:</p>
-          <div className="bg-muted p-2 rounded text-xs font-mono space-y-1 text-foreground">
-            <div>export KEY=value</div>
-            <div>KEY=value</div>
-            <div>KEY="quoted value"</div>
-            <div>{`{"KEY": "value", "KEY2": "value2"}`}</div>
-          </div>
-        </div>
-
-        <textarea
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Paste your environment variables here..."
-          rows={8}
-          className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono resize placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-
-        <div className="flex justify-end gap-2 mt-4">
+    <ModalShell
+      title="Bulk Import Variables"
+      description="Paste export lines, simple KEY=value pairs, or a JSON object."
+      onClose={onClose}
+      overlayClassName="z-[60]"
+      contentClassName="max-w-[520px]"
+      footer={(
+        <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="ghost">
             Cancel
           </Button>
@@ -506,8 +508,26 @@ function BulkImportModal({
             Import
           </Button>
         </div>
+      )}
+    >
+      <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+        <p className="mb-2">Supported formats:</p>
+        <div className="space-y-1 rounded-md bg-background px-3 py-2 font-mono text-xs text-foreground">
+          <div>export KEY=value</div>
+          <div>KEY=value</div>
+          <div>KEY="quoted value"</div>
+          <div>{`{"KEY": "value", "KEY2": "value2"}`}</div>
+        </div>
       </div>
-    </div>
+
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="Paste your environment variables here..."
+        rows={8}
+        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+      />
+    </ModalShell>
   )
 }
 
@@ -551,71 +571,64 @@ function ViewProfileModal({
   const secretCount = (p.secret_keys || []).length
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border border-border p-6 w-150 max-h-[80vh] overflow-y-auto shadow-lg">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-4 h-4 rounded-full"
-              style={{ backgroundColor: p.color || '#6B7280' }}
-            />
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">{p.name}</h3>
-              {p.description && (
-                <p className="text-sm text-muted-foreground">{p.description}</p>
-              )}
-            </div>
-          </div>
-          <Button onClick={onClose} variant="ghost" size="sm" className="h-6 w-6 p-0">
-            <X className="w-4 h-4" />
-          </Button>
+    <ModalShell
+      title={p.name}
+      description={p.description || 'Review and copy environment variables from this profile.'}
+      onClose={onClose}
+      contentClassName="max-w-[920px]"
+      headerSlot={(
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div
+            className="h-3 w-3 rounded-full"
+            style={{ backgroundColor: p.color || '#6B7280' }}
+          />
+          <span>
+            {envCount} variable{envCount !== 1 ? 's' : ''}
+            {secretCount > 0 && `, including ${secretCount} secret${secretCount !== 1 ? 's' : ''}`}
+          </span>
         </div>
-
-        <div className="mb-4 text-sm text-muted-foreground">
-          {envCount} variable{envCount !== 1 ? 's' : ''}
-          {secretCount > 0 && ` (including ${secretCount} secret${secretCount !== 1 ? 's' : ''})`}
-        </div>
-
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-foreground">Environment Variables</label>
-            <Button onClick={handleCopy} size="sm" variant="outline">
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  Copy All
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="bg-muted p-3 rounded text-xs font-mono space-y-1 text-foreground max-h-100 overflow-y-auto">
-            <div className="text-muted-foreground"># Profile: {p.name}</div>
-            {p.description && <div className="text-muted-foreground"># {p.description}</div>}
-            <div></div>
-            {Object.entries(p.env_vars || {}).map(([key, value]) => {
-              const isSecret = (p.secret_keys || []).includes(key)
-              return (
-                <div key={key} className={isSecret ? 'text-primary' : ''}>
-                  export {key}='{value}'
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="flex justify-end">
+      )}
+      footer={(
+        <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="secondary">
             Close
           </Button>
         </div>
+      )}
+    >
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <label className="text-sm font-medium text-foreground">Environment Variables</label>
+          <Button onClick={handleCopy} size="sm" variant="outline">
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                Copy All
+              </>
+            )}
+          </Button>
+        </div>
+
+        <div className="max-h-[26rem] space-y-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-3 font-mono text-xs text-foreground">
+          <div className="text-muted-foreground"># Profile: {p.name}</div>
+          {p.description && <div className="text-muted-foreground"># {p.description}</div>}
+          <div></div>
+          {Object.entries(p.env_vars || {}).map(([key, value]) => {
+            const isSecret = (p.secret_keys || []).includes(key)
+            return (
+              <div key={key} className={isSecret ? 'text-primary' : ''}>
+                export {key}='{value}'
+              </div>
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

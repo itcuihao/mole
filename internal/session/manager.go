@@ -64,7 +64,7 @@ func (m *Manager) Create(profileID, sessionName, command string) error {
 }
 
 // ListWithStatus returns all sessions with live tmux status.
-// Cleans up stale entries where tmux session no longer exists.
+// Sessions are persisted even if tmux process is dead (e.g., after reboot).
 func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 	sessions, err := m.store.List()
 	if err != nil {
@@ -86,21 +86,19 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 	}
 
 	result := make([]SessionStatus, 0)
-	var staleIDs []string
 
 	for _, sess := range sessions {
 		ts, alive := tmuxMap[sess.TmuxSessionName]
 
-		if !alive {
-			staleIDs = append(staleIDs, sess.ID)
-			continue
-		}
-
 		status := SessionStatus{
 			Session:  sess,
-			Alive:    true,
-			Attached: ts.Attached > 0,
-			Windows:  ts.Windows,
+			Alive:    alive,
+			Attached: alive && ts.Attached > 0,
+			Windows:  0,
+		}
+
+		if alive {
+			status.Windows = ts.Windows
 		}
 
 		if p, ok := profileMap[sess.ProfileID]; ok {
@@ -109,11 +107,6 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 		}
 
 		result = append(result, status)
-	}
-
-	// Clean up stale sessions
-	for _, id := range staleIDs {
-		_ = m.store.Delete(id)
 	}
 
 	return result, nil
@@ -157,12 +150,38 @@ func (m *Manager) Update(sessionID, profileID, command string) error {
 	return m.store.Update(sess)
 }
 
-// Kill terminates a tmux session and removes it from the store.
+// Kill terminates a tmux session when present and removes it from the store.
 func (m *Manager) Kill(tmuxName string) error {
 	if err := KillTmuxSession(tmuxName); err != nil {
+		if !IsTmuxSessionAlive(tmuxName) {
+			return m.store.DeleteByTmuxName(tmuxName)
+		}
 		return err
 	}
 	return m.store.DeleteByTmuxName(tmuxName)
+}
+
+// Restart recreates a dead tmux session using its stored configuration.
+func (m *Manager) Restart(sessionID string) error {
+	// Get session metadata
+	sess, err := m.store.Get(sessionID)
+	if err != nil {
+		return fmt.Errorf("session not found: %w", err)
+	}
+
+	// Check if already alive
+	if IsTmuxSessionAlive(sess.TmuxSessionName) {
+		return fmt.Errorf("session %q is already running", sess.Name)
+	}
+
+	// Resolve environment from profile
+	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve profile env: %w", err)
+	}
+
+	// Recreate tmux session
+	return CreateTmuxSession(sess.TmuxSessionName, env, sess.Command)
 }
 
 // Attach opens the user's preferred terminal and attaches to a tmux session.

@@ -1,14 +1,27 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
 import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight } from "lucide-react"
 import type { AppTab } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom'
+
+const RUN_MODE_LABELS: Record<RunMode, string> = {
+  shell: 'Shell',
+  host: 'SSH Host',
+  custom: 'Command',
+}
+
+const RUN_MODE_HINTS: Record<RunMode, string> = {
+  shell: 'Just open a terminal with this profile.',
+  host: 'Pick a saved host and Mole will build the SSH command.',
+  custom: 'Run a command as soon as the session starts.',
+}
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -61,6 +74,50 @@ const findHostIDForCommand = (
   return ''
 }
 
+function RunModeOption({
+  mode,
+  activeMode,
+  onSelect,
+  disabled = false,
+}: {
+  mode: RunMode
+  activeMode: RunMode
+  onSelect: (mode: RunMode) => void
+  disabled?: boolean
+}) {
+  const selected = mode === activeMode
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(mode)}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={`rounded-xl border px-4 py-3 text-left transition-all focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${
+        selected
+          ? 'border-primary bg-primary/8 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.18)]'
+          : 'border-border bg-background hover:border-primary/30 hover:bg-muted/10'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-foreground">
+          {RUN_MODE_LABELS[mode]}
+        </span>
+        <span
+          className={`inline-flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
+            selected
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border bg-transparent text-transparent'
+          }`}
+          aria-hidden="true"
+        >
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        </span>
+      </div>
+    </button>
+  )
+}
+
 function Sessions({
   onNavigate,
 }: {
@@ -75,6 +132,7 @@ function Sessions({
   const [infoMessage, setInfoMessage] = useState('')
   const [profileCount, setProfileCount] = useState(0)
   const [inventoryCount, setInventoryCount] = useState(0)
+  const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' } | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -110,45 +168,69 @@ function Sessions({
     return () => clearInterval(interval)
   }, [refresh])
 
-  const handleAttach = async (tmuxName: string) => {
-    try {
-      await AttachSession(tmuxName)
-      // Use default terminal for hint check
-      showAttachHint(defaultTerminal)
-    } catch (err) {
-      const errorMsg = String(err)
-      console.error('❌ Attach failed:', errorMsg)
-      setError(errorMsg)
-    }
+  const showTimedInfo = (text: string, duration = 7000) => {
+    setInfoMessage(text)
+    setTimeout(() => setInfoMessage(''), duration)
   }
 
-  const handleAttachWithTerminal = async (tmuxName: string, terminalID: string) => {
-    try {
-      await AttachSessionWithTerminal(tmuxName, terminalID)
-      showAttachHint(terminalID)
-    } catch (err) {
-      const errorMsg = String(err)
-      console.error('❌ AttachWithTerminal failed:', errorMsg)
-      setError(errorMsg)
-    }
-  }
-
-  const showAttachHint = (terminalID: string) => {
-    // Terminals that need manual paste (auto-paste failed or not supported)
+  const showAttachHint = (terminalID: string, wasRestarted = false) => {
     const needsManualPaste = ['warp', 'alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
 
     if (needsManualPaste) {
-      setInfoMessage('Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.')
-      setTimeout(() => setInfoMessage(''), 7000)
+      showTimedInfo(
+        wasRestarted
+          ? 'Session restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
+          : 'Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
+      )
+      return
+    }
+
+    if (wasRestarted) {
+      showTimedInfo('Session restored and opened.')
     }
   }
 
-  const handleKill = async (tmuxName: string) => {
+  const handleOpenSession = async (sess: session.SessionStatus, terminalID?: string) => {
+    const resolvedTerminal = terminalID || defaultTerminal
+    const wasRestarted = !sess.alive
+
+    setSessionAction({ id: sess.id, kind: 'open' })
+    setError('')
     try {
-      await KillSession(tmuxName)
+      if (!sess.alive) {
+        await RestartSession(sess.id)
+      }
+
+      if (terminalID) {
+        await AttachSessionWithTerminal(sess.tmux_session_name, terminalID)
+      } else {
+        await AttachSession(sess.tmux_session_name)
+      }
+
+      showAttachHint(resolvedTerminal, wasRestarted)
+      refresh()
+    } catch (err) {
+      const errorMsg = String(err)
+      console.error('❌ Open session failed:', errorMsg)
+      setError(errorMsg)
+    } finally {
+      setSessionAction(null)
+    }
+  }
+
+  const handleKill = async (sess: session.SessionStatus) => {
+    setSessionAction({ id: sess.id, kind: 'kill' })
+    setError('')
+    try {
+      await KillSession(sess.tmux_session_name)
+      if (!sess.alive) {
+        showTimedInfo('Offline session removed.')
+      }
       refresh()
     } catch (err) {
       setError(String(err))
+    } finally {
+      setSessionAction(null)
     }
   }
 
@@ -197,10 +279,11 @@ function Sessions({
               key={s.id}
               session={s}
               terminals={terminals}
-              onAttach={handleAttach}
-              onAttachWithTerminal={handleAttachWithTerminal}
+              onOpen={handleOpenSession}
               onKill={handleKill}
               onEdit={setEditingSession}
+              isWorking={sessionAction?.id === s.id}
+              currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
             />
           ))}
         </div>
@@ -227,17 +310,19 @@ function Sessions({
 function SessionCard({
   session: s,
   terminals,
-  onAttach,
-  onAttachWithTerminal,
+  onOpen,
   onKill,
   onEdit,
+  isWorking,
+  currentAction,
 }: {
   session: session.SessionStatus
   terminals: terminal.TerminalApp[]
-  onAttach: (name: string) => void
-  onAttachWithTerminal: (name: string, terminalID: string) => void
-  onKill: (name: string) => void
+  onOpen: (session: session.SessionStatus, terminalID?: string) => void
+  onKill: (session: session.SessionStatus) => void
   onEdit: (session: session.SessionStatus) => void
+  isWorking: boolean
+  currentAction: 'open' | 'kill' | null
 }) {
   const [showTerminalMenu, setShowTerminalMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -254,14 +339,22 @@ function SessionCard({
     }
   }, [showTerminalMenu])
 
-  const statusColor = s.attached
-    ? 'bg-green-500 dark:bg-green-400'
-    : 'bg-yellow-500 dark:bg-yellow-400'
-  const statusText = s.attached ? 'attached' : 'detached'
+  const statusColor = !s.alive
+    ? 'bg-muted-foreground/70'
+    : s.attached
+      ? 'bg-green-500 dark:bg-green-400'
+      : 'bg-yellow-500 dark:bg-yellow-400'
+  const statusText = !s.alive ? 'offline' : (s.attached ? 'attached' : 'ready')
+  const primaryLabel = isWorking && currentAction === 'open'
+    ? (!s.alive ? 'Restoring...' : 'Opening...')
+    : (!s.alive ? 'Restore & Attach' : 'Attach')
+  const destructiveLabel = isWorking && currentAction === 'kill'
+    ? (!s.alive ? 'Removing...' : 'Killing...')
+    : (!s.alive ? 'Remove' : 'Kill')
 
   const handleTerminalSelect = (terminalID: string) => {
     setShowTerminalMenu(false)
-    onAttachWithTerminal(s.tmux_session_name, terminalID)
+    onOpen(s, terminalID)
   }
 
   return (
@@ -285,7 +378,7 @@ function SessionCard({
             )}
             {statusText}
             <span className="mx-1 text-muted-foreground/50">|</span>
-            {s.windows} window{s.windows !== 1 ? 's' : ''}
+            {s.alive ? `${s.windows} window${s.windows !== 1 ? 's' : ''}` : 'will restore on open'}
           </div>
           {s.command && (
             <div className="text-xs text-muted-foreground/70 font-mono mt-1.5 truncate" title={`Auto-runs on first attach: ${s.command}`}>
@@ -296,25 +389,23 @@ function SessionCard({
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={() => onEdit(s)} variant="secondary" size="sm">
-          <Pencil className="w-3.5 h-3.5" />
-          Edit
-        </Button>
         <div className="relative" ref={menuRef}>
           <div className="flex">
             <Button
-              onClick={() => onAttach(s.tmux_session_name)}
+              onClick={() => onOpen(s)}
               size="sm"
               className="rounded-r-none pr-2"
+              disabled={isWorking}
             >
               <Play className="w-3.5 h-3.5" />
-              Attach
+              {primaryLabel}
             </Button>
             {terminals.length > 0 && (
               <Button
                 onClick={() => setShowTerminalMenu(!showTerminalMenu)}
                 size="sm"
                 className="rounded-l-none pl-1 pr-1.5 border-l border-primary-foreground/20"
+                disabled={isWorking}
               >
                 <ChevronDown className="w-3 h-3" />
               </Button>
@@ -338,9 +429,13 @@ function SessionCard({
             </div>
           )}
         </div>
-        <Button onClick={() => onKill(s.tmux_session_name)} variant="destructive" size="sm">
+        <Button onClick={() => onEdit(s)} variant="secondary" size="sm" disabled={isWorking}>
+          <Pencil className="w-3.5 h-3.5" />
+          Edit
+        </Button>
+        <Button onClick={() => onKill(s)} variant="destructive" size="sm" disabled={isWorking}>
           <Trash2 className="w-3.5 h-3.5" />
-          Kill
+          {destructiveLabel}
         </Button>
       </div>
     </div>
@@ -510,17 +605,32 @@ function NewSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border border-border p-6 w-96 shadow-lg">
-        <h2 className="text-lg font-semibold text-foreground mb-4">New Session</h2>
+    <ModalShell
+      title="New Session"
+      description="Choose a profile and how this session should start."
+      onClose={onClose}
+      contentStyle={{ maxWidth: '640px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCreate}
+            disabled={creating || !selectedProfile || !sessionName.trim()}
+          >
+            {creating ? 'Creating...' : 'Create'}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-        {error && (
-          <div className="mb-3 p-2 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="space-y-4">
+      <div className="space-y-4">
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Profile</label>
             {profiles.length === 0 ? (
@@ -540,39 +650,20 @@ function NewSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Run Mode</label>
-            <div className="grid gap-2">
-              <button
-                type="button"
-                onClick={() => setRunMode('shell')}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'shell' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Local shell</div>
-                <div className="mt-1 text-xs text-muted-foreground">Open the session with the selected profile and no startup command.</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRunMode('host')}
-                disabled={inv.hosts.length === 0}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${runMode === 'host' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Saved host</div>
-                <div className="mt-1 text-xs text-muted-foreground">Pick a saved host and let Mole generate the SSH startup command for you.</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRunMode('custom')}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'custom' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Custom command</div>
-                <div className="mt-1 text-xs text-muted-foreground">Run a command like `claude`, `npm run dev`, or a custom SSH line.</div>
-              </button>
+            <label className="block text-sm text-muted-foreground mb-2">Start With</label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
+              <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
+              <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {RUN_MODE_HINTS[runMode]}
             </div>
           </div>
 
           {runMode === 'host' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Saved Host</label>
+              <label className="block text-sm text-muted-foreground mb-1">SSH Host</label>
               {inv.hosts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
               ) : (
@@ -599,7 +690,7 @@ function NewSessionModal({
               )}
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  <div className="mb-1 font-medium text-foreground">Generated startup command</div>
+                  <div className="mb-1 font-medium text-foreground">Preview</div>
                   <div className="font-mono break-all">{hostCommand}</div>
                 </div>
               )}
@@ -608,7 +699,7 @@ function NewSessionModal({
 
           {runMode === 'custom' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Startup Command</label>
+              <label className="block text-sm text-muted-foreground mb-1">Command</label>
               <textarea
                 value={command}
                 onChange={e => setCommand(e.target.value)}
@@ -616,13 +707,6 @@ function NewSessionModal({
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
-              <p className="text-xs text-muted-foreground mt-1">Use this when you want Mole to run a specific command after the session starts.</p>
-            </div>
-          )}
-
-          {runMode === 'shell' && (
-            <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-              Mole will create a tmux session with your selected profile and open the default shell.
             </div>
           )}
 
@@ -638,21 +722,8 @@ function NewSessionModal({
             />
             <p className="text-xs text-muted-foreground mt-1">Letters, digits, underscores, dashes only</p>
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-6">
-          <Button onClick={onClose} variant="ghost">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreate}
-            disabled={creating || !selectedProfile || !sessionName.trim()}
-          >
-            {creating ? 'Creating...' : 'Create'}
-          </Button>
-        </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 
@@ -761,21 +832,32 @@ function EditSessionModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-card rounded-lg border border-border p-6 w-96 shadow-lg">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Edit Session: {initialSession.name}</h2>
-
-        {error && (
-          <div className="mb-3 p-2 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="mb-3 p-2 bg-warning/10 border border-warning/50 rounded text-warning-foreground text-sm">
-          Note: Updating will restart the tmux session
+    <ModalShell
+      title={`Edit Session: ${initialSession.name}`}
+      description="Saving will restart this tmux session."
+      onClose={onClose}
+      contentStyle={{ maxWidth: '640px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdate}
+            disabled={updating || !selectedProfile}
+          >
+            {updating ? 'Saving...' : 'Save & Restart'}
+          </Button>
         </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-        <div className="space-y-4">
+      <div className="space-y-4">
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Profile</label>
             {profiles.length === 0 ? (
@@ -795,39 +877,20 @@ function EditSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Run Mode</label>
-            <div className="grid gap-2">
-              <button
-                type="button"
-                onClick={() => setRunMode('shell')}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'shell' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Local shell</div>
-                <div className="mt-1 text-xs text-muted-foreground">Restart into a plain shell with the selected profile.</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRunMode('host')}
-                disabled={inv.hosts.length === 0}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${runMode === 'host' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Saved host</div>
-                <div className="mt-1 text-xs text-muted-foreground">Generate the startup command from a saved host record.</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setRunMode('custom')}
-                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'custom' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
-              >
-                <div className="text-sm font-medium text-foreground">Custom command</div>
-                <div className="mt-1 text-xs text-muted-foreground">Keep or replace the command manually.</div>
-              </button>
+            <label className="block text-sm text-muted-foreground mb-2">Start With</label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
+              <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
+              <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              {RUN_MODE_HINTS[runMode]}
             </div>
           </div>
 
           {runMode === 'host' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Saved Host</label>
+              <label className="block text-sm text-muted-foreground mb-1">SSH Host</label>
               {inv.hosts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
               ) : (
@@ -854,7 +917,7 @@ function EditSessionModal({
               )}
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  <div className="mb-1 font-medium text-foreground">Generated startup command</div>
+                  <div className="mb-1 font-medium text-foreground">Preview</div>
                   <div className="font-mono break-all">{hostCommand}</div>
                 </div>
               )}
@@ -863,7 +926,7 @@ function EditSessionModal({
 
           {runMode === 'custom' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Startup Command</label>
+              <label className="block text-sm text-muted-foreground mb-1">Command</label>
               <textarea
                 value={command}
                 onChange={e => setCommand(e.target.value)}
@@ -871,30 +934,10 @@ function EditSessionModal({
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
-              <p className="text-xs text-muted-foreground mt-1">Use this when you want full control over what runs after restart.</p>
             </div>
           )}
-
-          {runMode === 'shell' && (
-            <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-              The tmux session will restart into the default shell with the selected profile only.
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 mt-6">
-          <Button onClick={onClose} variant="ghost">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpdate}
-            disabled={updating || !selectedProfile}
-          >
-            {updating ? 'Updating...' : 'Update & Restart'}
-          </Button>
-        </div>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 

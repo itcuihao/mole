@@ -50,6 +50,10 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
+export function RestartSession(arg1) {
+  return window['go']['main']['App']['RestartSession'](arg1);
+}
+
 export function SaveHost(arg1) {
   return window['go']['main']['App']['SaveHost'](arg1);
 }

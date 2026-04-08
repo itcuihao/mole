@@ -29,6 +29,8 @@ export function ListProfiles():Promise<Array<profile.Profile>>;
 
 export function ListSessions():Promise<Array<session.SessionStatus>>;
 
+export function RestartSession(arg1:string):Promise<void>;
+
 export function SaveHost(arg1:inventory.Host):Promise<void>;
 
 export function SaveHostGroup(arg1:inventory.HostGroup):Promise<void>;

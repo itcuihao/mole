@@ -41,6 +41,11 @@
   --input: 214 32% 91%;
   --ring: 158 64% 52%;
   --radius: 0.5rem;
+  --dialog-overlay: 214 29% 94%;
+  --dialog-surface: 0 0% 100%;
+  --dialog-band: 210 33% 98%;
+  --dialog-border: 214 27% 84%;
+  --dialog-muted: 210 24% 95%;
 }
 
 .dark {
@@ -79,6 +84,11 @@
   --border: 217 33% 17%;
   --input: 217 33% 17%;
   --ring: 158 64% 52%;
+  --dialog-overlay: 224 44% 8%;
+  --dialog-surface: 223 38% 15%;
+  --dialog-band: 223 33% 18%;
+  --dialog-border: 220 28% 24%;
+  --dialog-muted: 223 28% 20%;
 }
 
 /* Smooth theme transition - CRITICAL for preventing flash */
@@ -116,7 +126,7 @@ body::before {
   );
   pointer-events: none;
   opacity: 1;
-  z-index: 9999;
+  z-index: 0;
   transition: opacity 200ms ease-in-out;
 }
 
@@ -219,5 +229,7 @@ textarea:focus-visible {
 }
 
 #root {
+  position: relative;
+  z-index: 1;
   height: 100vh;
 }

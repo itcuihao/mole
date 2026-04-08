@@ -4,6 +4,7 @@ import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { ModalShell } from "@/components/ui/modal-shell"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -612,18 +613,22 @@ function Hosts() {
       </div>
 
       {showHostModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border border-border p-0 w-[560px] max-w-[92vw] max-h-[85vh] shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/70 bg-muted/30">
-              <h2 className="text-base font-semibold text-foreground">
-                {editingHost ? 'Edit Host' : 'Add Host'}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Define how Mole connects to this machine. Leave fields empty to use Defaults.
-              </p>
+        <ModalShell
+          title={editingHost ? 'Edit Host' : 'Add Host'}
+          description="Define how Mole connects to this machine. Leave fields empty to use Defaults."
+          onClose={() => setShowHostModal(false)}
+          contentStyle={{ maxWidth: '560px' }}
+          bodyClassName="grid gap-5"
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowHostModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveHost}>{editingHost ? 'Save' : 'Add Host'}</Button>
             </div>
-
-            <div className="px-6 py-5 grid gap-5 overflow-y-auto max-h-[60vh]">
+          )}
+        >
+          <div className="grid gap-5">
               <div className="grid gap-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Connection
@@ -774,28 +779,28 @@ function Hosts() {
                   />
                 </div>
               </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-border/70 bg-muted/20 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowHostModal(false)}>Cancel</Button>
-              <Button onClick={handleSaveHost}>{editingHost ? 'Save' : 'Add Host'}</Button>
-            </div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {showGroupModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[60]">
-          <div className="bg-card rounded-lg border border-border p-0 w-[520px] max-w-[92vw] shadow-lg">
-            <div className="px-6 py-4 border-b border-border/70 bg-muted/30">
-              <h2 className="text-base font-semibold text-foreground">
-                {editingGroup ? 'Edit Group' : 'Add Group'}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Groups are named host collections used for organization and filtering.
-              </p>
+        <ModalShell
+          title={editingGroup ? 'Edit Group' : 'Add Group'}
+          description="Groups are named host collections used for organization and filtering."
+          onClose={() => setShowGroupModal(false)}
+          overlayClassName={groupModalSource === 'host' ? 'z-[110]' : undefined}
+          contentStyle={{ maxWidth: '520px' }}
+          bodyClassName="grid gap-3"
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowGroupModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveGroup}>{editingGroup ? 'Save' : 'Add Group'}</Button>
             </div>
-            <div className="px-6 py-5 grid gap-3">
+          )}
+        >
+          <div className="grid gap-3">
               {groupModalSource === 'host' && (
                 <div className="rounded-md border border-primary/20 bg-primary/10 p-3 text-xs text-muted-foreground">
                   When you save this group, the host you are editing will stay open and this group will be selected automatically.
@@ -856,40 +861,32 @@ function Hosts() {
                   </div>
                 )}
               </div>
-            </div>
-            <div className="px-6 py-4 border-t border-border/70 bg-muted/20 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowGroupModal(false)}>Cancel</Button>
-              <Button onClick={handleSaveGroup}>{editingGroup ? 'Save' : 'Add Group'}</Button>
-            </div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {showGroupListModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border border-border p-0 w-[720px] max-w-[94vw] max-h-[85vh] shadow-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-border/70 bg-muted/30 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-base font-semibold text-foreground">Groups</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Review group membership and manage named host collections.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => { setShowGroupListModal(false); openGroupModal() }}
-                  variant="secondary"
-                  size="sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Group
-                </Button>
-                <Button onClick={() => setShowGroupListModal(false)} variant="ghost" size="sm">
-                  Close
-                </Button>
-              </div>
+        <ModalShell
+          title="Groups"
+          description="Review group membership and manage named host collections."
+          onClose={() => setShowGroupListModal(false)}
+          contentStyle={{ maxWidth: '720px' }}
+          footer={(
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                onClick={() => { setShowGroupListModal(false); openGroupModal() }}
+                variant="secondary"
+              >
+                <Plus className="w-4 h-4" />
+                Add Group
+              </Button>
+              <Button onClick={() => setShowGroupListModal(false)} variant="ghost">
+                Close
+              </Button>
             </div>
-            <div className="px-6 py-5 overflow-y-auto max-h-[70vh]">
+          )}
+        >
+          <div>
               {inv.groups.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No groups yet. Create one to organize hosts.</div>
               ) : (
@@ -931,24 +928,18 @@ function Hosts() {
                   ))}
                 </div>
               )}
-            </div>
           </div>
-        </div>
+        </ModalShell>
       )}
 
       {showExportModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border border-border p-0 w-[720px] max-w-[94vw] shadow-lg">
-            <div className="px-6 py-4 border-b border-border/70 bg-muted/30">
-              <h2 className="text-base font-semibold text-foreground">Export Inventory</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Copy this JSON to share or commit to your team repo.
-              </p>
-            </div>
-            <div className="px-6 py-5">
-              <Textarea value={jsonBuffer} readOnly rows={12} className="font-mono text-xs bg-muted/30 focus:bg-background" />
-            </div>
-            <div className="px-6 py-4 border-t border-border/70 bg-muted/20 flex justify-end gap-2">
+        <ModalShell
+          title="Export Inventory"
+          description="Copy this JSON to share or commit to your team repo."
+          onClose={() => setShowExportModal(false)}
+          contentStyle={{ maxWidth: '720px' }}
+          footer={(
+            <div className="flex justify-end gap-2">
               <Button
                 variant="secondary"
                 onClick={() => navigator.clipboard.writeText(jsonBuffer)}
@@ -958,34 +949,40 @@ function Hosts() {
               </Button>
               <Button onClick={() => setShowExportModal(false)}>Close</Button>
             </div>
-          </div>
-        </div>
+          )}
+        >
+          <Textarea
+            value={jsonBuffer}
+            readOnly
+            rows={12}
+            className="font-mono text-xs bg-muted/30 focus:bg-background"
+          />
+        </ModalShell>
       )}
 
       {showImportModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg border border-border p-0 w-[720px] max-w-[94vw] shadow-lg">
-            <div className="px-6 py-4 border-b border-border/70 bg-muted/30">
-              <h2 className="text-base font-semibold text-foreground">Import Inventory</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Paste JSON exported from another Mole workspace.
-              </p>
-            </div>
-            <div className="px-6 py-5">
-              <Textarea
-                value={jsonBuffer}
-                onChange={e => setJsonBuffer(e.target.value)}
-                placeholder="Paste inventory JSON here"
-                rows={12}
-                className="font-mono text-xs bg-muted/30 focus:bg-background"
-              />
-            </div>
-            <div className="px-6 py-4 border-t border-border/70 bg-muted/20 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>Cancel</Button>
+        <ModalShell
+          title="Import Inventory"
+          description="Paste JSON exported from another Mole workspace."
+          onClose={() => setShowImportModal(false)}
+          contentStyle={{ maxWidth: '720px' }}
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+                Cancel
+              </Button>
               <Button onClick={importJson}>Import</Button>
             </div>
-          </div>
-        </div>
+          )}
+        >
+          <Textarea
+            value={jsonBuffer}
+            onChange={e => setJsonBuffer(e.target.value)}
+            placeholder="Paste inventory JSON here"
+            rows={12}
+            className="font-mono text-xs bg-muted/30 focus:bg-background"
+          />
+        </ModalShell>
       )}
     </div>
   )

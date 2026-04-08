@@ -82,9 +82,14 @@ func (a *App) UpdateSession(sessionID, profileID, command string) error {
 	return a.sessionMgr.Update(sessionID, profileID, command)
 }
 
-// KillSession terminates a tmux session.
+// KillSession terminates a tmux session and removes it from storage.
 func (a *App) KillSession(tmuxName string) error {
 	return a.sessionMgr.Kill(tmuxName)
+}
+
+// RestartSession recreates a dead tmux session using its stored configuration.
+func (a *App) RestartSession(sessionID string) error {
+	return a.sessionMgr.Restart(sessionID)
 }
 
 // GetInstalledTerminals returns all installed terminal applications.
