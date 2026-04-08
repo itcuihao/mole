@@ -43,3 +43,7 @@ Thumbs.db
 *.log
 .playwright-mcp/
 mole
+
+# Python cache
+__pycache__/
+*.pyc
