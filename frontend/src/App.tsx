@@ -1,15 +1,23 @@
+import { useState } from 'react'
 import Sessions from './pages/Sessions'
 import Profiles from './pages/Profiles'
 import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { Terminal } from "lucide-react"
+
+export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
 function App() {
+  const [activeTab, setActiveTab] = useState<AppTab>('sessions')
+
   return (
     <div className="h-full flex flex-col bg-background">
-      <Tabs defaultValue="sessions" className="h-full flex flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={value => setActiveTab(value as AppTab)}
+        className="h-full flex flex-col"
+      >
         {/* Header with terminal aesthetic */}
         <div className="flex items-center justify-between border-b bg-card/50 backdrop-blur-sm px-6 py-3">
           <div className="flex items-center gap-4">
@@ -42,7 +50,7 @@ function App() {
         </div>
 
         <TabsContent value="sessions" className="flex-1 overflow-auto p-6 mt-0">
-          <Sessions />
+          <Sessions onNavigate={setActiveTab} />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">

@@ -1,20 +1,8 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
 import { terminal } from '../../wailsjs/go/models'
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Check, Terminal as TerminalIcon } from "lucide-react"
-
-// Terminal icon mapping
-const TERMINAL_ICONS: Record<string, string> = {
-  'terminal': '🖥️',
-  'iterm2': '🔷',
-  'ghostty': '👻',
-  'rio': '🌊',
-  'alacritty': '⚡',
-  'warp': '🚀',
-  'kitty': '🐱',
-}
 
 function Settings() {
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
@@ -100,14 +88,14 @@ function Settings() {
                 <SelectContent>
                   <SelectItem value="auto">
                     <div className="flex items-center gap-2">
-                      <span>✨</span>
+                      <TerminalIcon className="w-4 h-4 text-muted-foreground" />
                       <span>Auto-detect (Best Available)</span>
                     </div>
                   </SelectItem>
                   {terminals.map(term => (
                     <SelectItem key={term.ID} value={term.ID}>
                       <div className="flex items-center gap-2">
-                        <span>{TERMINAL_ICONS[term.ID] || '📟'}</span>
+                        <TerminalIcon className="w-4 h-4 text-muted-foreground" />
                         <span>{term.Name}</span>
                       </div>
                     </SelectItem>
@@ -127,7 +115,9 @@ function Settings() {
                     className="flex items-center justify-between p-3 rounded bg-muted/30 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{TERMINAL_ICONS[term.ID] || '📟'}</span>
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
+                        <TerminalIcon className="w-5 h-5" />
+                      </div>
                       <div>
                         <div className="text-sm font-medium text-foreground">{term.Name}</div>
                         <div className="text-xs text-muted-foreground font-mono">{term.AppPath}</div>

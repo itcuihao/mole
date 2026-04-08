@@ -3,21 +3,12 @@ import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, Cr
 import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Play, Square, Edit2, Plus, Terminal as TerminalIcon, Pencil, Trash2, X, ChevronDown } from "lucide-react"
+import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight } from "lucide-react"
+import type { AppTab } from '../App'
 
-const TERMINAL_ICONS: Record<string, string> = {
-  'terminal': '🖥️',
-  'iterm2': '🔷',
-  'ghostty': '👻',
-  'rio': '🌊',
-  'alacritty': '⚡',
-  'warp': '🚀',
-  'kitty': '🐱',
-}
+type RunMode = 'shell' | 'host' | 'custom'
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -53,7 +44,28 @@ const buildSSHCommand = (
   return parts.join(' ')
 }
 
-function Sessions() {
+const findHostIDForCommand = (
+  command: string,
+  inv: inventory.Inventory,
+  hostMap: Map<string, inventory.Host>
+) => {
+  const normalized = command.trim()
+  if (!normalized) return ''
+
+  for (const host of inv.hosts) {
+    if (buildSSHCommand(host, inv.defaults, hostMap) === normalized) {
+      return host.id
+    }
+  }
+
+  return ''
+}
+
+function Sessions({
+  onNavigate,
+}: {
+  onNavigate: (tab: AppTab) => void
+}) {
   const [sessions, setSessions] = useState<session.SessionStatus[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState<string>('')
@@ -61,6 +73,8 @@ function Sessions() {
   const [editingSession, setEditingSession] = useState<session.SessionStatus | null>(null)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
+  const [profileCount, setProfileCount] = useState(0)
+  const [inventoryCount, setInventoryCount] = useState(0)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -78,6 +92,14 @@ function Sessions() {
 
       GetDefaultTerminal()
         .then(term => setDefaultTerminal(term || ''))
+        .catch(() => {})
+
+      ListProfiles()
+        .then(p => setProfileCount((p || []).length))
+        .catch(() => {})
+
+      GetInventory()
+        .then(data => setInventoryCount((data?.hosts || []).length))
         .catch(() => {})
     }
   }, [])
@@ -116,7 +138,7 @@ function Sessions() {
     const needsManualPaste = ['warp', 'alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
 
     if (needsManualPaste) {
-      setInfoMessage('✨ Terminal opened! Command copied to clipboard — Press Cmd+V to paste, then Enter.')
+      setInfoMessage('Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.')
       setTimeout(() => setInfoMessage(''), 7000)
     }
   }
@@ -152,7 +174,7 @@ function Sessions() {
       {infoMessage && (
         <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg text-foreground text-sm flex items-start justify-between gap-3 shadow-sm">
           <div className="flex items-start gap-2 flex-1">
-            <span className="text-lg mt-0.5">💡</span>
+            <TerminalSquare className="w-4 h-4 mt-0.5 text-primary shrink-0" />
             <span className="flex-1 leading-relaxed">{infoMessage}</span>
           </div>
           <Button onClick={() => setInfoMessage('')} variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-primary/20 rounded-full">
@@ -162,9 +184,12 @@ function Sessions() {
       )}
 
       {sessions.length === 0 ? (
-        <div className="text-center text-muted-foreground py-12">
-          No active sessions. Create one to get started.
-        </div>
+        <EmptySessionsState
+          profileCount={profileCount}
+          hostCount={inventoryCount}
+          onCreateSession={() => setShowNewModal(true)}
+          onNavigate={onNavigate}
+        />
       ) : (
         <div className="grid gap-3">
           {sessions.map(s => (
@@ -264,7 +289,7 @@ function SessionCard({
           </div>
           {s.command && (
             <div className="text-xs text-muted-foreground/70 font-mono mt-1.5 truncate" title={`Auto-runs on first attach: ${s.command}`}>
-              ⚡ {s.command}
+              startup: {s.command}
             </div>
           )}
         </div>
@@ -306,7 +331,7 @@ function SessionCard({
                   onClick={() => handleTerminalSelect(term.ID)}
                   className="w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors flex items-center gap-2"
                 >
-                  <span className="text-base">{TERMINAL_ICONS[term.ID] || '📟'}</span>
+                  <TerminalSquare className="w-4 h-4 text-muted-foreground" />
                   <span>{term.Name}</span>
                 </button>
               ))}
@@ -322,6 +347,89 @@ function SessionCard({
   )
 }
 
+function EmptySessionsState({
+  profileCount,
+  hostCount,
+  onCreateSession,
+  onNavigate,
+}: {
+  profileCount: number
+  hostCount: number
+  onCreateSession: () => void
+  onNavigate: (tab: AppTab) => void
+}) {
+  const checklist = [
+    {
+      key: 'profile',
+      title: 'Create a profile',
+      description: 'Profiles hold environment variables and secrets for a session.',
+      done: profileCount > 0,
+      actionLabel: profileCount > 0 ? 'Manage Profiles' : 'Add Profile',
+      action: () => onNavigate('profiles'),
+      icon: FolderGit2,
+    },
+    {
+      key: 'host',
+      title: 'Add a host',
+      description: 'Optional, but useful when you want Mole to generate SSH startup commands.',
+      done: hostCount > 0,
+      actionLabel: hostCount > 0 ? 'Manage Hosts' : 'Add Host',
+      action: () => onNavigate('hosts'),
+      icon: Server,
+    },
+    {
+      key: 'session',
+      title: 'Start a session',
+      description: 'Choose a profile, then run a local shell, a saved host command, or a custom command.',
+      done: false,
+      actionLabel: 'New Session',
+      action: onCreateSession,
+      icon: Wrench,
+    },
+  ]
+
+  return (
+    <Card className="overflow-hidden border-primary/15">
+      <CardHeader className="border-b border-border/70 bg-card/70">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <TerminalSquare className="w-5 h-5 text-primary" />
+          Session Setup
+        </CardTitle>
+        <CardDescription>
+          Mole works best when you move through setup in a clear order instead of guessing which tab comes first.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 pt-6">
+        {checklist.map((item, index) => {
+          const Icon = item.icon
+          return (
+            <div
+              key={item.key}
+              className="flex items-start gap-4 rounded-lg border border-border bg-muted/15 p-4"
+            >
+              <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-full border ${item.done ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground'}`}>
+                {item.done ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-muted-foreground">0{index + 1}</span>
+                  <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
+                  {item.done && <Badge variant="secondary" className="text-[10px]">Ready</Badge>}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+              </div>
+              <Button onClick={item.action} variant={item.done ? 'secondary' : 'default'} size="sm" className="shrink-0">
+                {item.actionLabel}
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )
+        })}
+      </CardContent>
+    </Card>
+  )
+}
+
 function NewSessionModal({
   onClose,
   onCreated,
@@ -333,6 +441,7 @@ function NewSessionModal({
   const [selectedProfile, setSelectedProfile] = useState('')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [selectedHostId, setSelectedHostId] = useState('')
+  const [runMode, setRunMode] = useState<RunMode>('shell')
   const [sessionName, setSessionName] = useState('')
   const [command, setCommand] = useState('')
   const [creating, setCreating] = useState(false)
@@ -361,6 +470,30 @@ function NewSessionModal({
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
+
+  useEffect(() => {
+    if (runMode === 'shell') {
+      setSelectedHostId('')
+      setCommand('')
+      return
+    }
+
+    if (runMode === 'host') {
+      if (!selectedHostId && inv.hosts.length > 0) {
+        const firstHost = inv.hosts[0]
+        setSelectedHostId(firstHost.id)
+        const nextCommand = buildSSHCommand(firstHost, inv.defaults, hostMap)
+        setCommand(nextCommand)
+      } else if (selectedHost && hostCommand) {
+        setCommand(hostCommand)
+      }
+      return
+    }
+
+    if (runMode === 'custom') {
+      setSelectedHostId('')
+    }
+  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap])
 
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
@@ -407,49 +540,91 @@ function NewSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Host (Optional)</label>
-            {inv.hosts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab.</p>
-            ) : (
-              <Select
-                value={selectedHostId || 'none'}
-                onValueChange={value => {
-                  const nextId = value === 'none' ? '' : value
-                  setSelectedHostId(nextId)
-                  const host = nextId ? hostMap.get(nextId) : null
-                  if (host && !command.trim()) {
-                    const nextCommand = buildSSHCommand(host, inv.defaults, hostMap)
-                    if (nextCommand) setCommand(nextCommand)
-                  }
-                }}
+            <label className="block text-sm text-muted-foreground mb-2">Run Mode</label>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => setRunMode('shell')}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'shell' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
               >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select a host" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {inv.hosts.map(h => (
-                    <SelectItem key={h.id} value={h.id}>
-                      {h.name || h.host}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {selectedHost && hostCommand && (
-              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="font-mono truncate">{hostCommand}</span>
-                <Button
-                  onClick={() => setCommand(hostCommand)}
-                  size="sm"
-                  variant="secondary"
-                  className="h-7"
-                >
-                  Use Command
-                </Button>
-              </div>
-            )}
+                <div className="text-sm font-medium text-foreground">Local shell</div>
+                <div className="mt-1 text-xs text-muted-foreground">Open the session with the selected profile and no startup command.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode('host')}
+                disabled={inv.hosts.length === 0}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${runMode === 'host' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
+              >
+                <div className="text-sm font-medium text-foreground">Saved host</div>
+                <div className="mt-1 text-xs text-muted-foreground">Pick a saved host and let Mole generate the SSH startup command for you.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode('custom')}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'custom' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
+              >
+                <div className="text-sm font-medium text-foreground">Custom command</div>
+                <div className="mt-1 text-xs text-muted-foreground">Run a command like `claude`, `npm run dev`, or a custom SSH line.</div>
+              </button>
+            </div>
           </div>
+
+          {runMode === 'host' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Saved Host</label>
+              {inv.hosts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
+              ) : (
+                <Select
+                  value={selectedHostId || inv.hosts[0]?.id || ''}
+                  onValueChange={value => {
+                    setSelectedHostId(value)
+                    const host = value ? hostMap.get(value) : null
+                    const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
+                    setCommand(nextCommand)
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select a saved host" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inv.hosts.map(h => (
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.name || h.host}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedHost && hostCommand && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 font-medium text-foreground">Generated startup command</div>
+                  <div className="font-mono break-all">{hostCommand}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {runMode === 'custom' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Startup Command</label>
+              <textarea
+                value={command}
+                onChange={e => setCommand(e.target.value)}
+                placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
+                rows={3}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Use this when you want Mole to run a specific command after the session starts.</p>
+            </div>
+          )}
+
+          {runMode === 'shell' && (
+            <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+              Mole will create a tmux session with your selected profile and open the default shell.
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Session Name</label>
@@ -462,18 +637,6 @@ function NewSessionModal({
               className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground mt-1">Letters, digits, underscores, dashes only</p>
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Startup Command (Optional)</label>
-            <textarea
-              value={command}
-              onChange={e => setCommand(e.target.value)}
-              placeholder="e.g., ssh -J jumphost.com user@target-host&#10;or: claude&#10;or: ./scripts/setup.sh&#10;Leave empty for default shell"
-              rows={3}
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment. Multi-line supported.</p>
           </div>
         </div>
 
@@ -507,8 +670,10 @@ function EditSessionModal({
   const [command, setCommand] = useState(initialSession.command || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [selectedHostId, setSelectedHostId] = useState('')
+  const [runMode, setRunMode] = useState<RunMode>(initialSession.command ? 'custom' : 'shell')
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
+  const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -517,8 +682,11 @@ function EditSessionModal({
         .catch(err => setError(String(err)))
 
       GetInventory()
-        .then(data => setInv(data || EMPTY_INVENTORY))
-        .catch(() => {})
+        .then(data => {
+          setInv(data || EMPTY_INVENTORY)
+          setHydrated(true)
+        })
+        .catch(() => setHydrated(true))
     }
   }, [])
 
@@ -530,6 +698,53 @@ function EditSessionModal({
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
+
+  useEffect(() => {
+    if (!hydrated) return
+
+    const matchingHostID = findHostIDForCommand(initialSession.command || '', inv, hostMap)
+    if (matchingHostID) {
+      setRunMode('host')
+      setSelectedHostId(matchingHostID)
+      setCommand(initialSession.command || '')
+      return
+    }
+
+    if ((initialSession.command || '').trim()) {
+      setRunMode('custom')
+      setCommand(initialSession.command || '')
+      return
+    }
+
+    setRunMode('shell')
+    setCommand('')
+  }, [hydrated, initialSession.command, inv, hostMap])
+
+  useEffect(() => {
+    if (runMode === 'shell') {
+      setSelectedHostId('')
+      setCommand('')
+      return
+    }
+
+    if (runMode === 'host') {
+      if (!selectedHostId && inv.hosts.length > 0) {
+        const firstHost = inv.hosts[0]
+        setSelectedHostId(firstHost.id)
+        setCommand(buildSSHCommand(firstHost, inv.defaults, hostMap))
+        return
+      }
+
+      if (selectedHost && hostCommand) {
+        setCommand(hostCommand)
+      }
+      return
+    }
+
+    if (runMode === 'custom') {
+      setSelectedHostId('')
+    }
+  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap])
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
@@ -580,56 +795,91 @@ function EditSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Host (Optional)</label>
-            {inv.hosts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab.</p>
-            ) : (
-              <Select
-                value={selectedHostId || 'none'}
-                onValueChange={value => {
-                  const nextId = value === 'none' ? '' : value
-                  setSelectedHostId(nextId)
-                }}
+            <label className="block text-sm text-muted-foreground mb-2">Run Mode</label>
+            <div className="grid gap-2">
+              <button
+                type="button"
+                onClick={() => setRunMode('shell')}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'shell' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
               >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select a host" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {inv.hosts.map(h => (
-                    <SelectItem key={h.id} value={h.id}>
-                      {h.name || h.host}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {selectedHost && hostCommand && (
-              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span className="font-mono truncate">{hostCommand}</span>
-                <Button
-                  onClick={() => setCommand(hostCommand)}
-                  size="sm"
-                  variant="secondary"
-                  className="h-7"
-                >
-                  Use Command
-                </Button>
-              </div>
-            )}
+                <div className="text-sm font-medium text-foreground">Local shell</div>
+                <div className="mt-1 text-xs text-muted-foreground">Restart into a plain shell with the selected profile.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode('host')}
+                disabled={inv.hosts.length === 0}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${runMode === 'host' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
+              >
+                <div className="text-sm font-medium text-foreground">Saved host</div>
+                <div className="mt-1 text-xs text-muted-foreground">Generate the startup command from a saved host record.</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode('custom')}
+                className={`rounded-lg border px-3 py-3 text-left transition-colors ${runMode === 'custom' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/30'}`}
+              >
+                <div className="text-sm font-medium text-foreground">Custom command</div>
+                <div className="mt-1 text-xs text-muted-foreground">Keep or replace the command manually.</div>
+              </button>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Startup Command (Optional)</label>
-            <textarea
-              value={command}
-              onChange={e => setCommand(e.target.value)}
-              placeholder="e.g., ssh -J jumphost.com user@target-host&#10;or: claude&#10;or: ./scripts/setup.sh&#10;Leave empty for default shell"
-              rows={3}
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
-            />
-            <p className="text-xs text-muted-foreground mt-1">Command to run with the profile's environment. Multi-line supported.</p>
-          </div>
+          {runMode === 'host' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Saved Host</label>
+              {inv.hosts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
+              ) : (
+                <Select
+                  value={selectedHostId || ''}
+                  onValueChange={value => {
+                    setSelectedHostId(value)
+                    const host = hostMap.get(value)
+                    const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
+                    setCommand(nextCommand)
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select a saved host" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {inv.hosts.map(h => (
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.name || h.host}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedHost && hostCommand && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 font-medium text-foreground">Generated startup command</div>
+                  <div className="font-mono break-all">{hostCommand}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {runMode === 'custom' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Startup Command</label>
+              <textarea
+                value={command}
+                onChange={e => setCommand(e.target.value)}
+                placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
+                rows={3}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Use this when you want full control over what runs after restart.</p>
+            </div>
+          )}
+
+          {runMode === 'shell' && (
+            <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+              The tmux session will restart into the default shell with the selected profile only.
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 mt-6">

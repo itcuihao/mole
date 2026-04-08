@@ -16,6 +16,8 @@ const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   groups: [],
 })
 
+type GroupModalSource = 'standalone' | 'host'
+
 function Hosts() {
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
@@ -43,6 +45,7 @@ function Hosts() {
   const [showGroupModal, setShowGroupModal] = useState(false)
   const [showGroupListModal, setShowGroupListModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<inventory.HostGroup | null>(null)
+  const [groupModalSource, setGroupModalSource] = useState<GroupModalSource>('standalone')
   const [groupForm, setGroupForm] = useState({
     id: '',
     name: '',
@@ -84,6 +87,11 @@ function Hosts() {
   useEffect(() => {
     loadInventory()
   }, [])
+
+  const showTransientMessage = (text: string, duration = 3000) => {
+    setMessage(text)
+    setTimeout(() => setMessage(''), duration)
+  }
 
   const loadInventory = async () => {
     setLoading(true)
@@ -139,7 +147,8 @@ function Hosts() {
     setShowHostModal(true)
   }
 
-  const openGroupModal = (group?: inventory.HostGroup) => {
+  const openGroupModal = (group?: inventory.HostGroup, source: GroupModalSource = 'standalone') => {
+    setGroupModalSource(source)
     if (group) {
       setEditingGroup(group)
       setGroupForm({
@@ -219,6 +228,7 @@ function Hosts() {
 
       setShowHostModal(false)
       await loadInventory()
+      showTransientMessage(editingHost ? 'Host updated' : 'Host added')
     } catch (err) {
       setError(String(err))
     }
@@ -228,6 +238,7 @@ function Hosts() {
     try {
       await DeleteHost(id)
       await loadInventory()
+      showTransientMessage('Host deleted')
     } catch (err) {
       setError(String(err))
     }
@@ -240,14 +251,26 @@ function Hosts() {
     }
     setError('')
     try {
+      const groupID = groupForm.id || (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : '')
+      if (!groupID) {
+        setError('Unable to generate group ID')
+        return
+      }
+
       await SaveHostGroup({
-        id: groupForm.id,
+        id: groupID,
         name: groupForm.name.trim(),
         host_ids: groupForm.host_ids,
         tags: [],
       })
       setShowGroupModal(false)
       await loadInventory()
+      if (groupModalSource === 'host') {
+        setHostGroupIds(prev => (prev.includes(groupID) ? prev : [...prev, groupID]))
+        showTransientMessage(editingGroup ? 'Group updated. Your host draft is still open.' : 'Group created and selected for this host.')
+      } else {
+        showTransientMessage(editingGroup ? 'Group updated' : 'Group added')
+      }
     } catch (err) {
       setError(String(err))
     }
@@ -281,6 +304,8 @@ function Hosts() {
     try {
       await DeleteHostGroup(id)
       await loadInventory()
+      setHostGroupIds(prev => prev.filter(groupID => groupID !== id))
+      showTransientMessage('Group deleted')
     } catch (err) {
       setError(String(err))
     }
@@ -298,6 +323,7 @@ function Hosts() {
       await SaveInventory(parsed)
       setShowImportModal(false)
       await loadInventory()
+      showTransientMessage('Inventory imported')
     } catch (err) {
       setError(`Import failed: ${String(err)}`)
     }
@@ -384,7 +410,7 @@ function Hosts() {
             Export JSON
           </Button>
           <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
-            Groups
+            Manage Groups
           </Button>
           <Button onClick={() => openHostModal()} size="sm">
             <Plus className="w-4 h-4" />
@@ -623,14 +649,28 @@ function Hosts() {
               </div>
 
               <div className="grid gap-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Groups
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Groups
+                  </div>
+                  <Button
+                    onClick={() => openGroupModal(undefined, 'host')}
+                    variant="secondary"
+                    size="sm"
+                    className="h-7"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    New Group
+                  </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Groups are named collections used to organize and filter saved hosts. Creating one here keeps this host draft open.
+                </p>
                 {inv.groups.length === 0 ? (
                   <div className="text-xs text-muted-foreground bg-muted/20 border border-border rounded p-3 flex items-center justify-between gap-3">
-                    <span>No groups yet.</span>
+                    <span>No groups yet. Create one without leaving this host.</span>
                     <Button
-                      onClick={() => { setShowHostModal(false); openGroupModal() }}
+                      onClick={() => openGroupModal(undefined, 'host')}
                       variant="secondary"
                       size="sm"
                       className="h-7"
@@ -745,17 +785,22 @@ function Hosts() {
       )}
 
       {showGroupModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[60]">
           <div className="bg-card rounded-lg border border-border p-0 w-[520px] max-w-[92vw] shadow-lg">
             <div className="px-6 py-4 border-b border-border/70 bg-muted/30">
               <h2 className="text-base font-semibold text-foreground">
                 {editingGroup ? 'Edit Group' : 'Add Group'}
               </h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Groups help you launch or filter hosts together.
+                Groups are named host collections used for organization and filtering.
               </p>
             </div>
             <div className="px-6 py-5 grid gap-3">
+              {groupModalSource === 'host' && (
+                <div className="rounded-md border border-primary/20 bg-primary/10 p-3 text-xs text-muted-foreground">
+                  When you save this group, the host you are editing will stay open and this group will be selected automatically.
+                </div>
+              )}
               <div>
                 <label className="block text-xs text-muted-foreground mb-1">Name</label>
                 <Input
@@ -777,7 +822,7 @@ function Hosts() {
                         size="sm"
                         className="h-7 px-2 bg-muted/30"
                       >
-                        Add {tag}
+                        Toggle {tag}
                       </Button>
                     ))}
                   </div>
@@ -827,7 +872,7 @@ function Hosts() {
               <div>
                 <h2 className="text-base font-semibold text-foreground">Groups</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Review group membership and manage collections of hosts.
+                  Review group membership and manage named host collections.
                 </p>
               </div>
               <div className="flex items-center gap-2">
