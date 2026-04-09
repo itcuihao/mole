@@ -9,6 +9,8 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 DEFAULT_DEV_HOST=127.0.0.1
 DEFAULT_DEV_PORT=3737
+APP_NAME=Mole
+APP_BUNDLE_PATH="build/bin/${APP_NAME}.app"
 DEV_HOST="${MOLE_DEV_HOST:-$DEFAULT_DEV_HOST}"
 DEV_PORT="${MOLE_DEV_PORT:-$DEFAULT_DEV_PORT}"
 FRONTEND_DEV_SERVER_URL="http://${DEV_HOST}:${DEV_PORT}"
@@ -52,6 +54,18 @@ stop_dev_port_listener() {
     fi
 
     echo -e "${GREEN}✓ Port ${port} is available${NC}"
+}
+
+cleanup_stale_app_bundle() {
+    mkdir -p build/bin
+
+    while IFS= read -r bundle; do
+        [ -z "$bundle" ] && continue
+        if [ "$bundle" != "$APP_BUNDLE_PATH" ]; then
+            echo -e "${YELLOW}⚠ Removing stale app bundle: ${bundle}${NC}"
+            rm -rf "$bundle"
+        fi
+    done < <(find build/bin -maxdepth 1 -type d -iname "${APP_NAME}.app" 2>/dev/null)
 }
 
 echo "🕳️  Mole"
@@ -115,6 +129,8 @@ if [ -f "assets/appicon.png" ]; then
 else
     echo -e "${YELLOW}⚠ assets/appicon.png not found; using existing build icon if present${NC}"
 fi
+
+cleanup_stale_app_bundle
 
 # Run wails dev
 wails dev -frontenddevserverurl "$FRONTEND_DEV_SERVER_URL"
