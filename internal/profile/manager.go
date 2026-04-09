@@ -1,6 +1,6 @@
 package profile
 
-// Manager combines Profile file store with Keychain operations.
+// Manager coordinates profile file storage plus env normalization rules.
 type Manager struct {
 	store *Store
 }

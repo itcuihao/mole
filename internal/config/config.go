@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	AppName         = "mole"
-	KeychainService = "mole"
+	AppName = "mole"
 )
 
 // Settings represents application settings

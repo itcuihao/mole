@@ -43,6 +43,7 @@ Thumbs.db
 *.log
 .playwright-mcp/
 mole
+.claude/settings.local.json
 
 # Python cache
 __pycache__/

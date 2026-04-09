@@ -1,5 +1,9 @@
 # Mole — 终端环境管理器技术方案
 
+> Archived legacy design note.
+> This document reflects an early proposal and is no longer an accurate description of the current implementation.
+> For current behavior, use `README.md` and `CLAUDE.md`.
+
 ## 项目定位
 
 **环境感知的终端会话管理器**
