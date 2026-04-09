@@ -11,6 +11,8 @@ export function AttachSessionWithTerminal(arg1:string,arg2:string):Promise<void>
 
 export function CreateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function CreateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+
 export function DeleteHost(arg1:string):Promise<void>;
 
 export function DeleteHostGroup(arg1:string):Promise<void>;
@@ -44,3 +46,5 @@ export function SaveProfile(arg1:profile.Profile,arg2:Record<string, string>):Pr
 export function SetDefaultTerminal(arg1:string):Promise<void>;
 
 export function UpdateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function UpdateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;

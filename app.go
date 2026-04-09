@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"strings"
 
 	"mole/internal/config"
 	"mole/internal/inventory"
@@ -38,8 +39,8 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
-	a.sessionMgr = session.NewManager(config.SessionsPath(), a.profileMgr)
 	a.invMgr = inventory.NewManager(config.HostsPath())
+	a.sessionMgr = session.NewManager(config.SessionsPath(), a.profileMgr, a.invMgr)
 }
 
 // ListProfiles returns all profiles.
@@ -59,7 +60,12 @@ func (a *App) DeleteProfile(id string) error {
 
 // CreateSession creates a new tmux session from a profile.
 func (a *App) CreateSession(profileID, name, command string) error {
-	return a.sessionMgr.Create(profileID, name, command)
+	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "")
+}
+
+// CreateSessionWithOptions creates a new tmux session with explicit launch metadata.
+func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID string) error {
+	return a.sessionMgr.Create(profileID, name, command, runMode, hostID)
 }
 
 // ListSessions returns all sessions with live status.
@@ -79,7 +85,12 @@ func (a *App) AttachSessionWithTerminal(tmuxName, terminalID string) error {
 
 // UpdateSession updates a session's profile and command, recreating the tmux session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command)
+	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "")
+}
+
+// UpdateSessionWithOptions updates a session with explicit launch metadata.
+func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID string) error {
+	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID)
 }
 
 // KillSession terminates a tmux session and removes it from storage.
@@ -160,4 +171,11 @@ func (a *App) SaveHostGroup(g inventory.HostGroup) error {
 // DeleteHostGroup removes a host group by ID.
 func (a *App) DeleteHostGroup(id string) error {
 	return a.invMgr.DeleteGroup(id)
+}
+
+func inferRunMode(command string) string {
+	if strings.TrimSpace(command) == "" {
+		return session.RunModeShell
+	}
+	return session.RunModeCustom
 }

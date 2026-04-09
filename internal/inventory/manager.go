@@ -1,6 +1,10 @@
 package inventory
 
-import "github.com/google/uuid"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 // Manager coordinates inventory storage.
 type Manager struct {
@@ -137,6 +141,35 @@ func (m *Manager) DeleteGroup(id string) error {
 	})
 }
 
+// BuildSSHCommand returns the current SSH command for a stored host.
+func (m *Manager) BuildSSHCommand(hostID string) (string, error) {
+	inv, err := m.store.Load()
+	if err != nil {
+		return "", err
+	}
+	m.normalize(&inv)
+
+	hostMap := make(map[string]Host, len(inv.Hosts))
+	var selected *Host
+	for i := range inv.Hosts {
+		host := inv.Hosts[i]
+		hostMap[host.ID] = host
+		if host.ID == hostID {
+			copy := host
+			selected = &copy
+		}
+	}
+
+	if selected == nil {
+		return "", fmt.Errorf("host %q not found", hostID)
+	}
+	if selected.Host == "" {
+		return "", fmt.Errorf("host %q has no address configured", hostID)
+	}
+
+	return buildSSHCommand(*selected, inv.Defaults, hostMap), nil
+}
+
 func (m *Manager) normalize(inv *Inventory) {
 	if inv.Version == 0 {
 		inv.Version = 1
@@ -165,4 +198,66 @@ func (m *Manager) normalize(inv *Inventory) {
 		}
 		inv.Groups[i] = g
 	}
+}
+
+func buildSSHCommand(host Host, defaults HostDefaults, hostMap map[string]Host) string {
+	if host.Host == "" {
+		return ""
+	}
+
+	user := host.User
+	if user == "" {
+		user = defaults.User
+	}
+
+	port := host.Port
+	if port == 0 {
+		port = defaults.Port
+	}
+
+	identity := host.IdentityFile
+	if identity == "" {
+		identity = defaults.IdentityFile
+	}
+
+	parts := []string{"ssh"}
+	if identity != "" {
+		parts = append(parts, "-i", identity)
+	}
+	if port != 0 && port != 22 {
+		parts = append(parts, "-p", fmt.Sprintf("%d", port))
+	}
+
+	if host.BastionID != "" {
+		if bastion, ok := hostMap[host.BastionID]; ok && bastion.Host != "" {
+			bastionUser := bastion.User
+			if bastionUser == "" {
+				bastionUser = defaults.User
+			}
+			bastionTarget := bastion.Host
+			if bastionUser != "" {
+				bastionTarget = fmt.Sprintf("%s@%s", bastionUser, bastion.Host)
+			}
+			parts = append(parts, "-J", bastionTarget)
+		}
+	}
+
+	target := host.Host
+	if user != "" {
+		target = fmt.Sprintf("%s@%s", user, host.Host)
+	}
+
+	return fmt.Sprintf("%s %s", parts[0], joinArgs(append(parts[1:], target)))
+}
+
+func joinArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	result := args[0]
+	for _, arg := range args[1:] {
+		result += " " + arg
+	}
+	return result
 }

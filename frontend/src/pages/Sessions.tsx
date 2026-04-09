@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, CreateSession, UpdateSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
 import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,10 @@ import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2,
 import type { AppTab } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom'
+type SessionRecord = session.SessionStatus & {
+  run_mode?: string
+  host_id?: string
+}
 
 const RUN_MODE_LABELS: Record<RunMode, string> = {
   shell: 'Shell',
@@ -22,6 +26,13 @@ const RUN_MODE_HINTS: Record<RunMode, string> = {
   shell: 'Just open a terminal with this profile.',
   host: 'Pick a saved host and Mole will build the SSH command.',
   custom: 'Run a command as soon as the session starts.',
+}
+
+const normalizeRunMode = (value?: string, hasCommand = false): RunMode => {
+  if (value === 'shell' || value === 'host' || value === 'custom') {
+    return value
+  }
+  return hasCommand ? 'custom' : 'shell'
 }
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
@@ -119,16 +130,48 @@ function RunModeOption({
   )
 }
 
+const getAppMethod = (method: string) => {
+  return (window as any)?.go?.main?.App?.[method]
+}
+
+const createSessionWithOptions = (
+  profileID: string,
+  name: string,
+  command: string,
+  runMode: RunMode,
+  hostID: string,
+) => {
+  const method = getAppMethod('CreateSessionWithOptions')
+  if (typeof method !== 'function') {
+    return Promise.reject(new Error('CreateSessionWithOptions is unavailable'))
+  }
+  return method(profileID, name, command, runMode, hostID) as Promise<void>
+}
+
+const updateSessionWithOptions = (
+  sessionID: string,
+  profileID: string,
+  command: string,
+  runMode: RunMode,
+  hostID: string,
+) => {
+  const method = getAppMethod('UpdateSessionWithOptions')
+  if (typeof method !== 'function') {
+    return Promise.reject(new Error('UpdateSessionWithOptions is unavailable'))
+  }
+  return method(sessionID, profileID, command, runMode, hostID) as Promise<void>
+}
+
 function Sessions({
   onNavigate,
 }: {
   onNavigate: (tab: AppTab) => void
 }) {
-  const [sessions, setSessions] = useState<session.SessionStatus[]>([])
+  const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState<string>('')
   const [showNewModal, setShowNewModal] = useState(false)
-  const [editingSession, setEditingSession] = useState<session.SessionStatus | null>(null)
+  const [editingSession, setEditingSession] = useState<SessionRecord | null>(null)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -139,7 +182,7 @@ function Sessions({
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
       ListSessions()
-        .then(setSessions)
+        .then(data => setSessions((data || []) as SessionRecord[]))
         .catch(err => setError(String(err)))
     }
   }, [])
@@ -192,7 +235,7 @@ function Sessions({
     }
   }
 
-  const handleOpenSession = async (sess: session.SessionStatus, terminalID?: string) => {
+  const handleOpenSession = async (sess: SessionRecord, terminalID?: string) => {
     const resolvedTerminal = terminalID || defaultTerminal
     const wasRestarted = !sess.alive
 
@@ -220,7 +263,7 @@ function Sessions({
     }
   }
 
-  const handleKill = async (sess: session.SessionStatus) => {
+  const handleKill = async (sess: SessionRecord) => {
     setSessionAction({ id: sess.id, kind: 'kill' })
     setError('')
     try {
@@ -365,11 +408,11 @@ function SessionCard({
   isWorking,
   currentAction,
 }: {
-  session: session.SessionStatus
+  session: SessionRecord
   terminals: terminal.TerminalApp[]
-  onOpen: (session: session.SessionStatus, terminalID?: string) => void
-  onKill: (session: session.SessionStatus) => void
-  onEdit: (session: session.SessionStatus) => void
+  onOpen: (session: SessionRecord, terminalID?: string) => void
+  onKill: (session: SessionRecord) => void
+  onEdit: (session: SessionRecord) => void
   isWorking: boolean
   currentAction: 'open' | 'kill' | null
 }) {
@@ -679,10 +722,20 @@ function NewSessionModal({
 
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
+    if (runMode === 'host' && !selectedHostId) {
+      setError('Select a host before creating a host-based session')
+      return
+    }
     setCreating(true)
     setError('')
     try {
-      await CreateSession(selectedProfile, sessionName.trim(), command.trim())
+      await createSessionWithOptions(
+        selectedProfile,
+        sessionName.trim(),
+        command.trim(),
+        runMode,
+        runMode === 'host' ? selectedHostId : '',
+      )
       onCreated()
     } catch (err) {
       setError(String(err))
@@ -819,7 +872,7 @@ function EditSessionModal({
   onClose,
   onUpdated,
 }: {
-  session: session.SessionStatus
+  session: SessionRecord
   onClose: () => void
   onUpdated: () => void
 }) {
@@ -828,7 +881,9 @@ function EditSessionModal({
   const [command, setCommand] = useState(initialSession.command || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [selectedHostId, setSelectedHostId] = useState('')
-  const [runMode, setRunMode] = useState<RunMode>(initialSession.command ? 'custom' : 'shell')
+  const [runMode, setRunMode] = useState<RunMode>(
+    normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
+  )
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const [hydrated, setHydrated] = useState(false)
@@ -860,6 +915,14 @@ function EditSessionModal({
   useEffect(() => {
     if (!hydrated) return
 
+    if (initialSession.run_mode === 'host' && initialSession.host_id) {
+      setRunMode('host')
+      setSelectedHostId(initialSession.host_id)
+      const host = hostMap.get(initialSession.host_id)
+      setCommand(host ? buildSSHCommand(host, inv.defaults, hostMap) : initialSession.command || '')
+      return
+    }
+
     const matchingHostID = findHostIDForCommand(initialSession.command || '', inv, hostMap)
     if (matchingHostID) {
       setRunMode('host')
@@ -876,7 +939,7 @@ function EditSessionModal({
 
     setRunMode('shell')
     setCommand('')
-  }, [hydrated, initialSession.command, inv, hostMap])
+  }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, inv, hostMap])
 
   useEffect(() => {
     if (runMode === 'shell') {
@@ -906,10 +969,20 @@ function EditSessionModal({
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
+    if (runMode === 'host' && !selectedHostId) {
+      setError('Select a host before saving a host-based session')
+      return
+    }
     setUpdating(true)
     setError('')
     try {
-      await UpdateSession(initialSession.id, selectedProfile, command.trim())
+      await updateSessionWithOptions(
+        initialSession.id,
+        selectedProfile,
+        command.trim(),
+        runMode,
+        runMode === 'host' ? selectedHostId : '',
+      )
       onUpdated()
     } catch (err) {
       setError(String(err))

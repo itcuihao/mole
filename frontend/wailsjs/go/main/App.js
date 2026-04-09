@@ -14,6 +14,10 @@ export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
+export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function DeleteHost(arg1) {
   return window['go']['main']['App']['DeleteHost'](arg1);
 }
@@ -80,4 +84,8 @@ export function SetDefaultTerminal(arg1) {
 
 export function UpdateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateSession'](arg1, arg2, arg3);
+}
+
+export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5);
 }

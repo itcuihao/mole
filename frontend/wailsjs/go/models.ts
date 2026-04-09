@@ -155,6 +155,8 @@ export namespace session {
 	    profile_id: string;
 	    tmux_session_name: string;
 	    command: string;
+	    run_mode?: string;
+	    host_id?: string;
 	    // Go type: time
 	    created_at: any;
 	    profile_name: string;
@@ -174,6 +176,8 @@ export namespace session {
 	        this.profile_id = source["profile_id"];
 	        this.tmux_session_name = source["tmux_session_name"];
 	        this.command = source["command"];
+	        this.run_mode = source["run_mode"];
+	        this.host_id = source["host_id"];
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.profile_name = source["profile_name"];
 	        this.profile_color = source["profile_color"];

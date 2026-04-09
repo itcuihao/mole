@@ -3,8 +3,10 @@ package session
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"mole/internal/config"
+	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/terminal"
 )
@@ -15,18 +17,20 @@ var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 type Manager struct {
 	store      *Store
 	profileMgr *profile.Manager
+	invMgr     *inventory.Manager
 }
 
 // NewManager creates a new session Manager.
-func NewManager(storePath string, profileMgr *profile.Manager) *Manager {
+func NewManager(storePath string, profileMgr *profile.Manager, invMgr *inventory.Manager) *Manager {
 	return &Manager{
 		store:      NewStore(storePath),
 		profileMgr: profileMgr,
+		invMgr:     invMgr,
 	}
 }
 
 // Create creates a new tmux session with the environment from a profile.
-func (m *Manager) Create(profileID, sessionName, command string) error {
+func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string) error {
 	if !validName.MatchString(sessionName) {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
@@ -42,6 +46,11 @@ func (m *Manager) Create(profileID, sessionName, command string) error {
 		return fmt.Errorf("tmux session %q already exists", tmuxName)
 	}
 
+	resolvedCommand, normalizedRunMode, normalizedHostID, err := m.resolveLaunchConfig(command, runMode, hostID)
+	if err != nil {
+		return err
+	}
+
 	// Resolve full environment
 	env, err := m.profileMgr.GetFullEnv(profileID)
 	if err != nil {
@@ -49,7 +58,7 @@ func (m *Manager) Create(profileID, sessionName, command string) error {
 	}
 
 	// Create tmux session
-	if err := CreateTmuxSession(tmuxName, env, command); err != nil {
+	if err := CreateTmuxSession(tmuxName, env, resolvedCommand); err != nil {
 		return err
 	}
 
@@ -58,7 +67,9 @@ func (m *Manager) Create(profileID, sessionName, command string) error {
 		Name:            sessionName,
 		ProfileID:       profileID,
 		TmuxSessionName: tmuxName,
-		Command:         command,
+		Command:         resolvedCommand,
+		RunMode:         normalizedRunMode,
+		HostID:          normalizedHostID,
 	}
 	return m.store.Save(sess)
 }
@@ -114,7 +125,7 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
-func (m *Manager) Update(sessionID, profileID, command string) error {
+func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) error {
 	// Get current session
 	sess, err := m.store.Get(sessionID)
 	if err != nil {
@@ -123,6 +134,11 @@ func (m *Manager) Update(sessionID, profileID, command string) error {
 
 	oldProfileID := sess.ProfileID
 	oldCommand := sess.Command
+
+	resolvedCommand, normalizedRunMode, normalizedHostID, err := m.resolveLaunchConfig(command, runMode, hostID)
+	if err != nil {
+		return err
+	}
 
 	// Resolve the replacement environment before touching the live session.
 	newEnv, err := m.profileMgr.GetFullEnv(profileID)
@@ -151,10 +167,12 @@ func (m *Manager) Update(sessionID, profileID, command string) error {
 
 	// Update session metadata
 	sess.ProfileID = profileID
-	sess.Command = command
+	sess.Command = resolvedCommand
+	sess.RunMode = normalizedRunMode
+	sess.HostID = normalizedHostID
 
 	// Recreate tmux session
-	if err := CreateTmuxSession(sess.TmuxSessionName, newEnv, command); err != nil {
+	if err := CreateTmuxSession(sess.TmuxSessionName, newEnv, resolvedCommand); err != nil {
 		if isAlive && canRollback {
 			if rollbackErr := CreateTmuxSession(sess.TmuxSessionName, rollbackEnv, oldCommand); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
@@ -209,8 +227,13 @@ func (m *Manager) Restart(sessionID string) error {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
+	command, err := m.commandForSession(sess)
+	if err != nil {
+		return err
+	}
+
 	// Recreate tmux session
-	return CreateTmuxSession(sess.TmuxSessionName, env, sess.Command)
+	return CreateTmuxSession(sess.TmuxSessionName, env, command)
 }
 
 // Attach opens the user's preferred terminal and attaches to a tmux session.
@@ -248,4 +271,57 @@ func (m *Manager) AttachWithTerminal(tmuxName, terminalID string) error {
 		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
 	}
 	return err
+}
+
+func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, string, string, error) {
+	normalizedRunMode := strings.TrimSpace(runMode)
+	trimmedCommand := strings.TrimSpace(command)
+	trimmedHostID := strings.TrimSpace(hostID)
+
+	if normalizedRunMode == "" {
+		switch {
+		case trimmedHostID != "":
+			normalizedRunMode = RunModeHost
+		case trimmedCommand != "":
+			normalizedRunMode = RunModeCustom
+		default:
+			normalizedRunMode = RunModeShell
+		}
+	}
+
+	switch normalizedRunMode {
+	case RunModeShell:
+		return "", RunModeShell, "", nil
+	case RunModeCustom:
+		return trimmedCommand, RunModeCustom, "", nil
+	case RunModeHost:
+		if trimmedHostID == "" {
+			return "", "", "", fmt.Errorf("host mode requires a selected host")
+		}
+		if m.invMgr == nil {
+			return "", "", "", fmt.Errorf("host inventory is unavailable")
+		}
+		hostCommand, err := m.invMgr.BuildSSHCommand(trimmedHostID)
+		if err != nil {
+			return "", "", "", fmt.Errorf("failed to resolve host command: %w", err)
+		}
+		return hostCommand, RunModeHost, trimmedHostID, nil
+	default:
+		return "", "", "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
+	}
+}
+
+func (m *Manager) commandForSession(sess Session) (string, error) {
+	if sess.RunMode == RunModeHost && strings.TrimSpace(sess.HostID) != "" {
+		if m.invMgr == nil {
+			return "", fmt.Errorf("host inventory is unavailable")
+		}
+		command, err := m.invMgr.BuildSSHCommand(strings.TrimSpace(sess.HostID))
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve host command: %w", err)
+		}
+		return command, nil
+	}
+
+	return strings.TrimSpace(sess.Command), nil
 }
