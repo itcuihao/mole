@@ -1,14 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
+import { cn } from '@/lib/utils'
 import { Plus, Pencil, Trash2, Upload, X, Check, Copy } from "lucide-react"
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
   '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
 ]
+
+const ENV_VAR_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+const ENV_VAR_KEY_RULES = 'Use letters, digits, and underscores, and do not start with a digit.'
+const ENV_VAR_KEY_DUPLICATE = 'Variable names must be unique within a profile.'
+const ENV_VAR_KEY_HINT = 'Recommended: UPPER_SNAKE_CASE. Lowercase is allowed and Mole preserves case.'
+
+const normalizeEnvKey = (key: string) => key.trim()
 
 function Profiles() {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
@@ -205,16 +213,47 @@ function ProfileForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showBulkImport, setShowBulkImport] = useState(false)
+  const envEntryIssues = useMemo(() => {
+    const issues = new Map<number, string[]>()
+    const indexesByKey = new Map<string, number[]>()
+
+    envEntries.forEach((entry, idx) => {
+      const key = normalizeEnvKey(entry.key)
+      if (!key) return
+
+      if (!ENV_VAR_KEY_PATTERN.test(key)) {
+        issues.set(idx, [ENV_VAR_KEY_RULES])
+      }
+
+      const indexes = indexesByKey.get(key) ?? []
+      indexes.push(idx)
+      indexesByKey.set(key, indexes)
+    })
+
+    indexesByKey.forEach((indexes) => {
+      if (indexes.length < 2) return
+
+      indexes.forEach((index) => {
+        const messages = issues.get(index) ?? []
+        issues.set(index, [...messages, ENV_VAR_KEY_DUPLICATE])
+      })
+    })
+
+    return issues
+  }, [envEntries])
 
   const addEntry = () => {
+    setError('')
     setEnvEntries([...envEntries, { key: '', value: '', isSecret: false }])
   }
 
   const removeEntry = (idx: number) => {
+    setError('')
     setEnvEntries(envEntries.filter((_, i) => i !== idx))
   }
 
   const updateEntry = (idx: number, field: keyof EnvEntry, value: string | boolean) => {
+    setError('')
     const updated = [...envEntries]
     updated[idx] = { ...updated[idx], [field]: value }
     setEnvEntries(updated)
@@ -270,22 +309,35 @@ function ProfileForm({
     }
 
     // Merge with existing entries (avoid duplicates)
-    const existingKeys = new Set(envEntries.map(e => e.key))
+    const existingKeys = new Set(
+      envEntries
+        .map(entry => normalizeEnvKey(entry.key))
+        .filter(Boolean)
+    )
     const merged = [...envEntries]
     for (const entry of newEntries) {
-      if (!existingKeys.has(entry.key)) {
-        merged.push(entry)
-      }
+      const key = normalizeEnvKey(entry.key)
+      if (!key || existingKeys.has(key)) continue
+
+      existingKeys.add(key)
+      merged.push({ ...entry, key })
     }
 
+    setError('')
     setEnvEntries(merged)
     setShowBulkImport(false)
   }
 
   const handleSubmit = async () => {
     if (!name.trim()) return
-    setSaving(true)
+
+    if (envEntryIssues.size > 0) {
+      setError('Fix invalid or duplicate variable names before saving.')
+      return
+    }
+
     setError('')
+    setSaving(true)
 
     try {
       const envVars: Record<string, string> = {}
@@ -293,14 +345,16 @@ function ProfileForm({
       const secrets: Record<string, string> = {}
 
       for (const entry of envEntries) {
-        if (!entry.key.trim()) continue
+        const key = normalizeEnvKey(entry.key)
+        if (!key) continue
+
         if (entry.isSecret) {
-          secretKeys.push(entry.key)
+          secretKeys.push(key)
           if (entry.value) {
-            secrets[entry.key] = entry.value
+            secrets[key] = entry.value
           }
         } else {
-          envVars[entry.key] = entry.value
+          envVars[key] = entry.value
         }
       }
 
@@ -336,7 +390,7 @@ function ProfileForm({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || envEntryIssues.size > 0}
             >
               {saving ? 'Saving...' : 'Save'}
             </Button>
@@ -401,6 +455,9 @@ function ProfileForm({
                 <p className="mt-1 text-xs text-muted-foreground">
                   Mark sensitive keys as secret so the UI treats them differently.
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {ENV_VAR_KEY_HINT}
+                </p>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -426,44 +483,56 @@ function ProfileForm({
               <p className="py-2 text-sm text-muted-foreground">No variables yet. Add one or import a block.</p>
             ) : (
               <div className="space-y-2">
-                {envEntries.map((entry, idx) => (
-                  <div
-                    key={idx}
-                    className="grid gap-2 rounded-lg border border-border/70 bg-background/80 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]"
-                  >
-                    <input
-                      type="text"
-                      value={entry.key}
-                      onChange={e => updateEntry(idx, 'key', e.target.value)}
-                      placeholder="KEY"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <input
-                      type={entry.isSecret ? 'password' : 'text'}
-                      value={entry.value}
-                      onChange={e => updateEntry(idx, 'value', e.target.value)}
-                      placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <label className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={entry.isSecret}
-                        onChange={e => updateEntry(idx, 'isSecret', e.target.checked)}
-                        className="rounded"
-                      />
-                      Secret
-                    </label>
-                    <Button
-                      onClick={() => removeEntry(idx)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-11 w-11 p-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                {envEntries.map((entry, idx) => {
+                  const issueMessages = envEntryIssues.get(idx) ?? []
+                  const hasIssues = issueMessages.length > 0
+
+                  return (
+                    <div key={idx} className="space-y-2">
+                      <div className="grid gap-2 rounded-lg border border-border/70 bg-background/80 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+                        <input
+                          type="text"
+                          value={entry.key}
+                          onChange={e => updateEntry(idx, 'key', e.target.value)}
+                          placeholder="OPENAI_API_KEY"
+                          className={cn(
+                            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring',
+                            hasIssues && 'border-destructive/60 focus:ring-destructive'
+                          )}
+                        />
+                        <input
+                          type={entry.isSecret ? 'password' : 'text'}
+                          value={entry.value}
+                          onChange={e => updateEntry(idx, 'value', e.target.value)}
+                          placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <label className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={entry.isSecret}
+                            onChange={e => updateEntry(idx, 'isSecret', e.target.checked)}
+                            className="rounded"
+                          />
+                          Secret
+                        </label>
+                        <Button
+                          onClick={() => removeEntry(idx)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-11 w-11 p-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      {hasIssues && (
+                        <p className="px-1 text-xs text-destructive">
+                          {issueMessages.join(' ')}
+                        </p>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

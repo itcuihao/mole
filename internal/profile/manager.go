@@ -33,8 +33,16 @@ func (m *Manager) Get(id string) (Profile, error) {
 // The secrets map contains key->value pairs for keys listed in profile.SecretKeys.
 // SecretKeys is just a UI hint to hide input, not separate storage.
 func (m *Manager) Save(p Profile, secrets map[string]string) error {
+	normalizedEnvVars, normalizedSecretKeys, normalizedSecrets, err := NormalizeProfileEnv(p.EnvVars, p.SecretKeys, secrets)
+	if err != nil {
+		return err
+	}
+
+	p.EnvVars = normalizedEnvVars
+	p.SecretKeys = normalizedSecretKeys
+
 	// Merge secrets into EnvVars (all stored in JSON now)
-	for key, value := range secrets {
+	for key, value := range normalizedSecrets {
 		if value != "" {
 			p.EnvVars[key] = value
 		}
