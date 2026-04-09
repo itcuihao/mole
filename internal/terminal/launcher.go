@@ -133,16 +133,30 @@ func buildAttachLaunchSpec(session string, env map[string]string) (attachLaunchS
 	}, nil
 }
 
+func runOsaScriptWithArg(scriptLines []string, arg string) ([]byte, error) {
+	args := make([]string, 0, len(scriptLines)*2+1)
+	for _, line := range scriptLines {
+		args = append(args, "-e", line)
+	}
+	args = append(args, arg)
+
+	cmd := exec.Command("osascript", args...)
+	return cmd.CombinedOutput()
+}
+
 // launchTerminalApp launches macOS Terminal.app
 func launchTerminalApp(commandText string) error {
-	script := fmt.Sprintf(`tell application "Terminal"
-	activate
-	do script "%s"
-end tell`, commandText)
-
 	log.Printf("🚀 Launching Terminal.app with command: %s", commandText)
-	cmd := exec.Command("osascript", "-e", script)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	output, err := runOsaScriptWithArg([]string{
+		`on run argv`,
+		`set commandText to item 1 of argv`,
+		`tell application "Terminal"`,
+		`activate`,
+		`do script commandText`,
+		`end tell`,
+		`end run`,
+	}, commandText)
+	if err != nil {
 		log.Printf("❌ Terminal.app error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("Terminal.app failed: %s: %w", string(output), err)
 	}
@@ -151,17 +165,20 @@ end tell`, commandText)
 
 // launchITerm2 launches iTerm2
 func launchITerm2(commandText string) error {
-	script := fmt.Sprintf(`tell application "iTerm"
-	activate
-	create window with default profile
-	tell current session of current window
-		write text "%s"
-	end tell
-end tell`, commandText)
-
 	log.Printf("🚀 Launching iTerm2 with command: %s", commandText)
-	cmd := exec.Command("osascript", "-e", script)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	output, err := runOsaScriptWithArg([]string{
+		`on run argv`,
+		`set commandText to item 1 of argv`,
+		`tell application "iTerm"`,
+		`activate`,
+		`create window with default profile`,
+		`tell current session of current window`,
+		`write text commandText`,
+		`end tell`,
+		`end tell`,
+		`end run`,
+	}, commandText)
+	if err != nil {
 		log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
 	}
