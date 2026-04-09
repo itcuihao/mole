@@ -153,6 +153,7 @@ export namespace session {
 	    id: string;
 	    name: string;
 	    profile_id: string;
+	    backend_id?: string;
 	    tmux_session_name: string;
 	    command: string;
 	    run_mode?: string;
@@ -174,6 +175,7 @@ export namespace session {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.profile_id = source["profile_id"];
+	        this.backend_id = source["backend_id"];
 	        this.tmux_session_name = source["tmux_session_name"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];

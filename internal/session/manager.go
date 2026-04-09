@@ -13,37 +13,66 @@ import (
 
 var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// Manager orchestrates session operations across store, tmux, and profiles.
+// Manager orchestrates session operations across store, runtime backends, and profiles.
 type Manager struct {
-	store      *Store
-	profileMgr *profile.Manager
-	invMgr     *inventory.Manager
+	store            *Store
+	profileMgr       *profile.Manager
+	invMgr           *inventory.Manager
+	backends         map[string]SessionBackend
+	defaultBackendID string
 }
 
 // NewManager creates a new session Manager.
 func NewManager(storePath string, profileMgr *profile.Manager, invMgr *inventory.Manager) *Manager {
+	return NewManagerWithBackend(storePath, profileMgr, invMgr, nil)
+}
+
+// NewManagerWithBackend creates a new session Manager with an explicit runtime backend.
+func NewManagerWithBackend(storePath string, profileMgr *profile.Manager, invMgr *inventory.Manager, backend SessionBackend) *Manager {
+	return NewManagerWithBackends(storePath, profileMgr, invMgr, backend)
+}
+
+// NewManagerWithBackends creates a new session Manager with one or more runtime backends.
+func NewManagerWithBackends(storePath string, profileMgr *profile.Manager, invMgr *inventory.Manager, defaultBackend SessionBackend, extraBackends ...SessionBackend) *Manager {
+	if defaultBackend == nil {
+		defaultBackend = NewTmuxBackend()
+	}
+
+	registry := make(map[string]SessionBackend)
+	for _, backend := range append([]SessionBackend{defaultBackend}, extraBackends...) {
+		if backend == nil {
+			continue
+		}
+		registry[backend.ID()] = backend
+	}
+
 	return &Manager{
-		store:      NewStore(storePath),
-		profileMgr: profileMgr,
-		invMgr:     invMgr,
+		store:            NewStore(storePath),
+		profileMgr:       profileMgr,
+		invMgr:           invMgr,
+		backends:         registry,
+		defaultBackendID: defaultBackend.ID(),
 	}
 }
 
-// Create creates a new tmux session with the environment from a profile.
+// Create creates a new runtime session with the environment from a profile.
 func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string) error {
 	if !validName.MatchString(sessionName) {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
 
-	// Check tmux is available
-	if !TmuxAvailable() {
-		return fmt.Errorf("tmux is not installed. Install with: brew install tmux")
+	backend, err := m.defaultBackend()
+	if err != nil {
+		return err
 	}
 
-	// Check if session name already exists in tmux
+	if err := backend.EnsureAvailable(); err != nil {
+		return err
+	}
+
 	tmuxName := "mole-" + sessionName
-	if IsTmuxSessionAlive(tmuxName) {
-		return fmt.Errorf("tmux session %q already exists", tmuxName)
+	if backend.IsAlive(tmuxName) {
+		return fmt.Errorf("%s session %q already exists", backend.ID(), tmuxName)
 	}
 
 	resolvedCommand, normalizedRunMode, normalizedHostID, err := m.resolveLaunchConfig(command, runMode, hostID)
@@ -57,8 +86,7 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
-	// Create tmux session
-	if err := CreateTmuxSession(tmuxName, env, resolvedCommand); err != nil {
+	if err := backend.Create(tmuxName, env, resolvedCommand); err != nil {
 		return err
 	}
 
@@ -66,6 +94,7 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 	sess := Session{
 		Name:            sessionName,
 		ProfileID:       profileID,
+		BackendID:       backend.ID(),
 		TmuxSessionName: tmuxName,
 		Command:         resolvedCommand,
 		RunMode:         normalizedRunMode,
@@ -74,19 +103,36 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 	return m.store.Save(sess)
 }
 
-// ListWithStatus returns all sessions with live tmux status.
-// Sessions are persisted even if tmux process is dead (e.g., after reboot).
+// ListWithStatus returns all sessions with live backend status.
+// Sessions are persisted even if the backend runtime is currently unavailable.
 func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 	sessions, err := m.store.List()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get live tmux sessions
-	tmuxSessions, _ := ListTmuxSessions()
-	tmuxMap := make(map[string]TmuxSessionInfo)
-	for _, ts := range tmuxSessions {
-		tmuxMap[ts.Name] = ts
+	runtimeMaps := make(map[string]map[string]RuntimeSessionInfo)
+	for _, sess := range sessions {
+		backend, backendErr := m.backendForSession(sess)
+		if backendErr != nil {
+			continue
+		}
+		backendID := sess.EffectiveBackendID()
+		if _, loaded := runtimeMaps[backendID]; loaded {
+			continue
+		}
+
+		runtimeSessions, listErr := backend.List()
+		if listErr != nil {
+			runtimeMaps[backendID] = map[string]RuntimeSessionInfo{}
+			continue
+		}
+
+		runtimeMap := make(map[string]RuntimeSessionInfo, len(runtimeSessions))
+		for _, runtimeSession := range runtimeSessions {
+			runtimeMap[runtimeSession.Name] = runtimeSession
+		}
+		runtimeMaps[backendID] = runtimeMap
 	}
 
 	// Load profiles for name/color lookup
@@ -99,7 +145,9 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 	result := make([]SessionStatus, 0)
 
 	for _, sess := range sessions {
-		ts, alive := tmuxMap[sess.TmuxSessionName]
+		sess.NormalizeRuntimeMetadata()
+		runtimeMap := runtimeMaps[sess.BackendID]
+		ts, alive := runtimeMap[sess.RuntimeName()]
 
 		status := SessionStatus{
 			Session:  sess,
@@ -131,6 +179,12 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 	if err != nil {
 		return err
 	}
+	sess.NormalizeRuntimeMetadata()
+
+	backend, err := m.backendForSession(sess)
+	if err != nil {
+		return err
+	}
 
 	oldProfileID := sess.ProfileID
 	oldCommand := sess.Command
@@ -146,8 +200,11 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
-	// Check if tmux session is alive
-	isAlive := IsTmuxSessionAlive(sess.TmuxSessionName)
+	if err := backend.EnsureAvailable(); err != nil {
+		return err
+	}
+
+	isAlive := backend.IsAlive(sess.RuntimeName())
 	var rollbackEnv map[string]string
 	canRollback := false
 
@@ -158,23 +215,22 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 		}
 	}
 
-	// If alive, kill it first
 	if isAlive {
-		if err := KillTmuxSession(sess.TmuxSessionName); err != nil {
+		if err := backend.Kill(sess.RuntimeName()); err != nil {
 			return fmt.Errorf("failed to kill existing session: %w", err)
 		}
 	}
 
 	// Update session metadata
 	sess.ProfileID = profileID
+	sess.BackendID = backend.ID()
 	sess.Command = resolvedCommand
 	sess.RunMode = normalizedRunMode
 	sess.HostID = normalizedHostID
 
-	// Recreate tmux session
-	if err := CreateTmuxSession(sess.TmuxSessionName, newEnv, resolvedCommand); err != nil {
+	if err := backend.Create(sess.RuntimeName(), newEnv, resolvedCommand); err != nil {
 		if isAlive && canRollback {
-			if rollbackErr := CreateTmuxSession(sess.TmuxSessionName, rollbackEnv, oldCommand); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
@@ -184,9 +240,9 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 
 	// Save updated metadata
 	if err := m.store.Update(sess); err != nil {
-		_ = KillTmuxSession(sess.TmuxSessionName)
+		_ = backend.Kill(sess.RuntimeName())
 		if isAlive && canRollback {
-			if rollbackErr := CreateTmuxSession(sess.TmuxSessionName, rollbackEnv, oldCommand); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
@@ -197,27 +253,41 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 	return nil
 }
 
-// Kill terminates a tmux session when present and removes it from the store.
-func (m *Manager) Kill(tmuxName string) error {
-	if err := KillTmuxSession(tmuxName); err != nil {
-		if !IsTmuxSessionAlive(tmuxName) {
-			return m.store.DeleteByTmuxName(tmuxName)
+// Kill terminates a runtime session when present and removes it from the store.
+func (m *Manager) Kill(runtimeName string) error {
+	backend, err := m.backendForRuntimeName(runtimeName)
+	if err != nil {
+		return err
+	}
+
+	if err := backend.Kill(runtimeName); err != nil {
+		if !backend.IsAlive(runtimeName) {
+			return m.store.DeleteByRuntimeName(runtimeName)
 		}
 		return err
 	}
-	return m.store.DeleteByTmuxName(tmuxName)
+	return m.store.DeleteByRuntimeName(runtimeName)
 }
 
-// Restart recreates a dead tmux session using its stored configuration.
+// Restart recreates a dead runtime session using its stored configuration.
 func (m *Manager) Restart(sessionID string) error {
 	// Get session metadata
 	sess, err := m.store.Get(sessionID)
 	if err != nil {
 		return fmt.Errorf("session not found: %w", err)
 	}
+	sess.NormalizeRuntimeMetadata()
 
-	// Check if already alive
-	if IsTmuxSessionAlive(sess.TmuxSessionName) {
+	backend, err := m.backendForSession(sess)
+	if err != nil {
+		return err
+	}
+
+	if err := backend.EnsureAvailable(); err != nil {
+		return err
+	}
+
+	if backend.IsAlive(sess.RuntimeName()) {
 		return fmt.Errorf("session %q is already running", sess.Name)
 	}
 
@@ -232,12 +302,11 @@ func (m *Manager) Restart(sessionID string) error {
 		return err
 	}
 
-	// Recreate tmux session
-	return CreateTmuxSession(sess.TmuxSessionName, env, command)
+	return backend.Create(sess.RuntimeName(), env, command)
 }
 
-// Attach opens the user's preferred terminal and attaches to a tmux session.
-func (m *Manager) Attach(tmuxName string) error {
+// Attach opens the user's preferred terminal and attaches to a runtime session.
+func (m *Manager) Attach(runtimeName string) error {
 	// Load user's preferred terminal
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -255,52 +324,90 @@ func (m *Manager) Attach(tmuxName string) error {
 		}
 	}
 
-	attachEnv := m.resolveAttachEnv(tmuxName)
+	attachEnv := m.resolveAttachEnv(runtimeName)
 
-	err = terminal.AttachSession(terminalID, tmuxName, attachEnv)
+	err = terminal.AttachSession(terminalID, runtimeName, attachEnv)
 	if err != nil {
 		// Log error for debugging
-		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
+		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, runtimeName, err)
 	}
 	return err
 }
 
-// AttachWithTerminal opens a specific terminal and attaches to a tmux session.
-func (m *Manager) AttachWithTerminal(tmuxName, terminalID string) error {
-	attachEnv := m.resolveAttachEnv(tmuxName)
+// AttachWithTerminal opens a specific terminal and attaches to a runtime session.
+func (m *Manager) AttachWithTerminal(runtimeName, terminalID string) error {
+	attachEnv := m.resolveAttachEnv(runtimeName)
 
-	err := terminal.AttachSession(terminalID, tmuxName, attachEnv)
+	err := terminal.AttachSession(terminalID, runtimeName, attachEnv)
 	if err != nil {
 		// Log error for debugging
-		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
+		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, runtimeName, err)
 	}
 	return err
 }
 
-func (m *Manager) resolveAttachEnv(tmuxName string) map[string]string {
+func (m *Manager) resolveAttachEnv(runtimeName string) map[string]string {
 	if m.store == nil || m.profileMgr == nil {
 		return nil
 	}
 
-	sess, err := m.store.GetByTmuxName(tmuxName)
+	sess, err := m.store.GetByRuntimeName(runtimeName)
 	if err != nil {
-		fmt.Printf("⚠️ failed to resolve session metadata for attach [%s]: %v\n", tmuxName, err)
+		fmt.Printf("⚠️ failed to resolve session metadata for attach [%s]: %v\n", runtimeName, err)
 		return nil
 	}
+	sess.NormalizeRuntimeMetadata()
 
 	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
 	if err != nil {
-		fmt.Printf("⚠️ failed to resolve attach env for [%s]: %v\n", tmuxName, err)
+		fmt.Printf("⚠️ failed to resolve attach env for [%s]: %v\n", runtimeName, err)
 		return nil
 	}
 
-	if IsTmuxSessionAlive(tmuxName) {
-		if err := SyncTmuxSessionEnv(tmuxName, env); err != nil {
-			fmt.Printf("⚠️ failed to refresh tmux env for [%s]: %v\n", tmuxName, err)
+	backend, backendErr := m.backendForSession(sess)
+	if backendErr != nil {
+		fmt.Printf("⚠️ failed to resolve backend for attach [%s]: %v\n", runtimeName, backendErr)
+		return env
+	}
+	if backend.IsAlive(runtimeName) {
+		if err := backend.SyncEnv(runtimeName, env); err != nil {
+			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
 		}
 	}
 
 	return env
+}
+
+func (m *Manager) defaultBackend() (SessionBackend, error) {
+	if m.backends == nil {
+		backend := NewTmuxBackend()
+		m.backends = map[string]SessionBackend{backend.ID(): backend}
+		m.defaultBackendID = backend.ID()
+	}
+	if backend, ok := m.backends[m.defaultBackendID]; ok {
+		return backend, nil
+	}
+	return nil, fmt.Errorf("default session backend %q is not registered", m.defaultBackendID)
+}
+
+func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
+	backendID := sess.EffectiveBackendID()
+	if m.backends != nil {
+		if backend, ok := m.backends[backendID]; ok {
+			return backend, nil
+		}
+	}
+	return nil, fmt.Errorf("session backend %q is not registered", backendID)
+}
+
+func (m *Manager) backendForRuntimeName(runtimeName string) (SessionBackend, error) {
+	if m.store != nil {
+		if sess, err := m.store.GetByRuntimeName(runtimeName); err == nil {
+			sess.NormalizeRuntimeMetadata()
+			return m.backendForSession(sess)
+		}
+	}
+	return m.defaultBackend()
 }
 
 func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, string, string, error) {

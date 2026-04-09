@@ -35,6 +35,9 @@ func (s *Store) load() ([]Session, error) {
 	if err := json.Unmarshal(data, &sessions); err != nil {
 		return nil, err
 	}
+	for i := range sessions {
+		sessions[i].NormalizeRuntimeMetadata()
+	}
 	return sessions, nil
 }
 
@@ -95,6 +98,7 @@ func (s *Store) Save(sess Session) error {
 		sess.ID = uuid.New().String()
 		sess.CreatedAt = time.Now()
 	}
+	sess.NormalizeRuntimeMetadata()
 
 	sessions = append(sessions, sess)
 	return s.save(sessions)
@@ -114,6 +118,7 @@ func (s *Store) Update(sess Session) error {
 	for i, existing := range sessions {
 		if existing.ID == sess.ID {
 			sess.CreatedAt = existing.CreatedAt // preserve creation time
+			sess.NormalizeRuntimeMetadata()
 			sessions[i] = sess
 			found = true
 			break
@@ -163,4 +168,14 @@ func (s *Store) DeleteByTmuxName(tmuxName string) error {
 		}
 	}
 	return s.save(filtered)
+}
+
+// GetByRuntimeName returns a session by its runtime session name.
+func (s *Store) GetByRuntimeName(runtimeName string) (Session, error) {
+	return s.GetByTmuxName(runtimeName)
+}
+
+// DeleteByRuntimeName removes a session by its runtime session name.
+func (s *Store) DeleteByRuntimeName(runtimeName string) error {
+	return s.DeleteByTmuxName(runtimeName)
 }

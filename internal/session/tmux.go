@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,6 +15,8 @@ import (
 )
 
 const tmuxTimeout = 5 * time.Second
+
+var ErrTmuxUnavailable = errors.New("tmux is not installed or not available in PATH")
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"

@@ -1,6 +1,9 @@
 package session
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	RunModeShell  = "shell"
@@ -8,11 +11,12 @@ const (
 	RunModeCustom = "custom"
 )
 
-// Session represents stored metadata for a tmux session.
+// Session represents stored metadata for a runtime session.
 type Session struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	ProfileID       string    `json:"profile_id"`
+	BackendID       string    `json:"backend_id,omitempty"`
 	TmuxSessionName string    `json:"tmux_session_name"`
 	Command         string    `json:"command"` // Optional command to run (e.g., "claude")
 	RunMode         string    `json:"run_mode,omitempty"`
@@ -20,7 +24,23 @@ type Session struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-// SessionStatus combines stored session data with live tmux status.
+func (s Session) EffectiveBackendID() string {
+	if backendID := strings.TrimSpace(s.BackendID); backendID != "" {
+		return backendID
+	}
+	return BackendIDTmux
+}
+
+func (s Session) RuntimeName() string {
+	return strings.TrimSpace(s.TmuxSessionName)
+}
+
+func (s *Session) NormalizeRuntimeMetadata() {
+	s.BackendID = s.EffectiveBackendID()
+	s.TmuxSessionName = s.RuntimeName()
+}
+
+// SessionStatus combines stored session data with live backend status.
 type SessionStatus struct {
 	Session
 	ProfileName  string `json:"profile_name"`
