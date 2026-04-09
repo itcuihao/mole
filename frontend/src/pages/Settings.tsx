@@ -147,6 +147,16 @@ function Settings() {
           Install your preferred terminal and it will be automatically detected.
         </p>
       </div>
+
+      <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
+        <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+          <TerminalIcon className="w-4 h-4" />
+          About Mole
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          A session manager for hosts and profiles.
+        </p>
+      </div>
     </div>
   )
 }

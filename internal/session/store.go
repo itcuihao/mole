@@ -67,6 +67,20 @@ func (s *Store) Get(id string) (Session, error) {
 	return Session{}, os.ErrNotExist
 }
 
+// GetByTmuxName returns a session by its tmux session name.
+func (s *Store) GetByTmuxName(tmuxName string) (Session, error) {
+	sessions, err := s.List()
+	if err != nil {
+		return Session{}, err
+	}
+	for _, sess := range sessions {
+		if sess.TmuxSessionName == tmuxName {
+			return sess, nil
+		}
+	}
+	return Session{}, os.ErrNotExist
+}
+
 // Save adds a new session.
 func (s *Store) Save(sess Session) error {
 	s.mu.Lock()

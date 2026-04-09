@@ -12,44 +12,41 @@ function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full min-w-0 flex flex-col bg-background">
       <Tabs
         value={activeTab}
         onValueChange={value => setActiveTab(value as AppTab)}
-        className="h-full flex flex-col"
+        className="h-full min-w-0 flex flex-col"
       >
         {/* Header with terminal aesthetic */}
         <div className="flex items-center justify-between border-b bg-card/50 backdrop-blur-sm px-6 py-3">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <pre className="font-mono text-[10px] leading-[1.1] text-primary select-none">
+            <div role="img" aria-label="Mole">
+              <pre className="font-mono text-[10px] leading-[1.1] text-primary select-none" aria-hidden="true">
 {`┌┬┐┌─┐╷  ┌─╴
 ││││ ││  ├╴
 ╵ ╵└─┘└─╴└─╴`}
               </pre>
-              <span className="text-xs text-muted-foreground font-mono">
-                Terminal Environment Manager
-              </span>
             </div>
             <TabsList className="border-0 bg-muted/50 h-9">
               <TabsTrigger value="sessions" className="font-mono text-xs px-4">
-                sessions
+                Sessions
               </TabsTrigger>
               <TabsTrigger value="profiles" className="font-mono text-xs px-4">
-                profiles
+                Profiles
               </TabsTrigger>
               <TabsTrigger value="hosts" className="font-mono text-xs px-4">
-                hosts
+                Hosts
               </TabsTrigger>
               <TabsTrigger value="settings" className="font-mono text-xs px-4">
-                settings
+                Settings
               </TabsTrigger>
             </TabsList>
           </div>
           <ThemeToggle />
         </div>
 
-        <TabsContent value="sessions" className="flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
           <Sessions onNavigate={setActiveTab} />
         </TabsContent>
 

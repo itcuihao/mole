@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal } from "lucide-react"
 import type { AppTab } from '../App'
 
@@ -27,6 +28,11 @@ const RUN_MODE_HINTS: Record<RunMode, string> = {
   host: 'Pick a saved host and Mole will build the SSH command.',
   custom: 'Run a command as soon as the session starts.',
 }
+
+const SESSION_MENU_PANEL_CLASS = 'absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 origin-top-right'
+const SESSION_MENU_LABEL_CLASS = 'border-b border-border/60 bg-muted/40 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground'
+const SESSION_MENU_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground'
+const SESSION_MENU_DESTRUCTIVE_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10'
 
 const normalizeRunMode = (value?: string, hasCommand = false): RunMode => {
   if (value === 'shell' || value === 'host' || value === 'custom') {
@@ -84,6 +90,45 @@ const findHostIDForCommand = (
   }
 
   return ''
+}
+
+function CommandText({
+  command,
+  className,
+}: {
+  command: string
+  className?: string
+}) {
+  const lines = command.split(/\r?\n/)
+
+  return (
+    <div className={cn('min-w-0 overflow-hidden font-mono leading-relaxed', className)}>
+      {lines.map((line, lineIndex) => {
+        const parts = line.match(/\S+/g) ?? []
+
+        if (parts.length === 0) {
+          return (
+            <div key={lineIndex} className={lineIndex > 0 ? 'mt-1' : undefined}>
+              <span className="block h-[1lh]" aria-hidden="true" />
+            </div>
+          )
+        }
+
+        return (
+          <div
+            key={lineIndex}
+            className={cn('flex min-w-0 flex-wrap items-start gap-x-[1ch]', lineIndex > 0 && 'mt-1')}
+          >
+            {parts.map((part, partIndex) => (
+              <span key={`${lineIndex}-${partIndex}`} className="whitespace-nowrap">
+                {part}
+              </span>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function RunModeOption({
@@ -290,19 +335,19 @@ function Sessions({
   }, [sessions, normalizedQuery])
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="min-w-0">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Sessions</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {sessions.length > 0 && (
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search sessions"
                 aria-label="Search sessions by name"
-                className="h-9 w-56 pl-8 pr-8"
+                className="h-9 w-full pl-8 pr-8 sm:w-56"
               />
               {searchQuery && (
                 <button
@@ -454,7 +499,7 @@ function SessionCard({
   }
 
   return (
-    <div className="flex items-center justify-between p-4 bg-card rounded-lg border border-border hover:border-primary/30 transition-all">
+    <div className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/30 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor}`} />
         <div className="flex-1 min-w-0">
@@ -477,14 +522,18 @@ function SessionCard({
             {s.alive ? `${s.windows} window${s.windows !== 1 ? 's' : ''}` : 'will restore on open'}
           </div>
           {s.command && (
-            <div className="text-xs text-muted-foreground/70 font-mono mt-1.5 truncate" title={`Auto-runs on first attach: ${s.command}`}>
-              startup: {s.command}
+            <div
+              className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
+              title={`Auto-runs on first attach: ${s.command}`}
+            >
+              <span className="shrink-0 font-mono">startup:</span>
+              <CommandText command={s.command} className="min-w-0 flex-1" />
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:self-center">
         <div className="relative" ref={terminalMenuRef}>
           <div className="flex">
             <Button
@@ -503,7 +552,7 @@ function SessionCard({
                   setShowMoreMenu(false)
                 }}
                 size="sm"
-                className="rounded-l-none pl-1 pr-1.5 border-l border-primary-foreground/20"
+                className={`rounded-l-none border-l border-primary-foreground/20 pl-1 pr-1.5 ${showTerminalMenu ? 'bg-primary/90' : ''}`}
                 disabled={isWorking}
               >
                 <ChevronDown className="w-3 h-3" />
@@ -511,15 +560,15 @@ function SessionCard({
             )}
           </div>
           {showTerminalMenu && terminals.length > 0 && (
-            <div className="absolute right-0 top-full mt-1 w-48 bg-popover border border-border rounded-md shadow-lg z-50 py-1">
-              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+            <div className={`${SESSION_MENU_PANEL_CLASS} w-48`}>
+              <div className={SESSION_MENU_LABEL_CLASS}>
                 Open with
               </div>
               {terminals.map(term => (
                 <button
                   key={term.ID}
                   onClick={() => handleTerminalSelect(term.ID)}
-                  className="w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors flex items-center gap-2"
+                  className={SESSION_MENU_ITEM_CLASS}
                 >
                   <TerminalSquare className="w-4 h-4 text-muted-foreground" />
                   <span>{term.Name}</span>
@@ -536,20 +585,23 @@ function SessionCard({
             }}
             variant="secondary"
             size="sm"
-            className="w-9 px-0 bg-secondary text-secondary-foreground hover:bg-secondary/90"
+            className={`w-9 px-0 ${showMoreMenu ? 'border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm' : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
             aria-label="More actions"
             disabled={isWorking}
           >
             <MoreHorizontal className="w-4 h-4" />
           </Button>
           {showMoreMenu && (
-            <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border rounded-md shadow-lg z-50 py-1">
+            <div className={`${SESSION_MENU_PANEL_CLASS} w-44`}>
+              <div className={SESSION_MENU_LABEL_CLASS}>
+                Actions
+              </div>
               <button
                 onClick={() => {
                   setShowMoreMenu(false)
                   onEdit(s)
                 }}
-                className="w-full px-3 py-2 text-sm text-left hover:bg-accent transition-colors flex items-center gap-2"
+                className={SESSION_MENU_ITEM_CLASS}
               >
                 <Pencil className="w-4 h-4 text-muted-foreground" />
                 <span>Edit</span>
@@ -559,7 +611,7 @@ function SessionCard({
                   setShowMoreMenu(false)
                   onKill(s)
                 }}
-                className="w-full px-3 py-2 text-sm text-left text-destructive hover:bg-destructive/10 transition-colors flex items-center gap-2"
+                className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
               >
                 <Trash2 className="w-4 h-4" />
                 <span>{destructiveLabel}</span>
@@ -831,7 +883,7 @@ function NewSessionModal({
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <div className="mb-1 font-medium text-foreground">Preview</div>
-                  <div className="font-mono break-all">{hostCommand}</div>
+                  <CommandText command={hostCommand} />
                 </div>
               )}
             </div>
@@ -1078,7 +1130,7 @@ function EditSessionModal({
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <div className="mb-1 font-medium text-foreground">Preview</div>
-                  <div className="font-mono break-all">{hostCommand}</div>
+                  <CommandText command={hostCommand} />
                 </div>
               )}
             </div>

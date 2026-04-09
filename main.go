@@ -38,7 +38,7 @@ func main() {
 		Mac: &mac.Options{
 			About: &mac.AboutInfo{
 				Title:   "Mole",
-				Message: "Terminal Environment Manager",
+				Message: "A session manager for hosts and profiles.",
 				Icon:    appIconData,
 			},
 		},

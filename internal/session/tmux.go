@@ -19,6 +19,37 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
+func defaultSessionWorkingDir() string {
+	home, err := os.UserHomeDir()
+	if err == nil && home != "" {
+		if info, statErr := os.Stat(home); statErr == nil && info.IsDir() {
+			return home
+		}
+	}
+
+	if wd, err := os.Getwd(); err == nil && wd != "" {
+		return wd
+	}
+
+	return "/"
+}
+
+// SyncTmuxSessionEnv refreshes tmux session-level environment variables so any
+// new panes or windows created after attach inherit the latest profile values.
+func SyncTmuxSessionEnv(name string, env map[string]string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
+	defer cancel()
+
+	for key, value := range env {
+		cmd := exec.CommandContext(ctx, "tmux", "setenv", "-t", name, key, value)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("tmux setenv failed for %q: %s: %w", key, strings.TrimSpace(string(output)), err)
+		}
+	}
+
+	return nil
+}
+
 // TmuxSessionInfo holds live status from tmux.
 type TmuxSessionInfo struct {
 	Name     string
@@ -90,8 +121,11 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	}
 
 	shellCmd := fmt.Sprintf(". %s && exec %s", shellQuote(envScriptPath), shellQuote(userShell))
+	startDir := defaultSessionWorkingDir()
 
-	args := []string{"new-session", "-d", "-s", name, runnerShell, runnerFlag, shellCmd}
+	// Use a stable default working directory instead of inheriting Mole's process
+	// cwd, which is often the repo root in development.
+	args := []string{"new-session", "-d", "-c", startDir, "-s", name, runnerShell, runnerFlag, shellCmd}
 
 	cmd := exec.CommandContext(ctx, "tmux", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -99,10 +133,9 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 		return fmt.Errorf("tmux new-session failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
-	// Set environment variables at tmux session level for new windows/panes
-	for k, v := range env {
-		setenvArgs := []string{"setenv", "-t", name, k, v}
-		exec.CommandContext(ctx, "tmux", setenvArgs...).Run()
+	// Set environment variables at tmux session level for new windows/panes.
+	if err := SyncTmuxSessionEnv(name, env); err != nil {
+		fmt.Printf("⚠️ failed to sync tmux session env for %s: %v\n", name, err)
 	}
 
 	if command != "" {

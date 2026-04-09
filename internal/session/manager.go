@@ -255,7 +255,9 @@ func (m *Manager) Attach(tmuxName string) error {
 		}
 	}
 
-	err = terminal.AttachSession(terminalID, tmuxName)
+	attachEnv := m.resolveAttachEnv(tmuxName)
+
+	err = terminal.AttachSession(terminalID, tmuxName, attachEnv)
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
@@ -265,12 +267,40 @@ func (m *Manager) Attach(tmuxName string) error {
 
 // AttachWithTerminal opens a specific terminal and attaches to a tmux session.
 func (m *Manager) AttachWithTerminal(tmuxName, terminalID string) error {
-	err := terminal.AttachSession(terminalID, tmuxName)
+	attachEnv := m.resolveAttachEnv(tmuxName)
+
+	err := terminal.AttachSession(terminalID, tmuxName, attachEnv)
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, tmuxName, err)
 	}
 	return err
+}
+
+func (m *Manager) resolveAttachEnv(tmuxName string) map[string]string {
+	if m.store == nil || m.profileMgr == nil {
+		return nil
+	}
+
+	sess, err := m.store.GetByTmuxName(tmuxName)
+	if err != nil {
+		fmt.Printf("⚠️ failed to resolve session metadata for attach [%s]: %v\n", tmuxName, err)
+		return nil
+	}
+
+	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	if err != nil {
+		fmt.Printf("⚠️ failed to resolve attach env for [%s]: %v\n", tmuxName, err)
+		return nil
+	}
+
+	if IsTmuxSessionAlive(tmuxName) {
+		if err := SyncTmuxSessionEnv(tmuxName, env); err != nil {
+			fmt.Printf("⚠️ failed to refresh tmux env for [%s]: %v\n", tmuxName, err)
+		}
+	}
+
+	return env
 }
 
 func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, string, string, error) {

@@ -53,7 +53,7 @@ func Run(cb Callbacks) {
 
 func onReady(cb Callbacks) {
 	systray.SetIcon(iconData)
-	systray.SetTooltip("Mole - Terminal Environment Manager")
+	systray.SetTooltip("Mole")
 
 	mShow := systray.AddMenuItem("Show Window", "Show the configuration window")
 	mNew := systray.AddMenuItem("New Session...", "Create a new session")
