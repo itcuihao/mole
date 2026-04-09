@@ -16,25 +16,25 @@ const maxSessionSlots = 10
 
 // SessionInfo holds session data for display in tray menu.
 type SessionInfo struct {
-	Name            string
-	TmuxSessionName string
-	ProfileName     string
-	Attached        bool
-	Alive           bool
+	SessionID   string
+	Name        string
+	ProfileName string
+	Attached    bool
+	Alive       bool
 }
 
 // Callbacks holds function pointers for tray menu actions.
 type Callbacks struct {
 	OnShowWindow func()
 	OnNewSession func()
-	OnAttach     func(tmuxName string)
+	OnAttach     func(sessionID string)
 	OnQuit       func()
 	GetSessions  func() []SessionInfo
 }
 
 type sessionSlot struct {
-	item *systray.MenuItem
-	tmux string
+	item      *systray.MenuItem
+	sessionID string
 }
 
 var (
@@ -100,10 +100,10 @@ func onReady(cb Callbacks) {
 		go func() {
 			for range slots[idx].item.ClickedCh {
 				mu.Lock()
-				tmux := slots[idx].tmux
+				sessionID := slots[idx].sessionID
 				mu.Unlock()
-				if tmux != "" && cb.OnAttach != nil {
-					cb.OnAttach(tmux)
+				if sessionID != "" && cb.OnAttach != nil {
+					cb.OnAttach(sessionID)
 				}
 			}
 		}()
@@ -138,12 +138,12 @@ func updateSlots(sessions []SessionInfo) {
 			title += " (" + status + ")"
 
 			slots[i].item.SetTitle(title)
-			slots[i].item.SetTooltip("Click to attach: " + s.TmuxSessionName)
-			slots[i].tmux = s.TmuxSessionName
+			slots[i].item.SetTooltip("Click to attach: " + s.Name)
+			slots[i].sessionID = s.SessionID
 			slots[i].item.Show()
 		} else {
 			slots[i].item.Hide()
-			slots[i].tmux = ""
+			slots[i].sessionID = ""
 		}
 	}
 }

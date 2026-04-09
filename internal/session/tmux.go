@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,37 @@ func SyncTmuxSessionEnv(name string, env map[string]string) error {
 	return nil
 }
 
+func buildTmuxEnvScriptContent(env map[string]string, command string) string {
+	var envCmds strings.Builder
+	envCmds.WriteString("# Mole environment variables\n")
+
+	keys := make([]string, 0, len(env))
+	for key := range env {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		envCmds.WriteString(fmt.Sprintf("export %s=%s\n", key, shellQuote(env[key])))
+	}
+
+	if command != "" {
+		envCmds.WriteString("\n# Auto-run startup command (once per session)\n")
+		envCmds.WriteString("# Check tmux session-level environment variable\n")
+		envCmds.WriteString("if [ -n \"$TMUX\" ]; then\n")
+		envCmds.WriteString("  _session=$(tmux display-message -p '#S')\n")
+		envCmds.WriteString("  _ran=$(tmux showenv -t \"$_session\" MOLE_CMD_RAN 2>/dev/null | cut -d= -f2)\n")
+		envCmds.WriteString("  if [ -z \"$_ran\" ]; then\n")
+		envCmds.WriteString("    tmux setenv -t \"$_session\" MOLE_CMD_RAN 1\n")
+		envCmds.WriteString(fmt.Sprintf("    echo '🚀 Running startup command: %s'\n", strings.ReplaceAll(command, "'", "'\\''")))
+		envCmds.WriteString(fmt.Sprintf("    %s\n", command))
+		envCmds.WriteString("  fi\n")
+		envCmds.WriteString("fi\n")
+	}
+
+	return envCmds.String()
+}
+
 // TmuxSessionInfo holds live status from tmux.
 type TmuxSessionInfo struct {
 	Name     string
@@ -74,28 +106,7 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 
 	// Create a temporary env script file
 	envScriptPath := filepath.Join(config.Dir(), fmt.Sprintf(".mole-env-%s.sh", name))
-	var envCmds strings.Builder
-	envCmds.WriteString("# Mole environment variables\n")
-	for k, v := range env {
-		envCmds.WriteString(fmt.Sprintf("export %s=%s\n", k, shellQuote(v)))
-	}
-
-	// Add startup command to env script (only runs once per session)
-	if command != "" {
-		envCmds.WriteString("\n# Auto-run startup command (once per session)\n")
-		envCmds.WriteString("# Check tmux session-level environment variable\n")
-		envCmds.WriteString("if [ -n \"$TMUX\" ]; then\n")
-		envCmds.WriteString("  _session=$(tmux display-message -p '#S')\n")
-		envCmds.WriteString("  _ran=$(tmux showenv -t \"$_session\" MOLE_CMD_RAN 2>/dev/null | cut -d= -f2)\n")
-		envCmds.WriteString("  if [ -z \"$_ran\" ]; then\n")
-		envCmds.WriteString("    tmux setenv -t \"$_session\" MOLE_CMD_RAN 1\n")
-		envCmds.WriteString(fmt.Sprintf("    echo '🚀 Running startup command: %s'\n", strings.ReplaceAll(command, "'", "'\\''")))
-		envCmds.WriteString(fmt.Sprintf("    %s\n", command))
-		envCmds.WriteString("  fi\n")
-		envCmds.WriteString("fi\n")
-	}
-
-	if err := os.WriteFile(envScriptPath, []byte(envCmds.String()), 0600); err != nil {
+	if err := os.WriteFile(envScriptPath, []byte(buildTmuxEnvScriptContent(env, command)), 0600); err != nil {
 		return fmt.Errorf("failed to create env script: %w", err)
 	}
 
@@ -156,15 +167,18 @@ func ListTmuxSessions() ([]TmuxSessionInfo, error) {
 	cmd := exec.CommandContext(ctx, "tmux", "list-sessions", "-F", "#{session_name}:#{session_attached}:#{session_windows}")
 	output, err := cmd.Output()
 	if err != nil {
-		// "no server running" means no sessions
-		if strings.Contains(string(output), "no server") || strings.Contains(err.Error(), "exit status 1") {
+		if isNoTmuxServerOutput(string(output), err) {
 			return make([]TmuxSessionInfo, 0), nil
 		}
 		return make([]TmuxSessionInfo, 0), err
 	}
 
+	return parseTmuxSessionList(string(output)), nil
+}
+
+func parseTmuxSessionList(output string) []TmuxSessionInfo {
 	sessions := make([]TmuxSessionInfo, 0)
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		if line == "" {
 			continue
 		}
@@ -180,7 +194,11 @@ func ListTmuxSessions() ([]TmuxSessionInfo, error) {
 			Windows:  windows,
 		})
 	}
-	return sessions, nil
+	return sessions
+}
+
+func isNoTmuxServerOutput(output string, err error) bool {
+	return strings.Contains(output, "no server") || strings.Contains(err.Error(), "exit status 1")
 }
 
 // KillTmuxSession terminates a tmux session.

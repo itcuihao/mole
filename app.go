@@ -40,7 +40,7 @@ func (a *App) startup(ctx context.Context) {
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
-	a.sessionMgr = session.NewManager(config.SessionsPath(), a.profileMgr, a.invMgr)
+	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
 }
 
 // ListProfiles returns all profiles.
@@ -58,12 +58,12 @@ func (a *App) DeleteProfile(id string) error {
 	return a.profileMgr.Delete(id)
 }
 
-// CreateSession creates a new tmux session from a profile.
+// CreateSession creates a new runtime session from a profile.
 func (a *App) CreateSession(profileID, name, command string) error {
 	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "")
 }
 
-// CreateSessionWithOptions creates a new tmux session with explicit launch metadata.
+// CreateSessionWithOptions creates a new runtime session with explicit launch metadata.
 func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID string) error {
 	return a.sessionMgr.Create(profileID, name, command, runMode, hostID)
 }
@@ -73,17 +73,17 @@ func (a *App) ListSessions() ([]session.SessionStatus, error) {
 	return a.sessionMgr.ListWithStatus()
 }
 
-// AttachSession opens Terminal.app and attaches to a tmux session.
-func (a *App) AttachSession(tmuxName string) error {
-	return a.sessionMgr.Attach(tmuxName)
+// AttachSession opens the user's preferred terminal and attaches to a session.
+func (a *App) AttachSession(sessionID string) error {
+	return a.sessionMgr.Attach(sessionID)
 }
 
-// AttachSessionWithTerminal opens a specific terminal and attaches to a tmux session.
-func (a *App) AttachSessionWithTerminal(tmuxName, terminalID string) error {
-	return a.sessionMgr.AttachWithTerminal(tmuxName, terminalID)
+// AttachSessionWithTerminal opens a specific terminal and attaches to a session.
+func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) error {
+	return a.sessionMgr.AttachWithTerminal(sessionID, terminalID)
 }
 
-// UpdateSession updates a session's profile and command, recreating the tmux session.
+// UpdateSession updates a session's profile and command, recreating the runtime session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
 	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "")
 }
@@ -93,12 +93,12 @@ func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, h
 	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID)
 }
 
-// KillSession terminates a tmux session and removes it from storage.
-func (a *App) KillSession(tmuxName string) error {
-	return a.sessionMgr.Kill(tmuxName)
+// KillSession terminates a session and removes it from storage.
+func (a *App) KillSession(sessionID string) error {
+	return a.sessionMgr.Kill(sessionID)
 }
 
-// RestartSession recreates a dead tmux session using its stored configuration.
+// RestartSession recreates a dead runtime session using its stored configuration.
 func (a *App) RestartSession(sessionID string) error {
 	return a.sessionMgr.Restart(sessionID)
 }
@@ -121,7 +121,7 @@ func (a *App) GetDefaultTerminal() (string, error) {
 		if bestTerminal != nil {
 			return bestTerminal.ID, nil
 		}
-		return terminal.TerminalApple, nil
+		return terminal.DefaultTerminalID(), nil
 	}
 
 	return settings.DefaultTerminal, nil

@@ -292,9 +292,9 @@ function Sessions({
       }
 
       if (terminalID) {
-        await AttachSessionWithTerminal(sess.tmux_session_name, terminalID)
+        await AttachSessionWithTerminal(sess.id, terminalID)
       } else {
-        await AttachSession(sess.tmux_session_name)
+        await AttachSession(sess.id)
       }
 
       showAttachHint(resolvedTerminal, wasRestarted)
@@ -312,7 +312,7 @@ function Sessions({
     setSessionAction({ id: sess.id, kind: 'kill' })
     setError('')
     try {
-      await KillSession(sess.tmux_session_name)
+      await KillSession(sess.id)
       if (!sess.alive) {
         showTimedInfo('Offline session removed.')
       }

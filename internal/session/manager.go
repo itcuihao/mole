@@ -24,7 +24,7 @@ type Manager struct {
 
 // NewManager creates a new session Manager.
 func NewManager(storePath string, profileMgr *profile.Manager, invMgr *inventory.Manager) *Manager {
-	return NewManagerWithBackend(storePath, profileMgr, invMgr, nil)
+	return NewPlatformManager(storePath, profileMgr, invMgr)
 }
 
 // NewManagerWithBackend creates a new session Manager with an explicit runtime backend.
@@ -254,19 +254,26 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 }
 
 // Kill terminates a runtime session when present and removes it from the store.
-func (m *Manager) Kill(runtimeName string) error {
-	backend, err := m.backendForRuntimeName(runtimeName)
+func (m *Manager) Kill(sessionID string) error {
+	sess, err := m.store.Get(sessionID)
+	if err != nil {
+		return fmt.Errorf("session not found: %w", err)
+	}
+	sess.NormalizeRuntimeMetadata()
+
+	backend, err := m.backendForSession(sess)
 	if err != nil {
 		return err
 	}
 
+	runtimeName := sess.RuntimeName()
 	if err := backend.Kill(runtimeName); err != nil {
 		if !backend.IsAlive(runtimeName) {
-			return m.store.DeleteByRuntimeName(runtimeName)
+			return m.store.Delete(sessionID)
 		}
 		return err
 	}
-	return m.store.DeleteByRuntimeName(runtimeName)
+	return m.store.Delete(sessionID)
 }
 
 // Restart recreates a dead runtime session using its stored configuration.
@@ -306,7 +313,7 @@ func (m *Manager) Restart(sessionID string) error {
 }
 
 // Attach opens the user's preferred terminal and attaches to a runtime session.
-func (m *Manager) Attach(runtimeName string) error {
+func (m *Manager) Attach(sessionID string) error {
 	// Load user's preferred terminal
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -320,62 +327,72 @@ func (m *Manager) Attach(runtimeName string) error {
 		if bestTerminal != nil {
 			terminalID = bestTerminal.ID
 		} else {
-			terminalID = terminal.TerminalApple
+			terminalID = terminal.DefaultTerminalID()
 		}
 	}
 
-	attachEnv := m.resolveAttachEnv(runtimeName)
+	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
+	if err != nil {
+		return err
+	}
 
-	err = terminal.AttachSession(terminalID, runtimeName, attachEnv)
+	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
 		// Log error for debugging
-		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, runtimeName, err)
+		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
 	}
 	return err
 }
 
 // AttachWithTerminal opens a specific terminal and attaches to a runtime session.
-func (m *Manager) AttachWithTerminal(runtimeName, terminalID string) error {
-	attachEnv := m.resolveAttachEnv(runtimeName)
+func (m *Manager) AttachWithTerminal(sessionID, terminalID string) error {
+	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
+	if err != nil {
+		return err
+	}
 
-	err := terminal.AttachSession(terminalID, runtimeName, attachEnv)
+	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
 		// Log error for debugging
-		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, runtimeName, err)
+		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
 	}
 	return err
 }
 
-func (m *Manager) resolveAttachEnv(runtimeName string) map[string]string {
+func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.LaunchSpec, error) {
 	if m.store == nil || m.profileMgr == nil {
-		return nil
+		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session manager is not fully initialized")
 	}
 
-	sess, err := m.store.GetByRuntimeName(runtimeName)
+	sess, err := m.store.Get(sessionID)
 	if err != nil {
-		fmt.Printf("⚠️ failed to resolve session metadata for attach [%s]: %v\n", runtimeName, err)
-		return nil
+		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session not found: %w", err)
 	}
 	sess.NormalizeRuntimeMetadata()
 
-	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
-	if err != nil {
-		fmt.Printf("⚠️ failed to resolve attach env for [%s]: %v\n", runtimeName, err)
-		return nil
-	}
-
 	backend, backendErr := m.backendForSession(sess)
 	if backendErr != nil {
-		fmt.Printf("⚠️ failed to resolve backend for attach [%s]: %v\n", runtimeName, backendErr)
-		return env
+		return Session{}, terminal.LaunchSpec{}, backendErr
 	}
+
+	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	if err != nil {
+		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("failed to resolve attach env for [%s]: %w", sess.RuntimeName(), err)
+	}
+
+	runtimeName := sess.RuntimeName()
 	if backend.IsAlive(runtimeName) {
 		if err := backend.SyncEnv(runtimeName, env); err != nil {
 			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
 		}
 	}
 
-	return env
+	launchSpec, err := backend.BuildAttachSpec(runtimeName, env)
+	if err != nil {
+		return Session{}, terminal.LaunchSpec{}, err
+	}
+
+	return sess, launchSpec, nil
 }
 
 func (m *Manager) defaultBackend() (SessionBackend, error) {
@@ -398,16 +415,6 @@ func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
 		}
 	}
 	return nil, fmt.Errorf("session backend %q is not registered", backendID)
-}
-
-func (m *Manager) backendForRuntimeName(runtimeName string) (SessionBackend, error) {
-	if m.store != nil {
-		if sess, err := m.store.GetByRuntimeName(runtimeName); err == nil {
-			sess.NormalizeRuntimeMetadata()
-			return m.backendForSession(sess)
-		}
-	}
-	return m.defaultBackend()
 }
 
 func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, string, string, error) {

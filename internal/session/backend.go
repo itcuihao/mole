@@ -1,7 +1,10 @@
 package session
 
+import "mole/internal/terminal"
+
 const (
-	BackendIDTmux = "tmux"
+	BackendIDTmux    = "tmux"
+	BackendIDWslTmux = "wsl-tmux"
 )
 
 // RuntimeSessionInfo describes live session state as reported by a backend.
@@ -23,4 +26,5 @@ type SessionBackend interface {
 	Kill(name string) error
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
+	BuildAttachSpec(name string, env map[string]string) (terminal.LaunchSpec, error)
 }

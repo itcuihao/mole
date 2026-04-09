@@ -1,5 +1,7 @@
 package session
 
+import "mole/internal/terminal"
+
 // TmuxBackend adapts the existing tmux runtime implementation to SessionBackend.
 type TmuxBackend struct{}
 
@@ -51,4 +53,8 @@ func (TmuxBackend) IsAlive(name string) bool {
 
 func (TmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncTmuxSessionEnv(name, env)
+}
+
+func (TmuxBackend) BuildAttachSpec(name string, env map[string]string) (terminal.LaunchSpec, error) {
+	return buildTmuxAttachLaunchSpec(name, env)
 }

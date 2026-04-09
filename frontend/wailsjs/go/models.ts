@@ -216,6 +216,7 @@ export namespace terminal {
 	    Name: string;
 	    BundleID: string;
 	    AppPath: string;
+	    ExecPath: string;
 	    IsInstalled: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -228,6 +229,7 @@ export namespace terminal {
 	        this.Name = source["Name"];
 	        this.BundleID = source["BundleID"];
 	        this.AppPath = source["AppPath"];
+	        this.ExecPath = source["ExecPath"];
 	        this.IsInstalled = source["IsInstalled"];
 	    }
 	}
