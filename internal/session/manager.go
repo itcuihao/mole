@@ -121,8 +121,26 @@ func (m *Manager) Update(sessionID, profileID, command string) error {
 		return err
 	}
 
+	oldProfileID := sess.ProfileID
+	oldCommand := sess.Command
+
+	// Resolve the replacement environment before touching the live session.
+	newEnv, err := m.profileMgr.GetFullEnv(profileID)
+	if err != nil {
+		return fmt.Errorf("failed to resolve profile env: %w", err)
+	}
+
 	// Check if tmux session is alive
 	isAlive := IsTmuxSessionAlive(sess.TmuxSessionName)
+	var rollbackEnv map[string]string
+	canRollback := false
+
+	if isAlive {
+		if currentEnv, currentErr := m.profileMgr.GetFullEnv(oldProfileID); currentErr == nil {
+			rollbackEnv = currentEnv
+			canRollback = true
+		}
+	}
 
 	// If alive, kill it first
 	if isAlive {
@@ -135,19 +153,30 @@ func (m *Manager) Update(sessionID, profileID, command string) error {
 	sess.ProfileID = profileID
 	sess.Command = command
 
-	// Resolve new environment
-	env, err := m.profileMgr.GetFullEnv(profileID)
-	if err != nil {
-		return fmt.Errorf("failed to resolve profile env: %w", err)
-	}
-
 	// Recreate tmux session
-	if err := CreateTmuxSession(sess.TmuxSessionName, env, command); err != nil {
+	if err := CreateTmuxSession(sess.TmuxSessionName, newEnv, command); err != nil {
+		if isAlive && canRollback {
+			if rollbackErr := CreateTmuxSession(sess.TmuxSessionName, rollbackEnv, oldCommand); rollbackErr != nil {
+				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
+			}
+			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
+		}
 		return err
 	}
 
 	// Save updated metadata
-	return m.store.Update(sess)
+	if err := m.store.Update(sess); err != nil {
+		_ = KillTmuxSession(sess.TmuxSessionName)
+		if isAlive && canRollback {
+			if rollbackErr := CreateTmuxSession(sess.TmuxSessionName, rollbackEnv, oldCommand); rollbackErr != nil {
+				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
+			}
+			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
+		}
+		return err
+	}
+
+	return nil
 }
 
 // Kill terminates a tmux session when present and removes it from the store.

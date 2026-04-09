@@ -24,7 +24,7 @@ func AttachInTerminal(tmuxSessionName string) error {
 end tell`, tmuxSessionName)
 
 	cmd := exec.Command("osascript", "-e", script)
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if _, err := cmd.CombinedOutput(); err != nil {
 		// Fallback to Terminal.app
 		script = fmt.Sprintf(`tell application "Terminal"
 		activate

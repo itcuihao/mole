@@ -15,6 +15,10 @@ import (
 
 const tmuxTimeout = 5 * time.Second
 
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
 // TmuxSessionInfo holds live status from tmux.
 type TmuxSessionInfo struct {
 	Name     string
@@ -39,9 +43,7 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	var envCmds strings.Builder
 	envCmds.WriteString("# Mole environment variables\n")
 	for k, v := range env {
-		// Escape single quotes in values
-		escapedVal := strings.ReplaceAll(v, "'", "'\\''")
-		envCmds.WriteString(fmt.Sprintf("export %s='%s'\n", k, escapedVal))
+		envCmds.WriteString(fmt.Sprintf("export %s=%s\n", k, shellQuote(v)))
 	}
 
 	// Add startup command to env script (only runs once per session)
@@ -63,18 +65,33 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 		return fmt.Errorf("failed to create env script: %w", err)
 	}
 
-	// Determine user's shell
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/zsh"
+	// Determine user's preferred shell.
+	userShell := os.Getenv("SHELL")
+	if userShell == "" {
+		userShell = "/bin/zsh"
+	}
+	if strings.Contains(userShell, "/") {
+		if _, err := os.Stat(userShell); err != nil {
+			userShell = "/bin/zsh"
+		}
+	} else if resolved, err := exec.LookPath(userShell); err == nil {
+		userShell = resolved
+	} else {
+		userShell = "/bin/zsh"
 	}
 
-	// Build the command to run
-	var shellCmd string
-	// Just start interactive shell with env vars loaded
-	shellCmd = fmt.Sprintf("source %s && exec %s", envScriptPath, shell)
+	// Bootstrap the tmux pane with a POSIX-compatible shell so env loading
+	// works even when the user's login shell is fish-like.
+	runnerShell := "/bin/zsh"
+	runnerFlag := "-lc"
+	if _, err := os.Stat(runnerShell); err != nil {
+		runnerShell = "/bin/sh"
+		runnerFlag = "-c"
+	}
 
-	args := []string{"new-session", "-d", "-s", name, shell, "-c", shellCmd}
+	shellCmd := fmt.Sprintf(". %s && exec %s", shellQuote(envScriptPath), shellQuote(userShell))
+
+	args := []string{"new-session", "-d", "-s", name, runnerShell, runnerFlag, shellCmd}
 
 	cmd := exec.CommandContext(ctx, "tmux", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
