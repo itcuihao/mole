@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"mole/internal/config"
 	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/terminal"
+
+	"github.com/google/uuid"
 )
 
 var validName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -476,4 +479,159 @@ func (m *Manager) commandForSession(sess Session) (string, error) {
 	}
 
 	return strings.TrimSpace(sess.Command), nil
+}
+
+// ExportWorkspaceSessions returns the portable static session configuration set.
+func (m *Manager) ExportWorkspaceSessions() ([]WorkspaceSession, error) {
+	sessions, err := m.store.List()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]WorkspaceSession, 0, len(sessions))
+	for _, sess := range sessions {
+		result = append(result, sess.WorkspaceConfig())
+	}
+
+	return result, nil
+}
+
+// PrepareWorkspaceImport validates and normalizes imported session configs without persisting them.
+func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs map[string]struct{}, hostIDs map[string]struct{}) ([]Session, error) {
+	defaultBackend, err := m.defaultBackend()
+	if err != nil {
+		return nil, err
+	}
+	defaultBackendID := defaultBackend.ID()
+
+	if configs == nil {
+		return []Session{}, nil
+	}
+
+	prepared := make([]Session, 0, len(configs))
+	seenIDs := make(map[string]struct{}, len(configs))
+	seenNames := make(map[string]struct{}, len(configs))
+	seenRuntimeNames := make(map[string]struct{}, len(configs))
+
+	for _, cfg := range configs {
+		name := strings.TrimSpace(cfg.Name)
+		if !validName.MatchString(name) {
+			return nil, fmt.Errorf("session %q has an invalid name", cfg.Name)
+		}
+		if _, exists := seenNames[name]; exists {
+			return nil, fmt.Errorf("duplicate session name %q", name)
+		}
+		seenNames[name] = struct{}{}
+
+		runtimeName := RuntimeNameForSessionName(name)
+		if _, exists := seenRuntimeNames[runtimeName]; exists {
+			return nil, fmt.Errorf("duplicate runtime session name %q", runtimeName)
+		}
+		seenRuntimeNames[runtimeName] = struct{}{}
+
+		id := strings.TrimSpace(cfg.ID)
+		if id == "" {
+			id = uuid.New().String()
+		}
+		if _, exists := seenIDs[id]; exists {
+			return nil, fmt.Errorf("duplicate session id %q", id)
+		}
+		seenIDs[id] = struct{}{}
+
+		profileID := strings.TrimSpace(cfg.ProfileID)
+		if profileID == "" {
+			return nil, fmt.Errorf("session %q is missing a profile", name)
+		}
+		if _, exists := profileIDs[profileID]; !exists {
+			return nil, fmt.Errorf("session %q references unknown profile %q", name, profileID)
+		}
+
+		command := strings.TrimSpace(cfg.Command)
+		runMode := strings.TrimSpace(cfg.RunMode)
+		hostID := strings.TrimSpace(cfg.HostID)
+
+		switch {
+		case runMode == "" && hostID != "":
+			runMode = RunModeHost
+		case runMode == "" && command != "":
+			runMode = RunModeCustom
+		case runMode == "":
+			runMode = RunModeShell
+		}
+
+		switch runMode {
+		case RunModeShell:
+			command = ""
+			hostID = ""
+		case RunModeCustom:
+			hostID = ""
+		case RunModeHost:
+			if hostID == "" {
+				return nil, fmt.Errorf("session %q uses host mode but has no host id", name)
+			}
+			if _, exists := hostIDs[hostID]; !exists {
+				return nil, fmt.Errorf("session %q references unknown host %q", name, hostID)
+			}
+		default:
+			return nil, fmt.Errorf("session %q uses unsupported run mode %q", name, runMode)
+		}
+
+		backendID := strings.TrimSpace(cfg.BackendID)
+		if backendID == "" || m.backends[backendID] == nil {
+			backendID = defaultBackendID
+		}
+
+		createdAt := strings.TrimSpace(cfg.CreatedAt)
+		if createdAt == "" {
+			createdAt = time.Now().Format(time.RFC3339Nano)
+		}
+
+		prepared = append(prepared, Session{
+			ID:              id,
+			Name:            name,
+			ProfileID:       profileID,
+			BackendID:       backendID,
+			TmuxSessionName: runtimeName,
+			Command:         command,
+			RunMode:         runMode,
+			HostID:          hostID,
+			CreatedAt:       createdAt,
+		})
+	}
+
+	return prepared, nil
+}
+
+// StopTrackedSessions terminates all currently tracked runtime sessions before destructive workspace operations.
+func (m *Manager) StopTrackedSessions() error {
+	current, err := m.store.List()
+	if err != nil {
+		return err
+	}
+
+	for _, sess := range current {
+		sess.NormalizeRuntimeMetadata()
+		runtimeName := sess.RuntimeName()
+		if runtimeName == "" {
+			continue
+		}
+
+		backend, backendErr := m.backendForSession(sess)
+		if backendErr != nil {
+			continue
+		}
+		if !backend.IsAlive(runtimeName) {
+			continue
+		}
+		if err := backend.Kill(runtimeName); err != nil && backend.IsAlive(runtimeName) {
+			return fmt.Errorf("failed to stop running session %q before import: %w", sess.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// ReplaceAllImported overwrites the stored session set with prepared imported sessions.
+func (m *Manager) ReplaceAllImported(sessions []Session) error {
+	return m.store.ReplaceAll(sessions)
 }

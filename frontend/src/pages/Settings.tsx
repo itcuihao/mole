@@ -1,14 +1,29 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
 import { terminal } from '../../wailsjs/go/models'
+import { Button } from "@/components/ui/button"
+import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Check, Terminal as TerminalIcon } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { Check, Copy, Download, Terminal as TerminalIcon, TriangleAlert, Upload } from "lucide-react"
 
-function Settings() {
+const getAppMethod = (method: string) => {
+  return (window as any)?.go?.main?.App?.[method]
+}
+
+function Settings({
+  onWorkspaceImported,
+}: {
+  onWorkspaceImported?: () => void
+}) {
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [workspaceBuffer, setWorkspaceBuffer] = useState('')
+  const [workspaceBusy, setWorkspaceBusy] = useState<'export' | 'import' | null>(null)
 
   useEffect(() => {
     loadSettings()
@@ -42,6 +57,49 @@ function Settings() {
       setMessage({ type: 'error', text: String(err) })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleExportWorkspace = async () => {
+    const method = getAppMethod('ExportWorkspace')
+    if (typeof method !== 'function') {
+      setMessage({ type: 'error', text: 'Workspace export is unavailable' })
+      return
+    }
+
+    setWorkspaceBusy('export')
+    setMessage(null)
+    try {
+      const raw = await method()
+      setWorkspaceBuffer(String(raw || ''))
+      setShowExportModal(true)
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) })
+    } finally {
+      setWorkspaceBusy(null)
+    }
+  }
+
+  const handleImportWorkspace = async () => {
+    const method = getAppMethod('ImportWorkspace')
+    if (typeof method !== 'function') {
+      setMessage({ type: 'error', text: 'Workspace import is unavailable' })
+      return
+    }
+
+    setWorkspaceBusy('import')
+    setMessage(null)
+    try {
+      await method(workspaceBuffer)
+      setShowImportModal(false)
+      setWorkspaceBuffer('')
+      onWorkspaceImported?.()
+      setMessage({ type: 'success', text: 'Workspace imported. Profiles, hosts, and session definitions were replaced.' })
+      setTimeout(() => setMessage(null), 4000)
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) })
+    } finally {
+      setWorkspaceBusy(null)
     }
   }
 
@@ -137,6 +195,48 @@ function Settings() {
         </div>
       </div>
 
+      <div className="mt-6 bg-card rounded-lg border border-border p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Workspace Import / Export</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Export your profiles, host inventory, and static session definitions as one portable workspace file.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+            <div>
+              Import replaces the current workspace and stops tracked running sessions before writing the new configuration.
+              Local terminal preference is intentionally excluded and stays machine-specific.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleExportWorkspace}
+            disabled={workspaceBusy !== null}
+          >
+            <Download className="w-4 h-4" />
+            {workspaceBusy === 'export' ? 'Exporting...' : 'Export Workspace'}
+          </Button>
+          <Button
+            onClick={() => {
+              setWorkspaceBuffer('')
+              setShowImportModal(true)
+            }}
+            disabled={workspaceBusy !== null}
+          >
+            <Upload className="w-4 h-4" />
+            Import Workspace
+          </Button>
+        </div>
+      </div>
+
       <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
         <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
           <TerminalIcon className="w-4 h-4" />
@@ -157,6 +257,64 @@ function Settings() {
           A session manager for hosts and profiles.
         </p>
       </div>
+
+      {showExportModal && (
+        <ModalShell
+          title="Export Workspace"
+          description="Copy this JSON to back up or move your Mole workspace."
+          onClose={() => setShowExportModal(false)}
+          contentStyle={{ maxWidth: '760px' }}
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => navigator.clipboard.writeText(workspaceBuffer)}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copy JSON
+              </Button>
+              <Button onClick={() => setShowExportModal(false)}>Close</Button>
+            </div>
+          )}
+        >
+          <Textarea
+            value={workspaceBuffer}
+            readOnly
+            rows={14}
+            className="font-mono text-xs bg-muted/30 focus:bg-background"
+          />
+        </ModalShell>
+      )}
+
+      {showImportModal && (
+        <ModalShell
+          title="Import Workspace"
+          description="Paste a workspace JSON export to replace the current Mole configuration."
+          onClose={() => setShowImportModal(false)}
+          contentStyle={{ maxWidth: '760px' }}
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleImportWorkspace} disabled={workspaceBusy === 'import'}>
+                {workspaceBusy === 'import' ? 'Importing...' : 'Import Workspace'}
+              </Button>
+            </div>
+          )}
+        >
+          <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
+            Import keeps profiles, hosts, groups, defaults, and session definitions together. Running session state and default terminal preference are not restored.
+          </div>
+          <Textarea
+            value={workspaceBuffer}
+            onChange={e => setWorkspaceBuffer(e.target.value)}
+            placeholder="Paste workspace JSON here"
+            rows={14}
+            className="font-mono text-xs bg-muted/30 focus:bg-background"
+          />
+        </ModalShell>
+      )}
     </div>
   )
 }

@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GetInventory, SaveInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGroup, DeleteHostGroup } from '../../wailsjs/go/main/App'
+import { GetInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGroup, DeleteHostGroup } from '../../wailsjs/go/main/App'
 import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, Copy, Upload, Download, X, Server, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp } from "lucide-react"
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -25,7 +24,11 @@ const compareHostLabels = (left: inventory.Host, right: inventory.Host) => (
   hostSortLabel(left).localeCompare(hostSortLabel(right), undefined, { sensitivity: 'base', numeric: true })
 )
 
-function Hosts() {
+function Hosts({
+  refreshSignal,
+}: {
+  refreshSignal?: number
+}) {
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
   const [loading, setLoading] = useState(false)
@@ -58,10 +61,6 @@ function Hosts() {
     name: '',
     host_ids: [] as string[],
   })
-
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [showExportModal, setShowExportModal] = useState(false)
-  const [jsonBuffer, setJsonBuffer] = useState('')
 
   const hostMap = useMemo(() => {
     const map = new Map<string, inventory.Host>()
@@ -97,7 +96,7 @@ function Hosts() {
 
   useEffect(() => {
     loadInventory()
-  }, [])
+  }, [refreshSignal])
 
   const showTransientMessage = (text: string, duration = 3000) => {
     setMessage(text)
@@ -322,24 +321,6 @@ function Hosts() {
     }
   }
 
-  const exportJson = () => {
-    setJsonBuffer(JSON.stringify(inv, null, 2))
-    setShowExportModal(true)
-  }
-
-  const importJson = async () => {
-    setError('')
-    try {
-      const parsed = JSON.parse(jsonBuffer)
-      await SaveInventory(parsed)
-      setShowImportModal(false)
-      await loadInventory()
-      showTransientMessage('Inventory imported')
-    } catch (err) {
-      setError(`Import failed: ${String(err)}`)
-    }
-  }
-
   const buildSSHCommand = (host: inventory.Host) => {
     if (!host.host) return ''
     const defaults = inv.defaults || { user: '', port: 22, identity_file: '' }
@@ -412,14 +393,6 @@ function Hosts() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-foreground">Hosts</h1>
         <div className="flex items-center gap-2">
-          <Button onClick={() => { setJsonBuffer(''); setShowImportModal(true) }} variant="secondary" size="sm">
-            <Upload className="w-4 h-4" />
-            Import JSON
-          </Button>
-          <Button onClick={exportJson} variant="secondary" size="sm">
-            <Download className="w-4 h-4" />
-            Export JSON
-          </Button>
           <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
             Manage Groups
           </Button>
@@ -942,58 +915,6 @@ function Hosts() {
         </ModalShell>
       )}
 
-      {showExportModal && (
-        <ModalShell
-          title="Export Inventory"
-          description="Copy this JSON to share or commit to your team repo."
-          onClose={() => setShowExportModal(false)}
-          contentStyle={{ maxWidth: '720px' }}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => navigator.clipboard.writeText(jsonBuffer)}
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Copy JSON
-              </Button>
-              <Button onClick={() => setShowExportModal(false)}>Close</Button>
-            </div>
-          )}
-        >
-          <Textarea
-            value={jsonBuffer}
-            readOnly
-            rows={12}
-            className="font-mono text-xs bg-muted/30 focus:bg-background"
-          />
-        </ModalShell>
-      )}
-
-      {showImportModal && (
-        <ModalShell
-          title="Import Inventory"
-          description="Paste JSON exported from another Mole workspace."
-          onClose={() => setShowImportModal(false)}
-          contentStyle={{ maxWidth: '720px' }}
-          footer={(
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                Cancel
-              </Button>
-              <Button onClick={importJson}>Import</Button>
-            </div>
-          )}
-        >
-          <Textarea
-            value={jsonBuffer}
-            onChange={e => setJsonBuffer(e.target.value)}
-            placeholder="Paste inventory JSON here"
-            rows={12}
-            className="font-mono text-xs bg-muted/30 focus:bg-background"
-          />
-        </ModalShell>
-      )}
     </div>
   )
 }

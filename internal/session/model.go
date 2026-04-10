@@ -36,6 +36,10 @@ func (s Session) RuntimeName() string {
 	return strings.TrimSpace(s.TmuxSessionName)
 }
 
+func RuntimeNameForSessionName(name string) string {
+	return "mole-" + strings.TrimSpace(name)
+}
+
 func (s *Session) NormalizeRuntimeMetadata() {
 	s.BackendID = s.EffectiveBackendID()
 	s.TmuxSessionName = s.RuntimeName()
@@ -49,4 +53,17 @@ type SessionStatus struct {
 	Attached     bool   `json:"attached"`
 	Alive        bool   `json:"alive"`
 	Windows      int    `json:"windows"`
+}
+
+func (s Session) WorkspaceConfig() WorkspaceSession {
+	return WorkspaceSession{
+		ID:        s.ID,
+		Name:      s.Name,
+		ProfileID: s.ProfileID,
+		BackendID: s.EffectiveBackendID(),
+		Command:   s.Command,
+		RunMode:   s.RunMode,
+		HostID:    s.HostID,
+		CreatedAt: s.CreatedAt,
+	}
 }

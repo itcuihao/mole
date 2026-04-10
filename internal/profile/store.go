@@ -100,6 +100,18 @@ func (s *Store) Save(p Profile) error {
 	return s.save(profiles)
 }
 
+// ReplaceAll overwrites the full profile set.
+func (s *Store) ReplaceAll(profiles []Profile) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if profiles == nil {
+		profiles = []Profile{}
+	}
+
+	return s.save(profiles)
+}
+
 // Delete removes a profile by ID.
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()

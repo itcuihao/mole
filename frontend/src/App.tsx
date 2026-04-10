@@ -12,6 +12,7 @@ export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
   const [newSessionSignal, setNewSessionSignal] = useState(0)
+  const [workspaceRefreshSignal, setWorkspaceRefreshSignal] = useState(0)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
 
   useEffect(() => {
@@ -100,19 +101,23 @@ function App() {
         </div>
 
         <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
-          <Sessions onNavigate={setActiveTab} newSessionSignal={newSessionSignal} />
+          <Sessions
+            onNavigate={setActiveTab}
+            newSessionSignal={newSessionSignal}
+            workspaceRefreshSignal={workspaceRefreshSignal}
+          />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
-          <Profiles />
+          <Profiles refreshSignal={workspaceRefreshSignal} />
         </TabsContent>
 
         <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
-          <Hosts />
+          <Hosts refreshSignal={workspaceRefreshSignal} />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">
-          <Settings />
+          <Settings onWorkspaceImported={() => setWorkspaceRefreshSignal(prev => prev + 1)} />
         </TabsContent>
       </Tabs>
     </div>

@@ -104,6 +104,28 @@ func (s *Store) Save(sess Session) error {
 	return s.save(sessions)
 }
 
+// ReplaceAll overwrites the full stored session set.
+func (s *Store) ReplaceAll(sessions []Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if sessions == nil {
+		sessions = []Session{}
+	}
+
+	for i := range sessions {
+		if sessions[i].ID == "" {
+			sessions[i].ID = uuid.New().String()
+		}
+		if sessions[i].CreatedAt == "" {
+			sessions[i].CreatedAt = time.Now().Format(time.RFC3339Nano)
+		}
+		sessions[i].NormalizeRuntimeMetadata()
+	}
+
+	return s.save(sessions)
+}
+
 // Update modifies an existing session.
 func (s *Store) Update(sess Session) error {
 	s.mu.Lock()

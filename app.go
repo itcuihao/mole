@@ -2,10 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"mole/internal/config"
 	"mole/internal/inventory"
@@ -13,6 +16,7 @@ import (
 	"mole/internal/session"
 	"mole/internal/terminal"
 	"mole/internal/tray"
+	"mole/internal/workspace"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -182,6 +186,100 @@ func (a *App) SaveHostGroup(g inventory.HostGroup) error {
 // DeleteHostGroup removes a host group by ID.
 func (a *App) DeleteHostGroup(id string) error {
 	return a.invMgr.DeleteGroup(id)
+}
+
+// ExportWorkspace returns the full portable workspace payload as formatted JSON.
+func (a *App) ExportWorkspace() (string, error) {
+	if a.profileMgr == nil || a.invMgr == nil || a.sessionMgr == nil {
+		return "", fmt.Errorf("workspace is not initialized")
+	}
+
+	profiles, err := a.profileMgr.List()
+	if err != nil {
+		return "", err
+	}
+
+	inv, err := a.invMgr.GetInventory()
+	if err != nil {
+		return "", err
+	}
+
+	sessions, err := a.sessionMgr.ExportWorkspaceSessions()
+	if err != nil {
+		return "", err
+	}
+
+	payload := workspace.Bundle{
+		SchemaVersion: workspace.SchemaVersion,
+		ExportedAt:    time.Now().Format(time.RFC3339Nano),
+		Profiles:      profiles,
+		Inventory:     inv,
+		Sessions:      sessions,
+	}
+
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	return string(data), nil
+}
+
+// ImportWorkspace replaces the current workspace with the provided JSON payload.
+func (a *App) ImportWorkspace(raw string) error {
+	if a.profileMgr == nil || a.invMgr == nil || a.sessionMgr == nil {
+		return fmt.Errorf("workspace is not initialized")
+	}
+
+	if strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("workspace payload cannot be empty")
+	}
+
+	var payload workspace.Bundle
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return fmt.Errorf("invalid workspace JSON: %w", err)
+	}
+
+	if payload.SchemaVersion != workspace.SchemaVersion {
+		return fmt.Errorf("unsupported workspace schema version %d", payload.SchemaVersion)
+	}
+
+	profiles, err := a.profileMgr.PrepareImport(payload.Profiles)
+	if err != nil {
+		return err
+	}
+
+	inv := a.invMgr.PrepareImport(payload.Inventory)
+
+	profileIDs := make(map[string]struct{}, len(profiles))
+	for _, p := range profiles {
+		profileIDs[p.ID] = struct{}{}
+	}
+
+	hostIDs := make(map[string]struct{}, len(inv.Hosts))
+	for _, host := range inv.Hosts {
+		hostIDs[host.ID] = struct{}{}
+	}
+
+	sessions, err := a.sessionMgr.PrepareWorkspaceImport(payload.Sessions, profileIDs, hostIDs)
+	if err != nil {
+		return err
+	}
+
+	if err := a.sessionMgr.StopTrackedSessions(); err != nil {
+		return err
+	}
+	if err := a.profileMgr.ReplaceAll(profiles); err != nil {
+		return err
+	}
+	if err := a.invMgr.SaveInventory(inv); err != nil {
+		return err
+	}
+	if err := a.sessionMgr.ReplaceAllImported(sessions); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func inferRunMode(command string) string {

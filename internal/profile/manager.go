@@ -1,5 +1,12 @@
 package profile
 
+import (
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+)
+
 // Manager coordinates profile file storage plus env normalization rules.
 type Manager struct {
 	store *Store
@@ -57,6 +64,53 @@ func (m *Manager) Delete(id string) error {
 	return m.store.Delete(id)
 }
 
+// PrepareImport validates and normalizes imported profiles without persisting them.
+func (m *Manager) PrepareImport(profiles []Profile) ([]Profile, error) {
+	if profiles == nil {
+		return []Profile{}, nil
+	}
+
+	normalized := make([]Profile, 0, len(profiles))
+	seenIDs := make(map[string]struct{}, len(profiles))
+
+	for _, p := range profiles {
+		envVars, secretKeys, _, err := NormalizeProfileEnv(p.EnvVars, p.SecretKeys, nil)
+		if err != nil {
+			name := strings.TrimSpace(p.Name)
+			if name == "" {
+				name = "<unnamed profile>"
+			}
+			return nil, errForProfile(name, err)
+		}
+
+		p.Name = strings.TrimSpace(p.Name)
+		p.Description = strings.TrimSpace(p.Description)
+		p.EnvVars = envVars
+		p.SecretKeys = secretKeys
+
+		if p.ID == "" {
+			p.ID = uuid.New().String()
+		}
+		if _, exists := seenIDs[p.ID]; exists {
+			return nil, errForProfile(p.Name, errDuplicateProfileID(p.ID))
+		}
+		seenIDs[p.ID] = struct{}{}
+
+		if strings.TrimSpace(p.CreatedAt) == "" {
+			p.CreatedAt = time.Now().Format(time.RFC3339Nano)
+		}
+
+		normalized = append(normalized, p)
+	}
+
+	return normalized, nil
+}
+
+// ReplaceAll overwrites the full profile set.
+func (m *Manager) ReplaceAll(profiles []Profile) error {
+	return m.store.ReplaceAll(profiles)
+}
+
 // GetFullEnv returns all environment variables for a profile.
 // All values are stored in EnvVars (no Keychain), SecretKeys is just a UI hint.
 func (m *Manager) GetFullEnv(profileID string) (map[string]string, error) {
@@ -72,4 +126,33 @@ func (m *Manager) GetFullEnv(profileID string) (map[string]string, error) {
 	}
 
 	return env, nil
+}
+
+func errDuplicateProfileID(id string) error {
+	return &duplicateProfileIDError{id: id}
+}
+
+type duplicateProfileIDError struct {
+	id string
+}
+
+func (e *duplicateProfileIDError) Error() string {
+	return "duplicate profile id " + `"` + e.id + `"`
+}
+
+func errForProfile(name string, err error) error {
+	label := strings.TrimSpace(name)
+	if label == "" {
+		label = "<unnamed profile>"
+	}
+	return &profileImportError{name: label, err: err}
+}
+
+type profileImportError struct {
+	name string
+	err  error
+}
+
+func (e *profileImportError) Error() string {
+	return "profile " + `"` + e.name + `"` + ": " + e.err.Error()
 }

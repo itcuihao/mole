@@ -19,11 +19,15 @@ export function DeleteHostGroup(arg1:string):Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
 
+export function ExportWorkspace():Promise<string>;
+
 export function GetDefaultTerminal():Promise<string>;
 
 export function GetInstalledTerminals():Promise<Array<terminal.TerminalApp>>;
 
 export function GetInventory():Promise<inventory.Inventory>;
+
+export function ImportWorkspace(arg1:string):Promise<void>;
 
 export function KillSession(arg1:string):Promise<void>;
 

@@ -34,6 +34,12 @@ func (m *Manager) SaveInventory(inv Inventory) error {
 	return m.store.Save(inv)
 }
 
+// PrepareImport normalizes imported inventory without persisting it.
+func (m *Manager) PrepareImport(inv Inventory) Inventory {
+	m.normalize(&inv)
+	return inv
+}
+
 // SaveDefaults updates default SSH values.
 func (m *Manager) SaveDefaults(defaults HostDefaults) error {
 	return m.store.Update(func(inv *Inventory) error {

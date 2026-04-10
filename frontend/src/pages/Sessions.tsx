@@ -266,9 +266,11 @@ const updateSessionWithOptions = (
 function Sessions({
   onNavigate,
   newSessionSignal,
+  workspaceRefreshSignal,
 }: {
   onNavigate: (tab: AppTab) => void
   newSessionSignal?: number
+  workspaceRefreshSignal?: number
 }) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
@@ -291,7 +293,7 @@ function Sessions({
     }
   }, [])
 
-  useEffect(() => {
+  const loadMeta = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
       GetInstalledTerminals()
         .then(t => setTerminals(t || []))
@@ -312,10 +314,14 @@ function Sessions({
   }, [])
 
   useEffect(() => {
+    loadMeta()
+  }, [loadMeta, workspaceRefreshSignal])
+
+  useEffect(() => {
     refresh()
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
-  }, [refresh])
+  }, [refresh, workspaceRefreshSignal])
 
   useEffect(() => {
     if (!newSessionSignal) return

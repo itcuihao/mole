@@ -30,6 +30,10 @@ export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
 
+export function ExportWorkspace() {
+  return window['go']['main']['App']['ExportWorkspace']();
+}
+
 export function GetDefaultTerminal() {
   return window['go']['main']['App']['GetDefaultTerminal']();
 }
@@ -40,6 +44,10 @@ export function GetInstalledTerminals() {
 
 export function GetInventory() {
   return window['go']['main']['App']['GetInventory']();
+}
+
+export function ImportWorkspace(arg1) {
+  return window['go']['main']['App']['ImportWorkspace'](arg1);
 }
 
 export function KillSession(arg1) {

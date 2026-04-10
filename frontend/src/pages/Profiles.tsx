@@ -22,7 +22,11 @@ const compareByLabel = (left: string, right: string) => (
   left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true })
 )
 
-function Profiles() {
+function Profiles({
+  refreshSignal,
+}: {
+  refreshSignal?: number
+}) {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [editingProfile, setEditingProfile] = useState<profile.Profile | null>(null)
   const [viewingProfile, setViewingProfile] = useState<profile.Profile | null>(null)
@@ -37,7 +41,7 @@ function Profiles() {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => { refresh() }, [refresh, refreshSignal])
 
   const handleNew = () => {
     setEditingProfile(new profile.Profile({
