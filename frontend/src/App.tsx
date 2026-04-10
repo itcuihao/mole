@@ -14,6 +14,10 @@ function App() {
   const [newSessionSignal, setNewSessionSignal] = useState(0)
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof (window as any)?.runtime?.EventsOnMultiple !== 'function') {
+      return
+    }
+
     const detach = EventsOn('tray:new-session', () => {
       setActiveTab('sessions')
       setNewSessionSignal(prev => prev + 1)
