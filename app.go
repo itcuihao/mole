@@ -3,13 +3,18 @@ package main
 import (
 	"context"
 	"log"
+	"sort"
 	"strings"
+	"sync"
 
 	"mole/internal/config"
 	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/session"
 	"mole/internal/terminal"
+	"mole/internal/tray"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct holds the application state and managers.
@@ -18,6 +23,7 @@ type App struct {
 	profileMgr *profile.Manager
 	sessionMgr *session.Manager
 	invMgr     *inventory.Manager
+	trayOnce   sync.Once
 }
 
 // NewApp creates a new App instance.
@@ -41,6 +47,11 @@ func (a *App) startup(ctx context.Context) {
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
+}
+
+// domReady wires desktop integrations that rely on the frontend runtime being available.
+func (a *App) domReady(ctx context.Context) {
+	a.startTray()
 }
 
 // ListProfiles returns all profiles.
@@ -178,4 +189,77 @@ func inferRunMode(command string) string {
 		return session.RunModeShell
 	}
 	return session.RunModeCustom
+}
+
+func (a *App) startTray() {
+	if a.ctx == nil || a.sessionMgr == nil {
+		return
+	}
+
+	a.trayOnce.Do(func() {
+		go tray.Run(tray.Callbacks{
+			OnShowWindow: a.showWindow,
+			OnNewSession: func() {
+				a.showWindow()
+				runtime.EventsEmit(a.ctx, "tray:new-session")
+			},
+			OnAttach: func(sessionID string) {
+				if err := a.sessionMgr.Attach(sessionID); err != nil {
+					log.Printf("[Tray] Attach failed for %s: %v", sessionID, err)
+				}
+			},
+			OnQuit: func() {
+				runtime.Quit(a.ctx)
+			},
+			GetSessions: a.traySessions,
+		})
+	})
+}
+
+func (a *App) showWindow() {
+	if a.ctx == nil {
+		return
+	}
+
+	runtime.Show(a.ctx)
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
+}
+
+func (a *App) traySessions() []tray.SessionInfo {
+	if a.sessionMgr == nil {
+		return nil
+	}
+
+	sessions, err := a.sessionMgr.ListWithStatus()
+	if err != nil {
+		log.Printf("[Tray] Failed to list sessions: %v", err)
+		return nil
+	}
+
+	sort.SliceStable(sessions, func(i, j int) bool {
+		left := sessions[i]
+		right := sessions[j]
+
+		if left.Attached != right.Attached {
+			return left.Attached
+		}
+		if left.Alive != right.Alive {
+			return left.Alive
+		}
+		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
+	})
+
+	result := make([]tray.SessionInfo, 0, len(sessions))
+	for _, sess := range sessions {
+		result = append(result, tray.SessionInfo{
+			SessionID:   sess.ID,
+			Name:        sess.Name,
+			ProfileName: sess.ProfileName,
+			Attached:    sess.Attached,
+			Alive:       sess.Alive,
+		})
+	}
+
+	return result
 }

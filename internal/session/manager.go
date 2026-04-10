@@ -340,8 +340,12 @@ func (m *Manager) Attach(sessionID string) error {
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
+		return err
 	}
-	return err
+	if touchErr := m.store.RecordOpen(sess.ID); touchErr != nil {
+		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
+	}
+	return nil
 }
 
 // AttachWithTerminal opens a specific terminal and attaches to a runtime session.
@@ -355,8 +359,12 @@ func (m *Manager) AttachWithTerminal(sessionID, terminalID string) error {
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
+		return err
 	}
-	return err
+	if touchErr := m.store.RecordOpen(sess.ID); touchErr != nil {
+		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
+	}
+	return nil
 }
 
 func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.LaunchSpec, error) {

@@ -1,15 +1,30 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sessions from './pages/Sessions'
 import Profiles from './pages/Profiles'
 import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { EventsOn } from '../wailsjs/runtime/runtime'
 
 export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
+  const [newSessionSignal, setNewSessionSignal] = useState(0)
+
+  useEffect(() => {
+    const detach = EventsOn('tray:new-session', () => {
+      setActiveTab('sessions')
+      setNewSessionSignal(prev => prev + 1)
+    })
+
+    return () => {
+      if (typeof detach === 'function') {
+        detach()
+      }
+    }
+  }, [])
 
   return (
     <div className="h-full min-w-0 flex flex-col bg-background">
@@ -47,7 +62,7 @@ function App() {
         </div>
 
         <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
-          <Sessions onNavigate={setActiveTab} />
+          <Sessions onNavigate={setActiveTab} newSessionSignal={newSessionSignal} />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">

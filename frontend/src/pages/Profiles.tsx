@@ -18,6 +18,10 @@ const ENV_VAR_KEY_HINT = 'Recommended: UPPER_SNAKE_CASE. Lowercase is allowed an
 
 const normalizeEnvKey = (key: string) => key.trim()
 
+const compareByLabel = (left: string, right: string) => (
+  left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true })
+)
+
 function Profiles() {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [editingProfile, setEditingProfile] = useState<profile.Profile | null>(null)
@@ -70,6 +74,10 @@ function Profiles() {
     refresh()
   }
 
+  const sortedProfiles = useMemo(() => (
+    [...profiles].sort((a, b) => compareByLabel(a.name || '', b.name || ''))
+  ), [profiles])
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -95,7 +103,7 @@ function Profiles() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {profiles.map(p => (
+          {sortedProfiles.map(p => (
             <ProfileCard
               key={p.id}
               profile={p}

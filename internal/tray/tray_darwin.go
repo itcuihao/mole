@@ -13,6 +13,7 @@ import (
 var iconData []byte
 
 const maxSessionSlots = 10
+const trayTitle = "Mole"
 
 // SessionInfo holds session data for display in tray menu.
 type SessionInfo struct {
@@ -53,7 +54,8 @@ func Run(cb Callbacks) {
 
 func onReady(cb Callbacks) {
 	systray.SetIcon(iconData)
-	systray.SetTooltip("Mole")
+	systray.SetTitle(trayTitle)
+	systray.SetTooltip(trayTitle)
 
 	mShow := systray.AddMenuItem("Show Window", "Show the configuration window")
 	mNew := systray.AddMenuItem("New Session...", "Create a new session")

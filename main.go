@@ -24,10 +24,14 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		HideWindowOnClose: true,
 		OnStartup: func(ctx context.Context) {
 			setApplicationIcon(appIconData)
 			app.startup(ctx)
+		},
+		OnDomReady: func(ctx context.Context) {
+			app.domReady(ctx)
 		},
 		Bind: []interface{}{
 			app,

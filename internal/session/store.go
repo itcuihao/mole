@@ -96,7 +96,7 @@ func (s *Store) Save(sess Session) error {
 
 	if sess.ID == "" {
 		sess.ID = uuid.New().String()
-		sess.CreatedAt = time.Now()
+		sess.CreatedAt = time.Now().Format(time.RFC3339Nano)
 	}
 	sess.NormalizeRuntimeMetadata()
 
@@ -120,6 +120,35 @@ func (s *Store) Update(sess Session) error {
 			sess.CreatedAt = existing.CreatedAt // preserve creation time
 			sess.NormalizeRuntimeMetadata()
 			sessions[i] = sess
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return os.ErrNotExist
+	}
+
+	return s.save(sessions)
+}
+
+// RecordOpen increments usage counters for a session after a successful attach.
+func (s *Store) RecordOpen(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sessions, err := s.load()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i, existing := range sessions {
+		if existing.ID == id {
+			existing.OpenCount++
+			existing.LastOpenedAt = time.Now().Format(time.RFC3339Nano)
+			existing.NormalizeRuntimeMetadata()
+			sessions[i] = existing
 			found = true
 			break
 		}

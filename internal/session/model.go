@@ -2,7 +2,6 @@ package session
 
 import (
 	"strings"
-	"time"
 )
 
 const (
@@ -13,15 +12,17 @@ const (
 
 // Session represents stored metadata for a runtime session.
 type Session struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	ProfileID       string    `json:"profile_id"`
-	BackendID       string    `json:"backend_id,omitempty"`
-	TmuxSessionName string    `json:"tmux_session_name"`
-	Command         string    `json:"command"` // Optional command to run (e.g., "claude")
-	RunMode         string    `json:"run_mode,omitempty"`
-	HostID          string    `json:"host_id,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	ProfileID       string `json:"profile_id"`
+	BackendID       string `json:"backend_id,omitempty"`
+	TmuxSessionName string `json:"tmux_session_name"`
+	Command         string `json:"command"` // Optional command to run (e.g., "claude")
+	RunMode         string `json:"run_mode,omitempty"`
+	HostID          string `json:"host_id,omitempty"`
+	CreatedAt       string `json:"created_at"`
+	OpenCount       int    `json:"open_count,omitempty"`
+	LastOpenedAt    string `json:"last_opened_at,omitempty"`
 }
 
 func (s Session) EffectiveBackendID() string {

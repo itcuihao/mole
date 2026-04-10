@@ -19,6 +19,12 @@ const EMPTY_INVENTORY = inventory.Inventory.createFrom({
 
 type GroupModalSource = 'standalone' | 'host'
 
+const hostSortLabel = (host: inventory.Host) => (host.name || host.host || '').trim()
+
+const compareHostLabels = (left: inventory.Host, right: inventory.Host) => (
+  hostSortLabel(left).localeCompare(hostSortLabel(right), undefined, { sensitivity: 'base', numeric: true })
+)
+
 function Hosts() {
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
@@ -63,6 +69,10 @@ function Hosts() {
     return map
   }, [inv.hosts])
 
+  const sortedHosts = useMemo(() => (
+    [...inv.hosts].sort(compareHostLabels)
+  ), [inv.hosts])
+
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     inv.hosts.forEach(host => {
@@ -73,7 +83,7 @@ function Hosts() {
 
   const filteredHosts = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return inv.hosts.filter(host => {
+    return sortedHosts.filter(host => {
       const tags = host.tags || []
       const matchesQuery = !query
         || (host.name || '').toLowerCase().includes(query)
@@ -83,7 +93,7 @@ function Hosts() {
         || tags.some(tag => selectedTags.includes(tag))
       return matchesQuery && matchesTags
     })
-  }, [inv.hosts, search, selectedTags])
+  }, [search, selectedTags, sortedHosts])
 
   useEffect(() => {
     loadInventory()
@@ -838,7 +848,7 @@ function Hosts() {
                   </div>
                 ) : (
                   <div className="border border-border rounded bg-muted/20 max-h-56 overflow-auto">
-                    {inv.hosts.map(host => {
+                    {sortedHosts.map(host => {
                       const checked = groupForm.host_ids.includes(host.id)
                       return (
                         <label

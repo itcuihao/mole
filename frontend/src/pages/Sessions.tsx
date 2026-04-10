@@ -12,9 +12,12 @@ import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2,
 import type { AppTab } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom'
+type SessionSortMode = 'most_used' | 'name' | 'profile'
 type SessionRecord = session.SessionStatus & {
   run_mode?: string
   host_id?: string
+  open_count?: number
+  last_opened_at?: string
 }
 
 const RUN_MODE_LABELS: Record<RunMode, string> = {
@@ -29,6 +32,12 @@ const RUN_MODE_HINTS: Record<RunMode, string> = {
   custom: 'Run a command as soon as the session starts.',
 }
 
+const SESSION_SORT_LABELS: Record<SessionSortMode, string> = {
+  most_used: 'Most Used',
+  name: 'Name A-Z',
+  profile: 'Profile',
+}
+
 const SESSION_MENU_PANEL_CLASS = 'absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 origin-top-right'
 const SESSION_MENU_LABEL_CLASS = 'border-b border-border/60 bg-muted/40 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground'
 const SESSION_MENU_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground'
@@ -40,6 +49,53 @@ const normalizeRunMode = (value?: string, hasCommand = false): RunMode => {
   }
   return hasCommand ? 'custom' : 'shell'
 }
+
+const compareAlpha = (left: string, right: string) => (
+  left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true })
+)
+
+const parseTimestamp = (value?: string) => {
+  if (!value) return 0
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+const sessionPriority = (sess: SessionRecord) => {
+  if (sess.attached) return 0
+  if (sess.alive) return 1
+  return 2
+}
+
+const compareSessions = (left: SessionRecord, right: SessionRecord) => {
+  const priorityDiff = sessionPriority(left) - sessionPriority(right)
+  if (priorityDiff !== 0) return priorityDiff
+
+  const recentDiff = parseTimestamp(right.last_opened_at) - parseTimestamp(left.last_opened_at)
+  if (recentDiff !== 0) return recentDiff
+
+  const openCountDiff = (right.open_count || 0) - (left.open_count || 0)
+  if (openCountDiff !== 0) return openCountDiff
+
+  const createdDiff = parseTimestamp(right.created_at) - parseTimestamp(left.created_at)
+  if (createdDiff !== 0) return createdDiff
+
+  return compareAlpha(left.name || '', right.name || '')
+}
+
+const compareSessionsByName = (left: SessionRecord, right: SessionRecord) => {
+  const nameDiff = compareAlpha(left.name || '', right.name || '')
+  if (nameDiff !== 0) return nameDiff
+  return compareSessions(left, right)
+}
+
+const compareSessionsByProfile = (left: SessionRecord, right: SessionRecord) => {
+  const profileDiff = compareAlpha(left.profile_name || '', right.profile_name || '')
+  if (profileDiff !== 0) return profileDiff
+  return compareSessions(left, right)
+}
+
+const profileLabel = (item: profile.Profile) => item.name || ''
+const hostLabel = (host: inventory.Host) => (host.name || host.host || '').trim()
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -209,8 +265,10 @@ const updateSessionWithOptions = (
 
 function Sessions({
   onNavigate,
+  newSessionSignal,
 }: {
   onNavigate: (tab: AppTab) => void
+  newSessionSignal?: number
 }) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
@@ -220,6 +278,7 @@ function Sessions({
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [sortMode, setSortMode] = useState<SessionSortMode>('most_used')
   const [profileCount, setProfileCount] = useState(0)
   const [inventoryCount, setInventoryCount] = useState(0)
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' } | null>(null)
@@ -257,6 +316,11 @@ function Sessions({
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
   }, [refresh])
+
+  useEffect(() => {
+    if (!newSessionSignal) return
+    setShowNewModal(true)
+  }, [newSessionSignal])
 
   const showTimedInfo = (text: string, duration = 7000) => {
     setInfoMessage(text)
@@ -325,20 +389,45 @@ function Sessions({
   }
 
   const normalizedQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
+  const sortedSessions = useMemo(() => {
+    const base = [...sessions]
+    switch (sortMode) {
+      case 'name':
+        return base.sort(compareSessionsByName)
+      case 'profile':
+        return base.sort(compareSessionsByProfile)
+      case 'most_used':
+      default:
+        return base.sort(compareSessions)
+    }
+  }, [sessions, sortMode])
+
   const filteredSessions = useMemo(() => {
-    if (!normalizedQuery) return sessions
+    if (!normalizedQuery) return sortedSessions
     const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
-    return sessions.filter(s => {
+    return sortedSessions.filter(s => {
       const name = (s.name || '').toLowerCase()
       return tokens.every(token => name.includes(token))
     })
-  }, [sessions, normalizedQuery])
+  }, [normalizedQuery, sortedSessions])
 
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-foreground">Sessions</h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {sessions.length > 0 && (
+            <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
+              <SelectTrigger className="h-9 w-full bg-background sm:w-[148px]">
+                <SelectValue aria-label={`Sort sessions by ${SESSION_SORT_LABELS[sortMode]}`} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="most_used">{SESSION_SORT_LABELS.most_used}</SelectItem>
+                <SelectItem value="name">{SESSION_SORT_LABELS.name}</SelectItem>
+                <SelectItem value="profile">{SESSION_SORT_LABELS.profile}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           {sessions.length > 0 && (
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -398,9 +487,11 @@ function Sessions({
         />
       ) : (
         <>
-          {searchQuery && (
+          {(searchQuery || sessions.length > 0) && (
             <div className="mb-3 text-xs text-muted-foreground">
-              Showing {filteredSessions.length} of {sessions.length}
+              {searchQuery
+                ? `Showing ${filteredSessions.length} of ${sessions.length}`
+                : `Sorted by ${SESSION_SORT_LABELS[sortMode]}`}
             </div>
           )}
           {filteredSessions.length === 0 ? (
@@ -745,6 +836,14 @@ function NewSessionModal({
     return map
   }, [inv.hosts])
 
+  const sortedProfiles = useMemo(() => (
+    [...profiles].sort((a, b) => compareAlpha(profileLabel(a), profileLabel(b)))
+  ), [profiles])
+
+  const sortedHosts = useMemo(() => (
+    [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
+  ), [inv.hosts])
+
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
 
@@ -833,7 +932,7 @@ function NewSessionModal({
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.map(p => (
+                  {sortedProfiles.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -872,7 +971,7 @@ function NewSessionModal({
                     <SelectValue placeholder="Select a saved host" />
                   </SelectTrigger>
                   <SelectContent>
-                    {inv.hosts.map(h => (
+                    {sortedHosts.map(h => (
                       <SelectItem key={h.id} value={h.id}>
                         {h.name || h.host}
                       </SelectItem>
@@ -960,6 +1059,14 @@ function EditSessionModal({
     inv.hosts.forEach(h => map.set(h.id, h))
     return map
   }, [inv.hosts])
+
+  const sortedProfiles = useMemo(() => (
+    [...profiles].sort((a, b) => compareAlpha(profileLabel(a), profileLabel(b)))
+  ), [profiles])
+
+  const sortedHosts = useMemo(() => (
+    [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
+  ), [inv.hosts])
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
@@ -1080,7 +1187,7 @@ function EditSessionModal({
                   <SelectValue placeholder="Select a profile" />
                 </SelectTrigger>
                 <SelectContent>
-                  {profiles.map(p => (
+                  {sortedProfiles.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1119,7 +1226,7 @@ function EditSessionModal({
                     <SelectValue placeholder="Select a saved host" />
                   </SelectTrigger>
                   <SelectContent>
-                    {inv.hosts.map(h => (
+                    {sortedHosts.map(h => (
                       <SelectItem key={h.id} value={h.id}>
                         {h.name || h.host}
                       </SelectItem>
