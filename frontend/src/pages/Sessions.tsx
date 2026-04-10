@@ -996,7 +996,7 @@ function NewSessionModal({
                 onChange={e => setCommand(e.target.value)}
                 placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
                 rows={3}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
             </div>
           )}
@@ -1009,7 +1009,7 @@ function NewSessionModal({
               onChange={e => setSessionName(e.target.value)}
               placeholder="e.g., work-claude"
               pattern="[a-zA-Z0-9_-]+"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground mt-1">Letters, digits, underscores, dashes only</p>
           </div>
@@ -1251,7 +1251,7 @@ function EditSessionModal({
                 onChange={e => setCommand(e.target.value)}
                 placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
                 rows={3}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
             </div>
           )}

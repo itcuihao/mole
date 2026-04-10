@@ -24,6 +24,7 @@
   /* Muted - Background elements */
   --muted: 210 20% 96%;
   --muted-foreground: 215 16% 47%;
+  --placeholder: 215 16% 62%;
 
   /* Accent - Highlights and info */
   --accent: 212 100% 48%;
@@ -68,6 +69,7 @@
   /* Muted */
   --muted: 217 33% 17%;
   --muted-foreground: 215 20% 65%;
+  --placeholder: 215 14% 52%;
 
   /* Accent - Slightly muted blue */
   --accent: 212 100% 48%;

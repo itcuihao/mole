@@ -420,7 +420,7 @@ function ProfileForm({
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="e.g., Maxx Proxy"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
             <div>
@@ -430,7 +430,7 @@ function ProfileForm({
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 placeholder="Optional description"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
@@ -504,7 +504,7 @@ function ProfileForm({
                           onChange={e => updateEntry(idx, 'key', e.target.value)}
                           placeholder="OPENAI_API_KEY"
                           className={cn(
-                            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring',
+                            'w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring',
                             hasIssues && 'border-destructive/60 focus:ring-destructive'
                           )}
                         />
@@ -513,7 +513,7 @@ function ProfileForm({
                           value={entry.value}
                           onChange={e => updateEntry(idx, 'value', e.target.value)}
                           placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
                         />
                         <label className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
                           <input
@@ -602,7 +602,7 @@ function BulkImportModal({
         onChange={e => setText(e.target.value)}
         placeholder="Paste your environment variables here..."
         rows={8}
-        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
       />
     </ModalShell>
   )

@@ -40,6 +40,7 @@ func main() {
 		// 	OpenInspectorOnStartup: true,
 		// },
 		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
 			About: &mac.AboutInfo{
 				Title:   "Mole",
 				Message: "A session manager for hosts and profiles.",

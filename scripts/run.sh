@@ -11,6 +11,7 @@ DEFAULT_DEV_HOST=127.0.0.1
 DEFAULT_DEV_PORT=3737
 APP_NAME=Mole
 APP_BUNDLE_PATH="build/bin/${APP_NAME}.app"
+APP_BINARY_PATH="$(pwd)/${APP_BUNDLE_PATH}/Contents/MacOS/${APP_NAME}"
 DEV_HOST="${MOLE_DEV_HOST:-$DEFAULT_DEV_HOST}"
 DEV_PORT="${MOLE_DEV_PORT:-$DEFAULT_DEV_PORT}"
 FRONTEND_DEV_SERVER_URL="http://${DEV_HOST}:${DEV_PORT}"
@@ -68,6 +69,36 @@ cleanup_stale_app_bundle() {
     done < <(find build/bin -maxdepth 1 -type d -iname "${APP_NAME}.app" 2>/dev/null)
 }
 
+stop_existing_dev_app() {
+    local binary_path="$1"
+    local pids
+    local waited=0
+
+    pids=$(pgrep -f "$binary_path" || true)
+    if [ -z "$pids" ]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}⚠ Stopping existing Mole dev app instance...${NC}"
+    while IFS= read -r pid; do
+        [ -z "$pid" ] && continue
+        kill "$pid" 2>/dev/null || true
+    done <<< "$pids"
+
+    while pgrep -f "$binary_path" > /dev/null 2>&1 && [ "$waited" -lt 5 ]; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    if pgrep -f "$binary_path" > /dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ Existing Mole dev app is still running, forcing shutdown...${NC}"
+        while IFS= read -r pid; do
+            [ -z "$pid" ] && continue
+            kill -9 "$pid" 2>/dev/null || true
+        done <<< "$(pgrep -f "$binary_path" || true)"
+    fi
+}
+
 echo "🕳️  Mole"
 echo ""
 
@@ -115,11 +146,13 @@ else
 fi
 
 echo ""
-echo "🚀 Starting Mole in development mode on ${FRONTEND_DEV_SERVER_URL}..."
+echo "🚀 Starting Mole in development mode..."
+echo "   Vite will bind to ${FRONTEND_DEV_SERVER_URL} and Wails will auto-detect it."
 echo ""
 
-# Check frontend dev port before starting Wails. We pin Vite to the host/port above
-# so Wails can proxy deterministically without localhost ambiguity.
+# Check frontend dev port before starting Wails. We still pin Vite via env vars,
+# but let Wails auto-discover the final dev server URL so it can wait for Vite
+# to be ready before opening the app.
 stop_dev_port_listener "$DEV_PORT"
 
 # Ensure app icon exists in build/ for Wails
@@ -131,6 +164,7 @@ else
 fi
 
 cleanup_stale_app_bundle
+stop_existing_dev_app "$APP_BINARY_PATH"
 
-# Run wails dev
-wails dev -frontenddevserverurl "$FRONTEND_DEV_SERVER_URL"
+# Run wails dev. The frontend dev watcher is started by Wails from wails.json.
+wails dev

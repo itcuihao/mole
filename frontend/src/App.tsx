@@ -5,13 +5,38 @@ import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { EventsOn } from '../wailsjs/runtime/runtime'
+import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 
 export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
   const [newSessionSignal, setNewSessionSignal] = useState(0)
+  const [isMacDesktop, setIsMacDesktop] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof (window as any)?.runtime?.Environment !== 'function') {
+      return
+    }
+
+    let cancelled = false
+
+    void Environment()
+      .then(info => {
+        if (!cancelled) {
+          setIsMacDesktop(info.platform === 'darwin')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsMacDesktop(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof (window as any)?.runtime?.EventsOnMultiple !== 'function') {
@@ -38,31 +63,40 @@ function App() {
         className="h-full min-w-0 flex flex-col"
       >
         {/* Header with terminal aesthetic */}
-        <div className="flex items-center justify-between border-b bg-card/50 backdrop-blur-sm px-6 py-3">
-          <div className="flex items-center gap-4">
-            <div role="img" aria-label="Mole">
-              <pre className="font-mono text-[10px] leading-[1.1] text-primary select-none" aria-hidden="true">
+        <div className="flex items-center justify-between border-b bg-card/50 px-4 py-3 backdrop-blur-sm">
+          <div className="flex min-w-0 items-center gap-3 overflow-x-auto pr-2">
+            {isMacDesktop ? (
+              <>
+                <div aria-hidden="true" className="h-8 w-[78px] shrink-0" />
+                <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
+              </>
+            ) : null}
+            <div className="shrink-0" role="img" aria-label="Mole">
+              <pre className="font-mono text-[7px] leading-[0.88] text-primary/90 select-none" aria-hidden="true">
 {`┌┬┐┌─┐╷  ┌─╴
 ││││ ││  ├╴
 ╵ ╵└─┘└─╴└─╴`}
               </pre>
             </div>
-            <TabsList className="border-0 bg-muted/50 h-9">
-              <TabsTrigger value="sessions" className="font-mono text-xs px-4">
+            <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
+            <TabsList className="h-9 shrink-0 border-0 bg-transparent p-0">
+              <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Sessions
               </TabsTrigger>
-              <TabsTrigger value="profiles" className="font-mono text-xs px-4">
+              <TabsTrigger value="profiles" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Profiles
               </TabsTrigger>
-              <TabsTrigger value="hosts" className="font-mono text-xs px-4">
+              <TabsTrigger value="hosts" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Hosts
               </TabsTrigger>
-              <TabsTrigger value="settings" className="font-mono text-xs px-4">
+              <TabsTrigger value="settings" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Settings
               </TabsTrigger>
             </TabsList>
           </div>
-          <ThemeToggle />
+          <div className="shrink-0">
+            <ThemeToggle />
+          </div>
         </div>
 
         <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
