@@ -70,7 +70,7 @@ func CreateWslTmuxSession(name string, env map[string]string, command string) er
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
-	envScript := buildTmuxEnvScriptContent(env, command)
+	envScript := buildTmuxEnvScriptContent(env, command, "tmux")
 	userShell := detectWslUserShell()
 	runnerShell := "/bin/sh"
 	runnerFlag := "-lc"
