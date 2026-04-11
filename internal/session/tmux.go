@@ -18,9 +18,55 @@ import (
 const tmuxTimeout = 5 * time.Second
 
 var ErrTmuxUnavailable = errors.New("tmux is not installed or not available in PATH")
+var tmuxExecutableCandidates = []string{
+	"/opt/homebrew/bin/tmux",
+	"/usr/local/bin/tmux",
+	"/opt/homebrew/opt/tmux/bin/tmux",
+	"/usr/local/opt/tmux/bin/tmux",
+	"/usr/bin/tmux",
+	"/bin/tmux",
+}
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func prependPathDir(dir string) {
+	if dir == "" {
+		return
+	}
+
+	current := filepath.SplitList(os.Getenv("PATH"))
+	for _, entry := range current {
+		if filepath.Clean(entry) == filepath.Clean(dir) {
+			return
+		}
+	}
+
+	pathValue := dir
+	if existing := os.Getenv("PATH"); existing != "" {
+		pathValue = dir + string(os.PathListSeparator) + existing
+	}
+
+	_ = os.Setenv("PATH", pathValue)
+}
+
+func tmuxExecutable() (string, error) {
+	if resolved, err := exec.LookPath("tmux"); err == nil {
+		return resolved, nil
+	}
+
+	for _, candidate := range tmuxExecutableCandidates {
+		info, err := os.Stat(candidate)
+		if err != nil || info.IsDir() {
+			continue
+		}
+
+		prependPathDir(filepath.Dir(candidate))
+		return candidate, nil
+	}
+
+	return "", ErrTmuxUnavailable
 }
 
 func defaultSessionWorkingDir() string {
@@ -44,8 +90,13 @@ func SyncTmuxSessionEnv(name string, env map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return err
+	}
+
 	for key, value := range env {
-		cmd := exec.CommandContext(ctx, "tmux", "setenv", "-t", name, key, value)
+		cmd := exec.CommandContext(ctx, tmuxPath, "setenv", "-t", name, key, value)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("tmux setenv failed for %q: %s: %w", key, strings.TrimSpace(string(output)), err)
 		}
@@ -54,7 +105,7 @@ func SyncTmuxSessionEnv(name string, env map[string]string) error {
 	return nil
 }
 
-func buildTmuxEnvScriptContent(env map[string]string, command string) string {
+func buildTmuxEnvScriptContent(env map[string]string, command, tmuxPath string) string {
 	var envCmds strings.Builder
 	envCmds.WriteString("# Mole environment variables\n")
 
@@ -72,10 +123,10 @@ func buildTmuxEnvScriptContent(env map[string]string, command string) string {
 		envCmds.WriteString("\n# Auto-run startup command (once per session)\n")
 		envCmds.WriteString("# Check tmux session-level environment variable\n")
 		envCmds.WriteString("if [ -n \"$TMUX\" ]; then\n")
-		envCmds.WriteString("  _session=$(tmux display-message -p '#S')\n")
-		envCmds.WriteString("  _ran=$(tmux showenv -t \"$_session\" MOLE_CMD_RAN 2>/dev/null | cut -d= -f2)\n")
+		envCmds.WriteString(fmt.Sprintf("  _session=$(%s display-message -p '#S')\n", shellQuote(tmuxPath)))
+		envCmds.WriteString(fmt.Sprintf("  _ran=$(%s showenv -t \"$_session\" MOLE_CMD_RAN 2>/dev/null | cut -d= -f2)\n", shellQuote(tmuxPath)))
 		envCmds.WriteString("  if [ -z \"$_ran\" ]; then\n")
-		envCmds.WriteString("    tmux setenv -t \"$_session\" MOLE_CMD_RAN 1\n")
+		envCmds.WriteString(fmt.Sprintf("    %s setenv -t \"$_session\" MOLE_CMD_RAN 1\n", shellQuote(tmuxPath)))
 		envCmds.WriteString(fmt.Sprintf("    echo '🚀 Running startup command: %s'\n", strings.ReplaceAll(command, "'", "'\\''")))
 		envCmds.WriteString(fmt.Sprintf("    %s\n", command))
 		envCmds.WriteString("  fi\n")
@@ -94,7 +145,7 @@ type TmuxSessionInfo struct {
 
 // TmuxAvailable checks if tmux is installed.
 func TmuxAvailable() bool {
-	_, err := exec.LookPath("tmux")
+	_, err := tmuxExecutable()
 	return err == nil
 }
 
@@ -104,9 +155,14 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return err
+	}
+
 	// Create a temporary env script file
 	envScriptPath := filepath.Join(config.Dir(), fmt.Sprintf(".mole-env-%s.sh", name))
-	if err := os.WriteFile(envScriptPath, []byte(buildTmuxEnvScriptContent(env, command)), 0600); err != nil {
+	if err := os.WriteFile(envScriptPath, []byte(buildTmuxEnvScriptContent(env, command, tmuxPath)), 0600); err != nil {
 		return fmt.Errorf("failed to create env script: %w", err)
 	}
 
@@ -141,7 +197,7 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	// cwd, which is often the repo root in development.
 	args := []string{"new-session", "-d", "-c", startDir, "-s", name, runnerShell, runnerFlag, shellCmd}
 
-	cmd := exec.CommandContext(ctx, "tmux", args...)
+	cmd := exec.CommandContext(ctx, tmuxPath, args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		os.Remove(envScriptPath) // cleanup on failure
 		return fmt.Errorf("tmux new-session failed: %s: %w", strings.TrimSpace(string(output)), err)
@@ -164,7 +220,12 @@ func ListTmuxSessions() ([]TmuxSessionInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "tmux", "list-sessions", "-F", "#{session_name}:#{session_attached}:#{session_windows}")
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return make([]TmuxSessionInfo, 0), err
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "list-sessions", "-F", "#{session_name}:#{session_attached}:#{session_windows}")
 	output, err := cmd.Output()
 	if err != nil {
 		if isNoTmuxServerOutput(string(output), err) {
@@ -206,7 +267,12 @@ func KillTmuxSession(name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "tmux", "kill-session", "-t", name)
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "kill-session", "-t", name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tmux kill-session failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
@@ -218,6 +284,11 @@ func IsTmuxSessionAlive(name string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "tmux", "has-session", "-t", name)
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return false
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "has-session", "-t", name)
 	return cmd.Run() == nil
 }

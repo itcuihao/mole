@@ -51,8 +51,8 @@ func writeAttachEnvScript(session string, env map[string]string) (string, error)
 	return scriptPath, nil
 }
 
-func buildTmuxAttachShellCommand(session, envScriptPath string) string {
-	attachCommand := fmt.Sprintf("exec tmux attach -t %s", shellQuote(session))
+func buildTmuxAttachShellCommand(tmuxPath, session, envScriptPath string) string {
+	attachCommand := fmt.Sprintf("exec %s attach -t %s", shellQuote(tmuxPath), shellQuote(session))
 	if envScriptPath == "" {
 		return attachCommand
 	}
@@ -60,13 +60,18 @@ func buildTmuxAttachShellCommand(session, envScriptPath string) string {
 }
 
 func buildTmuxAttachLaunchSpec(session string, env map[string]string) (terminal.LaunchSpec, error) {
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return terminal.LaunchSpec{}, err
+	}
+
 	envScriptPath, err := writeAttachEnvScript(session, env)
 	if err != nil {
 		return terminal.LaunchSpec{}, err
 	}
 
 	runnerShell, runnerFlag := attachRunnerShell()
-	shellCommand := buildTmuxAttachShellCommand(session, envScriptPath)
+	shellCommand := buildTmuxAttachShellCommand(tmuxPath, session, envScriptPath)
 	commandText := fmt.Sprintf("%s %s %s", runnerShell, runnerFlag, shellQuote(shellCommand))
 
 	return terminal.LaunchSpec{

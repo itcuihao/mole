@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -47,5 +48,53 @@ func TestDefaultSessionWorkingDirFallsBackWhenHomeIsMissing(t *testing.T) {
 	got := defaultSessionWorkingDir()
 	if resolveTestPath(t, got) != resolveTestPath(t, cwd) {
 		t.Fatalf("defaultSessionWorkingDir() = %q, want %q", got, cwd)
+	}
+}
+
+func TestTmuxExecutableFallsBackToKnownLocations(t *testing.T) {
+	fakeDir := t.TempDir()
+	fakeTmux := filepath.Join(fakeDir, "tmux")
+	if err := os.WriteFile(fakeTmux, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatalf("WriteFile(%q) failed: %v", fakeTmux, err)
+	}
+
+	originalCandidates := tmuxExecutableCandidates
+	tmuxExecutableCandidates = []string{fakeTmux}
+	defer func() {
+		tmuxExecutableCandidates = originalCandidates
+	}()
+
+	t.Setenv("PATH", "")
+
+	got, err := tmuxExecutable()
+	if err != nil {
+		t.Fatalf("tmuxExecutable() returned error: %v", err)
+	}
+	if got != fakeTmux {
+		t.Fatalf("tmuxExecutable() = %q, want %q", got, fakeTmux)
+	}
+
+	pathEntries := filepath.SplitList(os.Getenv("PATH"))
+	if len(pathEntries) == 0 || filepath.Clean(pathEntries[0]) != filepath.Clean(fakeDir) {
+		t.Fatalf("PATH = %q, want first entry %q", os.Getenv("PATH"), fakeDir)
+	}
+}
+
+func TestBuildTmuxEnvScriptContentUsesResolvedBinary(t *testing.T) {
+	script := buildTmuxEnvScriptContent(map[string]string{"FOO": "bar"}, "echo hi", "/opt/homebrew/bin/tmux")
+
+	if !strings.Contains(script, "'/opt/homebrew/bin/tmux' display-message -p '#S'") {
+		t.Fatalf("buildTmuxEnvScriptContent() missing absolute tmux path in display-message: %q", script)
+	}
+	if !strings.Contains(script, "'/opt/homebrew/bin/tmux' setenv -t \"$_session\" MOLE_CMD_RAN 1") {
+		t.Fatalf("buildTmuxEnvScriptContent() missing absolute tmux path in setenv: %q", script)
+	}
+}
+
+func TestBuildTmuxAttachShellCommandUsesResolvedBinary(t *testing.T) {
+	got := buildTmuxAttachShellCommand("/opt/homebrew/bin/tmux", "mole-demo", "")
+	want := "exec '/opt/homebrew/bin/tmux' attach -t 'mole-demo'"
+	if got != want {
+		t.Fatalf("buildTmuxAttachShellCommand() = %q, want %q", got, want)
 	}
 }
