@@ -65,6 +65,23 @@ Mole 会把应用数据以 JSON 文件形式保存在 `~/.config/mole/` 下：
 - UI：Tailwind CSS v4 + Radix primitives
 - Runtime backend：macOS/Linux 使用本地 `tmux`，Windows 使用 `WSL + tmux`
 
+## 安装
+
+### Homebrew（macOS）
+
+现在可以直接把当前仓库当作自定义 tap 来安装：
+
+```bash
+brew tap itcuihao/mole https://github.com/itcuihao/mole.git
+brew install --cask itcuihao/mole/mole
+```
+
+Mole 运行时依赖 `tmux`。如果系统里还没有：
+
+```bash
+brew install tmux
+```
+
 ## 开发
 
 ### 快速开始

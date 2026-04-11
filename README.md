@@ -65,6 +65,23 @@ Mole stores its app data as JSON files under `~/.config/mole/`:
 - UI: Tailwind CSS v4 + Radix primitives
 - Runtime backend: local `tmux` on macOS/Linux, `WSL + tmux` on Windows
 
+## Install
+
+### Homebrew (macOS)
+
+Mole can be installed from this repository as a custom tap:
+
+```bash
+brew tap itcuihao/mole https://github.com/itcuihao/mole.git
+brew install --cask itcuihao/mole/mole
+```
+
+`tmux` is required at runtime. If you do not already have it:
+
+```bash
+brew install tmux
+```
+
 ## Development
 
 ### Quick Start
