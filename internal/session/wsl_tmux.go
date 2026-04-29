@@ -53,6 +53,22 @@ func SyncWslTmuxSessionEnv(name string, env map[string]string) error {
 	return nil
 }
 
+func EnableWslTmuxMouse(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
+	defer cancel()
+
+	script := fmt.Sprintf("tmux set-option -t %s mouse on", shellQuote(name))
+	if output, err := runWslShellCommandContext(ctx, script); err != nil {
+		return fmt.Errorf("wsl tmux set-option mouse failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	return nil
+}
+
+func buildWslTmuxMouseEnableShellCommand(session string) string {
+	return fmt.Sprintf("tmux set-option -t %s mouse on >/dev/null 2>&1", shellQuote(session))
+}
+
 func detectWslUserShell() string {
 	output, err := runWslShellCommand(`printf '%s' "${SHELL:-/bin/bash}"`)
 	if err != nil {
@@ -93,6 +109,9 @@ func CreateWslTmuxSession(name string, env map[string]string, command string) er
 
 	if err := SyncWslTmuxSessionEnv(name, env); err != nil {
 		fmt.Printf("⚠️ failed to sync WSL tmux session env for %s: %v\n", name, err)
+	}
+	if err := EnableWslTmuxMouse(name); err != nil {
+		fmt.Printf("⚠️ failed to enable WSL tmux mouse for %s: %v\n", name, err)
 	}
 
 	if command != "" {
