@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"mole/internal/codex"
 	"mole/internal/config"
 	"mole/internal/inventory"
 	"mole/internal/profile"
@@ -21,6 +22,7 @@ type Manager struct {
 	store            *Store
 	profileMgr       *profile.Manager
 	invMgr           *inventory.Manager
+	codexMgr         *codex.Manager
 	backends         map[string]SessionBackend
 	defaultBackendID string
 }
@@ -58,8 +60,13 @@ func NewManagerWithBackends(storePath string, profileMgr *profile.Manager, invMg
 	}
 }
 
+// SetCodexManager wires optional Codex home preparation for Codex sessions.
+func (m *Manager) SetCodexManager(codexMgr *codex.Manager) {
+	m.codexMgr = codexMgr
+}
+
 // Create creates a new runtime session with the environment from a profile.
-func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string) error {
+func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID string) error {
 	if !validName.MatchString(sessionName) {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
@@ -78,7 +85,7 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 		return fmt.Errorf("%s session %q already exists", backend.ID(), tmuxName)
 	}
 
-	resolvedCommand, normalizedRunMode, normalizedHostID, err := m.resolveLaunchConfig(command, runMode, hostID)
+	resolvedCommand, normalizedRunMode, normalizedHostID, normalizedCodexConfigID, err := m.resolveLaunchConfig(command, runMode, hostID, codexConfigID)
 	if err != nil {
 		return err
 	}
@@ -87,6 +94,11 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 	env, err := m.profileMgr.GetFullEnv(profileID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
+	}
+
+	env, resolvedCommand, err = m.prepareLaunchEnv(normalizedRunMode, normalizedCodexConfigID, env, resolvedCommand)
+	if err != nil {
+		return err
 	}
 
 	if err := backend.Create(tmuxName, env, resolvedCommand); err != nil {
@@ -102,6 +114,7 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID string
 		Command:         resolvedCommand,
 		RunMode:         normalizedRunMode,
 		HostID:          normalizedHostID,
+		CodexConfigID:   normalizedCodexConfigID,
 	}
 	return m.store.Save(sess)
 }
@@ -176,7 +189,7 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
-func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) error {
+func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID string) error {
 	// Get current session
 	sess, err := m.store.Get(sessionID)
 	if err != nil {
@@ -189,10 +202,10 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 		return err
 	}
 
-	oldProfileID := sess.ProfileID
 	oldCommand := sess.Command
+	oldSession := sess
 
-	resolvedCommand, normalizedRunMode, normalizedHostID, err := m.resolveLaunchConfig(command, runMode, hostID)
+	resolvedCommand, normalizedRunMode, normalizedHostID, normalizedCodexConfigID, err := m.resolveLaunchConfig(command, runMode, hostID, codexConfigID)
 	if err != nil {
 		return err
 	}
@@ -201,6 +214,11 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 	newEnv, err := m.profileMgr.GetFullEnv(profileID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
+	}
+
+	newEnv, resolvedCommand, err = m.prepareLaunchEnv(normalizedRunMode, normalizedCodexConfigID, newEnv, resolvedCommand)
+	if err != nil {
+		return err
 	}
 
 	if err := backend.EnsureAvailable(); err != nil {
@@ -212,7 +230,7 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 	canRollback := false
 
 	if isAlive {
-		if currentEnv, currentErr := m.profileMgr.GetFullEnv(oldProfileID); currentErr == nil {
+		if currentEnv, currentErr := m.environmentForSession(oldSession); currentErr == nil {
 			rollbackEnv = currentEnv
 			canRollback = true
 		}
@@ -230,6 +248,7 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID string) 
 	sess.Command = resolvedCommand
 	sess.RunMode = normalizedRunMode
 	sess.HostID = normalizedHostID
+	sess.CodexConfigID = normalizedCodexConfigID
 
 	if err := backend.Create(sess.RuntimeName(), newEnv, resolvedCommand); err != nil {
 		if isAlive && canRollback {
@@ -301,8 +320,8 @@ func (m *Manager) Restart(sessionID string) error {
 		return fmt.Errorf("session %q is already running", sess.Name)
 	}
 
-	// Resolve environment from profile
-	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	// Resolve environment from profile and launch metadata.
+	env, err := m.environmentForSession(sess)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
@@ -386,7 +405,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		return Session{}, terminal.LaunchSpec{}, backendErr
 	}
 
-	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	env, err := m.environmentForSession(sess)
 	if err != nil {
 		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("failed to resolve attach env for [%s]: %w", sess.RuntimeName(), err)
 	}
@@ -428,13 +447,16 @@ func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
 	return nil, fmt.Errorf("session backend %q is not registered", backendID)
 }
 
-func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, string, string, error) {
+func (m *Manager) resolveLaunchConfig(command, runMode, hostID, codexConfigID string) (string, string, string, string, error) {
 	normalizedRunMode := strings.TrimSpace(runMode)
 	trimmedCommand := strings.TrimSpace(command)
 	trimmedHostID := strings.TrimSpace(hostID)
+	trimmedCodexConfigID := strings.TrimSpace(codexConfigID)
 
 	if normalizedRunMode == "" {
 		switch {
+		case trimmedCodexConfigID != "":
+			normalizedRunMode = RunModeCodex
 		case trimmedHostID != "":
 			normalizedRunMode = RunModeHost
 		case trimmedCommand != "":
@@ -446,27 +468,36 @@ func (m *Manager) resolveLaunchConfig(command, runMode, hostID string) (string, 
 
 	switch normalizedRunMode {
 	case RunModeShell:
-		return "", RunModeShell, "", nil
+		return "", RunModeShell, "", "", nil
 	case RunModeCustom:
-		return trimmedCommand, RunModeCustom, "", nil
+		return trimmedCommand, RunModeCustom, "", "", nil
 	case RunModeHost:
 		if trimmedHostID == "" {
-			return "", "", "", fmt.Errorf("host mode requires a selected host")
+			return "", "", "", "", fmt.Errorf("host mode requires a selected host")
 		}
 		if m.invMgr == nil {
-			return "", "", "", fmt.Errorf("host inventory is unavailable")
+			return "", "", "", "", fmt.Errorf("host inventory is unavailable")
 		}
 		hostCommand, err := m.invMgr.BuildSSHCommand(trimmedHostID)
 		if err != nil {
-			return "", "", "", fmt.Errorf("failed to resolve host command: %w", err)
+			return "", "", "", "", fmt.Errorf("failed to resolve host command: %w", err)
 		}
-		return hostCommand, RunModeHost, trimmedHostID, nil
+		return hostCommand, RunModeHost, trimmedHostID, "", nil
+	case RunModeCodex:
+		if trimmedCodexConfigID == "" {
+			return "", "", "", "", fmt.Errorf("codex mode requires a selected Codex config")
+		}
+		return "codex", RunModeCodex, "", trimmedCodexConfigID, nil
 	default:
-		return "", "", "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
+		return "", "", "", "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
 	}
 }
 
 func (m *Manager) commandForSession(sess Session) (string, error) {
+	if sess.RunMode == RunModeCodex {
+		return "codex", nil
+	}
+
 	if sess.RunMode == RunModeHost && strings.TrimSpace(sess.HostID) != "" {
 		if m.invMgr == nil {
 			return "", fmt.Errorf("host inventory is unavailable")
@@ -479,6 +510,46 @@ func (m *Manager) commandForSession(sess Session) (string, error) {
 	}
 
 	return strings.TrimSpace(sess.Command), nil
+}
+
+func (m *Manager) environmentForSession(sess Session) (map[string]string, error) {
+	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+
+	command, err := m.commandForSession(sess)
+	if err != nil {
+		return nil, err
+	}
+
+	env, _, err = m.prepareLaunchEnv(sess.RunMode, sess.CodexConfigID, env, command)
+	if err != nil {
+		return nil, err
+	}
+	return env, nil
+}
+
+func (m *Manager) prepareLaunchEnv(runMode, codexConfigID string, env map[string]string, command string) (map[string]string, string, error) {
+	if runMode != RunModeCodex {
+		return env, command, nil
+	}
+	if m.codexMgr == nil {
+		return nil, "", fmt.Errorf("Codex configuration manager is unavailable")
+	}
+
+	cfg, err := m.codexMgr.EnsureHome(strings.TrimSpace(codexConfigID))
+	if err != nil {
+		return nil, "", err
+	}
+
+	nextEnv := make(map[string]string, len(env)+1)
+	for key, value := range env {
+		nextEnv[key] = value
+	}
+	nextEnv["CODEX_HOME"] = cfg.HomeDir
+
+	return nextEnv, "codex", nil
 }
 
 // ExportWorkspaceSessions returns the portable static session configuration set.
@@ -549,8 +620,11 @@ func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs 
 		command := strings.TrimSpace(cfg.Command)
 		runMode := strings.TrimSpace(cfg.RunMode)
 		hostID := strings.TrimSpace(cfg.HostID)
+		codexConfigID := strings.TrimSpace(cfg.CodexConfigID)
 
 		switch {
+		case runMode == "" && codexConfigID != "":
+			runMode = RunModeCodex
 		case runMode == "" && hostID != "":
 			runMode = RunModeHost
 		case runMode == "" && command != "":
@@ -563,14 +637,23 @@ func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs 
 		case RunModeShell:
 			command = ""
 			hostID = ""
+			codexConfigID = ""
 		case RunModeCustom:
 			hostID = ""
+			codexConfigID = ""
 		case RunModeHost:
+			codexConfigID = ""
 			if hostID == "" {
 				return nil, fmt.Errorf("session %q uses host mode but has no host id", name)
 			}
 			if _, exists := hostIDs[hostID]; !exists {
 				return nil, fmt.Errorf("session %q references unknown host %q", name, hostID)
+			}
+		case RunModeCodex:
+			command = "codex"
+			hostID = ""
+			if codexConfigID == "" {
+				return nil, fmt.Errorf("session %q uses codex mode but has no Codex config id", name)
 			}
 		default:
 			return nil, fmt.Errorf("session %q uses unsupported run mode %q", name, runMode)
@@ -595,6 +678,7 @@ func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs 
 			Command:         command,
 			RunMode:         runMode,
 			HostID:          hostID,
+			CodexConfigID:   codexConfigID,
 			CreatedAt:       createdAt,
 		})
 	}

@@ -6,7 +6,7 @@ cask "mole" do
 
   url "https://github.com/itcuihao/mole/releases/download/v#{version}/Mole-v#{version}-macos-#{arch}.zip"
   name "Mole"
-  desc "Session manager for profiles, hosts, and terminal workflows"
+  desc "Terminal workspace manager for profiles, hosts, and commands"
   homepage "https://github.com/itcuihao/mole"
 
   depends_on formula: "tmux"

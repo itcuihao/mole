@@ -60,7 +60,7 @@ func onReady(cb Callbacks) {
 	systray.SetTooltip(trayTitle)
 
 	mShow := systray.AddMenuItem("Show Window", "Show the configuration window")
-	mNew := systray.AddMenuItem("New Session...", "Create a new session")
+	mNew := systray.AddMenuItem("New Workspace...", "Create a new workspace")
 	systray.AddSeparator()
 
 	// Pre-allocate session slots

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"mole/internal/codex"
 	"mole/internal/config"
 	"mole/internal/inventory"
 	"mole/internal/profile"
@@ -25,6 +26,7 @@ import (
 type App struct {
 	ctx        context.Context
 	profileMgr *profile.Manager
+	codexMgr   *codex.Manager
 	sessionMgr *session.Manager
 	invMgr     *inventory.Manager
 	trayOnce   sync.Once
@@ -49,8 +51,10 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
+	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
+	a.sessionMgr.SetCodexManager(a.codexMgr)
 }
 
 // domReady wires desktop integrations that rely on the frontend runtime being available.
@@ -73,14 +77,34 @@ func (a *App) DeleteProfile(id string) error {
 	return a.profileMgr.Delete(id)
 }
 
+// ListCodexConfigs returns all configured isolated Codex homes.
+func (a *App) ListCodexConfigs() ([]codex.Config, error) {
+	return a.codexMgr.List()
+}
+
+// GetCodexConfigToml returns raw config.toml content for a Codex config.
+func (a *App) GetCodexConfigToml(id string) (string, error) {
+	return a.codexMgr.ReadConfigToml(id)
+}
+
+// SaveCodexConfig saves Codex metadata and raw config/auth files.
+func (a *App) SaveCodexConfig(req codex.SaveRequest) (codex.Config, error) {
+	return a.codexMgr.Save(req)
+}
+
+// DeleteCodexConfig removes Codex config metadata without deleting its home directory.
+func (a *App) DeleteCodexConfig(id string) error {
+	return a.codexMgr.Delete(id)
+}
+
 // CreateSession creates a new runtime session from a profile.
 func (a *App) CreateSession(profileID, name, command string) error {
-	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "")
+	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "", "")
 }
 
 // CreateSessionWithOptions creates a new runtime session with explicit launch metadata.
-func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID string) error {
-	return a.sessionMgr.Create(profileID, name, command, runMode, hostID)
+func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID string) error {
+	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID)
 }
 
 // ListSessions returns all sessions with live status.
@@ -100,12 +124,12 @@ func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) error {
 
 // UpdateSession updates a session's profile and command, recreating the runtime session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "")
+	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "", "")
 }
 
 // UpdateSessionWithOptions updates a session with explicit launch metadata.
-func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID)
+func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID string) error {
+	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID)
 }
 
 // KillSession terminates a session and removes it from storage.

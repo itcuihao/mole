@@ -82,7 +82,7 @@ function App() {
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
             <TabsList className="h-9 shrink-0 border-0 bg-transparent p-0">
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Sessions
+                Workspaces
               </TabsTrigger>
               <TabsTrigger value="profiles" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Profiles

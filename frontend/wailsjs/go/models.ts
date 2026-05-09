@@ -1,3 +1,54 @@
+export namespace codex {
+	
+	export class Config {
+	    id: string;
+	    name: string;
+	    home_dir: string;
+	    config_path: string;
+	    auth_path: string;
+	    auth_exists: boolean;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.home_dir = source["home_dir"];
+	        this.config_path = source["config_path"];
+	        this.auth_path = source["auth_path"];
+	        this.auth_exists = source["auth_exists"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class SaveRequest {
+	    id: string;
+	    name: string;
+	    config_toml: string;
+	    auth_json?: string;
+	    replace_auth?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.config_toml = source["config_toml"];
+	        this.auth_json = source["auth_json"];
+	        this.replace_auth = source["replace_auth"];
+	    }
+	}
+
+}
+
 export namespace inventory {
 	
 	export class Host {
@@ -139,6 +190,7 @@ export namespace session {
 	    command: string;
 	    run_mode?: string;
 	    host_id?: string;
+	    codex_config_id?: string;
 	    created_at: string;
 	    open_count?: number;
 	    last_opened_at?: string;
@@ -162,6 +214,7 @@ export namespace session {
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
+	        this.codex_config_id = source["codex_config_id"];
 	        this.created_at = source["created_at"];
 	        this.open_count = source["open_count"];
 	        this.last_opened_at = source["last_opened_at"];

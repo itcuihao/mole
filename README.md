@@ -8,7 +8,7 @@
 ╵ ╵└─┘└─╴└─╴
 ```
 
-**Session manager for profiles, hosts, and terminal workflows**
+**Terminal workspace manager for profiles, hosts, and commands**
 
 Mole is a Wails desktop app for running named runtime sessions with reusable environment profiles. It can start plain shell sessions, generate SSH commands from saved hosts, and reopen saved sessions in your preferred terminal.
 
@@ -131,10 +131,10 @@ sudo apt install tmux
 
 1. Create a profile in `Profiles`.
 2. Optionally save hosts and groups in `Hosts`.
-3. Create a session in `Sessions` with `Shell`, `SSH Host`, or `Command`.
-4. Use `Attach` for live sessions or `Restore & Attach` for saved-but-dead sessions.
+3. Create a workspace in `Workspaces` with `Shell`, `SSH Host`, or `Command`.
+4. Use `Open Workspace` for live workspaces or `Restore Workspace` for saved-but-dead workspaces.
 
-Mole stores session metadata separately from the live runtime backend. That means a saved session can still appear in the UI even if the backend process is currently gone, and `Restore & Attach` can recreate it from stored settings.
+Mole stores workspace metadata separately from the live runtime backend. That means a saved workspace can still appear in the UI even if the backend process is currently gone, and `Restore Workspace` can recreate it from stored settings.
 
 ## Supported Variable Import Formats
 

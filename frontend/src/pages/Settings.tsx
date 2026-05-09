@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
-import { terminal } from '../../wailsjs/go/models'
+import { codex, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, Terminal as TerminalIcon, TriangleAlert, Upload } from "lucide-react"
+import { Check, Copy, Download, KeyRound, Pencil, Plus, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload } from "lucide-react"
 
 const getAppMethod = (method: string) => {
   return (window as any)?.go?.main?.App?.[method]
@@ -24,6 +24,8 @@ function Settings({
   const [showImportModal, setShowImportModal] = useState(false)
   const [workspaceBuffer, setWorkspaceBuffer] = useState('')
   const [workspaceBusy, setWorkspaceBusy] = useState<'export' | 'import' | null>(null)
+  const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
+  const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
 
   useEffect(() => {
     loadSettings()
@@ -42,6 +44,23 @@ function Settings({
       setMessage({ type: 'error', text: String(err) })
     }
   }
+
+  const loadCodexConfigs = async () => {
+    const method = getAppMethod('ListCodexConfigs')
+    if (typeof method !== 'function') {
+      return
+    }
+    try {
+      const configs = await method()
+      setCodexConfigs(configs || [])
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) })
+    }
+  }
+
+  useEffect(() => {
+    loadCodexConfigs()
+  }, [])
 
   const handleSave = async (terminalID: string) => {
     setSaving(true)
@@ -237,6 +256,73 @@ function Settings({
         </div>
       </div>
 
+      <div className="mt-6 bg-card rounded-lg border border-border p-6">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Codex Configurations</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage isolated Codex homes for providers such as Maxx, Qiniu, and OpenAI.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
+            <Plus className="w-4 h-4" />
+            New
+          </Button>
+        </div>
+
+        {codexConfigs.length === 0 ? (
+          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+            No Codex configurations yet. Create one to run Codex with an isolated CODEX_HOME.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {codexConfigs.map(cfg => (
+              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                      {cfg.id}
+                    </span>
+                    <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                      {cfg.auth_exists ? 'auth.json exists' : 'auth.json missing'}
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={async () => {
+                      if (!window.confirm(`Remove Codex configuration "${cfg.name}" from Mole? Its home directory will stay on disk.`)) return
+                      const method = getAppMethod('DeleteCodexConfig')
+                      if (typeof method !== 'function') return
+                      try {
+                        await method(cfg.id)
+                        await loadCodexConfigs()
+                        setMessage({ type: 'success', text: 'Codex configuration removed. Home directory was left untouched.' })
+                        setTimeout(() => setMessage(null), 3000)
+                      } catch (err) {
+                        setMessage({ type: 'error', text: String(err) })
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
         <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
           <TerminalIcon className="w-4 h-4" />
@@ -254,7 +340,7 @@ function Settings({
           About Mole
         </h3>
         <p className="text-xs text-muted-foreground">
-          A session manager for hosts and profiles.
+          A terminal workspace manager for hosts, profiles, and commands.
         </p>
       </div>
 
@@ -315,8 +401,297 @@ function Settings({
           />
         </ModalShell>
       )}
+
+      {codexModal && (
+        <CodexConfigModal
+          mode={codexModal.mode}
+          config={codexModal.config}
+          onClose={() => setCodexModal(null)}
+          onSaved={async () => {
+            setCodexModal(null)
+            await loadCodexConfigs()
+            setMessage({ type: 'success', text: 'Codex configuration saved' })
+            setTimeout(() => setMessage(null), 3000)
+          }}
+        />
+      )}
     </div>
   )
+}
+
+function CodexConfigModal({
+  mode,
+  config,
+  onClose,
+  onSaved,
+}: {
+  mode: 'new' | 'edit'
+  config?: codex.Config
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [name, setName] = useState(config?.name || '')
+  const [id, setId] = useState(config?.id || '')
+  const [configToml, setConfigToml] = useState('')
+  const [authJSON, setAuthJSON] = useState('')
+  const [replaceAuth, setReplaceAuth] = useState(false)
+  const [showAuthEditor, setShowAuthEditor] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const homePreview = id.trim()
+    ? `~/.config/mole/ai/codex/${id.trim()}`
+    : '~/.config/mole/ai/codex/<config-id>'
+
+  useEffect(() => {
+    if (!config?.id) return
+    const method = getAppMethod('GetCodexConfigToml')
+    if (typeof method !== 'function') return
+    method(config.id)
+      .then((raw: string) => setConfigToml(raw || ''))
+      .catch((err: unknown) => setError(String(err)))
+  }, [config?.id])
+
+  const validateBeforeSave = () => {
+    if (!name.trim()) return 'Name is required'
+    if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) {
+      return 'Config ID must contain only letters, digits, underscores, and dashes'
+    }
+    try {
+      validateTomlShape(configToml)
+    } catch (err) {
+      return String(err)
+    }
+    if (authJSON.trim()) {
+      try {
+        JSON.parse(authJSON)
+      } catch (err) {
+        return `Invalid auth.json: ${String(err)}`
+      }
+    }
+    return ''
+  }
+
+  const handleSave = async () => {
+    const validationError = validateBeforeSave()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    const method = getAppMethod('SaveCodexConfig')
+    if (typeof method !== 'function') {
+      setError('SaveCodexConfig is unavailable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await method({
+        id: id.trim(),
+        name: name.trim(),
+        config_toml: configToml,
+        auth_json: showAuthEditor ? authJSON : '',
+        replace_auth: replaceAuth,
+      })
+      setAuthJSON('')
+      onSaved()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const authExists = Boolean(config?.auth_exists)
+  const authActionLabel = authExists ? 'Replace auth.json' : 'Initialize auth.json'
+
+  return (
+    <ModalShell
+      title={mode === 'new' ? 'New Codex Configuration' : `Edit Codex Configuration: ${config?.name || ''}`}
+      description="Codex will read config.toml and auth.json from this isolated home."
+      onClose={onClose}
+      contentStyle={{ maxWidth: '760px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">Cancel</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim()}>
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Name</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Maxx"
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">Config ID</label>
+            <input
+              value={id}
+              onChange={e => setId(e.target.value)}
+              disabled={mode === 'edit'}
+              placeholder="maxx"
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm font-mono text-foreground disabled:opacity-70 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-muted-foreground mb-1">Codex Home</label>
+          <div className="rounded border border-border bg-muted/20 px-3 py-2 font-mono text-xs text-muted-foreground">
+            {config?.home_dir || homePreview}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-muted-foreground mb-1">config.toml</label>
+          <Textarea
+            value={configToml}
+            onChange={e => setConfigToml(e.target.value)}
+            rows={12}
+            placeholder={'model_provider = "maxx"\n\n[model_providers.maxx]\nname = "maxx"\nbase_url = "https://maxx-direct.cloverstd.com"\nwire_api = "responses"'}
+            className="min-h-72 font-mono text-xs"
+          />
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/15 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <KeyRound className="h-4 w-4 text-muted-foreground" />
+                auth.json
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Status: {authExists ? 'exists' : 'missing'}. Existing auth content is not loaded back into Mole.
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setShowAuthEditor(!showAuthEditor)
+                setReplaceAuth(authExists)
+              }}
+            >
+              {authActionLabel}
+            </Button>
+          </div>
+
+          {showAuthEditor && (
+            <div className="mt-4 space-y-3">
+              {authExists && (
+                <label className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={replaceAuth}
+                    onChange={e => setReplaceAuth(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Replace the existing auth.json for this Codex home.
+                </label>
+              )}
+              <Textarea
+                value={authJSON}
+                onChange={e => setAuthJSON(e.target.value)}
+                rows={5}
+                placeholder={'{\n  "OPENAI_API_KEY": "maxx_your_token_here"\n}'}
+                className="font-mono text-xs"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+function validateTomlShape(raw: string) {
+  const lines = raw.split(/\r?\n/)
+  let collectionDepth = 0
+  for (let index = 0; index < lines.length; index++) {
+    const line = stripTomlComment(lines[index]).trim()
+    if (!line) continue
+    if (collectionDepth > 0) {
+      collectionDepth += tomlCollectionDelta(line)
+      if (collectionDepth < 0) {
+        throw new Error(`Unbalanced TOML collection at line ${index + 1}`)
+      }
+      continue
+    }
+    if (line.startsWith('[')) {
+      if (!line.endsWith(']') || line.replace(/\[|\]/g, '').trim() === '') {
+        throw new Error(`Invalid TOML table at line ${index + 1}`)
+      }
+      continue
+    }
+    if (!line.includes('=')) {
+      throw new Error(`Invalid TOML assignment at line ${index + 1}`)
+    }
+    const [key, ...rest] = line.split('=')
+    if (!key.trim() || !rest.join('=').trim()) {
+      throw new Error(`Invalid TOML assignment at line ${index + 1}`)
+    }
+    collectionDepth += tomlCollectionDelta(rest.join('='))
+    if (collectionDepth < 0) {
+      throw new Error(`Unbalanced TOML collection at line ${index + 1}`)
+    }
+  }
+  if (collectionDepth !== 0) {
+    throw new Error('Unterminated TOML collection')
+  }
+}
+
+function stripTomlComment(line: string) {
+  let inDouble = false
+  let inSingle = false
+  let escaped = false
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index]
+    if (char === '\\' && inDouble) {
+      escaped = !escaped
+      continue
+    }
+    if (char === '"' && !inSingle && !escaped) inDouble = !inDouble
+    if (char === "'" && !inDouble) inSingle = !inSingle
+    if (char === '#' && !inDouble && !inSingle) return line.slice(0, index)
+    escaped = false
+  }
+  return line
+}
+
+function tomlCollectionDelta(value: string) {
+  let delta = 0
+  let inDouble = false
+  let inSingle = false
+  let escaped = false
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index]
+    if (char === '\\' && inDouble) {
+      escaped = !escaped
+      continue
+    }
+    if (char === '"' && !inSingle && !escaped) inDouble = !inDouble
+    if (char === "'" && !inDouble) inSingle = !inSingle
+    if (!inDouble && !inSingle && (char === '[' || char === '{')) delta++
+    if (!inDouble && !inSingle && (char === ']' || char === '}')) delta--
+    escaped = false
+  }
+  return delta
 }
 
 export default Settings

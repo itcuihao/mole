@@ -41,6 +41,16 @@ func HostsPath() string {
 	return filepath.Join(Dir(), "hosts.json")
 }
 
+// CodexConfigsPath returns the path to codex_configs.json.
+func CodexConfigsPath() string {
+	return filepath.Join(Dir(), "codex_configs.json")
+}
+
+// CodexHomeRoot returns the directory that contains isolated Codex homes.
+func CodexHomeRoot() string {
+	return filepath.Join(Dir(), "ai", "codex")
+}
+
 // EnsureDir creates the config directory if it doesn't exist.
 func EnsureDir() error {
 	return os.MkdirAll(Dir(), 0755)

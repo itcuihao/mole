@@ -14,8 +14,12 @@ export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
-export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5);
+export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function DeleteCodexConfig(arg1) {
+  return window['go']['main']['App']['DeleteCodexConfig'](arg1);
 }
 
 export function DeleteHost(arg1) {
@@ -32,6 +36,10 @@ export function DeleteProfile(arg1) {
 
 export function ExportWorkspace() {
   return window['go']['main']['App']['ExportWorkspace']();
+}
+
+export function GetCodexConfigToml(arg1) {
+  return window['go']['main']['App']['GetCodexConfigToml'](arg1);
 }
 
 export function GetDefaultTerminal() {
@@ -54,6 +62,10 @@ export function KillSession(arg1) {
   return window['go']['main']['App']['KillSession'](arg1);
 }
 
+export function ListCodexConfigs() {
+  return window['go']['main']['App']['ListCodexConfigs']();
+}
+
 export function ListProfiles() {
   return window['go']['main']['App']['ListProfiles']();
 }
@@ -64,6 +76,10 @@ export function ListSessions() {
 
 export function RestartSession(arg1) {
   return window['go']['main']['App']['RestartSession'](arg1);
+}
+
+export function SaveCodexConfig(arg1) {
+  return window['go']['main']['App']['SaveCodexConfig'](arg1);
 }
 
 export function SaveHost(arg1) {
@@ -94,6 +110,6 @@ export function UpdateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateSession'](arg1, arg2, arg3);
 }
 
-export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5) {
-  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5);
+export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6) {
+  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6);
 }

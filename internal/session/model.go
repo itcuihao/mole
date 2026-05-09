@@ -8,6 +8,7 @@ const (
 	RunModeShell  = "shell"
 	RunModeHost   = "host"
 	RunModeCustom = "custom"
+	RunModeCodex  = "codex"
 )
 
 // Session represents stored metadata for a runtime session.
@@ -20,6 +21,7 @@ type Session struct {
 	Command         string `json:"command"` // Optional command to run (e.g., "claude")
 	RunMode         string `json:"run_mode,omitempty"`
 	HostID          string `json:"host_id,omitempty"`
+	CodexConfigID   string `json:"codex_config_id,omitempty"`
 	CreatedAt       string `json:"created_at"`
 	OpenCount       int    `json:"open_count,omitempty"`
 	LastOpenedAt    string `json:"last_opened_at,omitempty"`
@@ -57,13 +59,14 @@ type SessionStatus struct {
 
 func (s Session) WorkspaceConfig() WorkspaceSession {
 	return WorkspaceSession{
-		ID:        s.ID,
-		Name:      s.Name,
-		ProfileID: s.ProfileID,
-		BackendID: s.EffectiveBackendID(),
-		Command:   s.Command,
-		RunMode:   s.RunMode,
-		HostID:    s.HostID,
-		CreatedAt: s.CreatedAt,
+		ID:            s.ID,
+		Name:          s.Name,
+		ProfileID:     s.ProfileID,
+		BackendID:     s.EffectiveBackendID(),
+		Command:       s.Command,
+		RunMode:       s.RunMode,
+		HostID:        s.HostID,
+		CodexConfigID: s.CodexConfigID,
+		CreatedAt:     s.CreatedAt,
 	}
 }

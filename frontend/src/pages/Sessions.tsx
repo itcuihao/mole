@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
-import { session, profile, terminal, inventory } from '../../wailsjs/go/models'
+import { codex, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,14 +8,15 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal } from "lucide-react"
+import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal } from "lucide-react"
 import type { AppTab } from '../App'
 
-type RunMode = 'shell' | 'host' | 'custom'
+type RunMode = 'shell' | 'host' | 'custom' | 'codex'
 type SessionSortMode = 'most_used' | 'name' | 'profile'
 type SessionRecord = session.SessionStatus & {
   run_mode?: string
   host_id?: string
+  codex_config_id?: string
   open_count?: number
   last_opened_at?: string
 }
@@ -24,12 +25,14 @@ const RUN_MODE_LABELS: Record<RunMode, string> = {
   shell: 'Shell',
   host: 'SSH Host',
   custom: 'Command',
+  codex: 'Codex',
 }
 
 const RUN_MODE_HINTS: Record<RunMode, string> = {
-  shell: 'Just open a terminal with this profile.',
-  host: 'Pick a saved host and Mole will build the SSH command.',
-  custom: 'Run a command as soon as the session starts.',
+  shell: 'Open a terminal workspace with this profile.',
+  host: 'Pick a saved host and Mole will build the SSH command for this workspace.',
+  custom: 'Run a command as soon as the workspace starts.',
+  codex: 'Launch Codex with an isolated CODEX_HOME.',
 }
 
 const SESSION_SORT_LABELS: Record<SessionSortMode, string> = {
@@ -44,7 +47,7 @@ const SESSION_MENU_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 p
 const SESSION_MENU_DESTRUCTIVE_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10'
 
 const normalizeRunMode = (value?: string, hasCommand = false): RunMode => {
-  if (value === 'shell' || value === 'host' || value === 'custom') {
+  if (value === 'shell' || value === 'host' || value === 'custom' || value === 'codex') {
     return value
   }
   return hasCommand ? 'custom' : 'shell'
@@ -241,12 +244,13 @@ const createSessionWithOptions = (
   command: string,
   runMode: RunMode,
   hostID: string,
+  codexConfigID: string,
 ) => {
   const method = getAppMethod('CreateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('CreateSessionWithOptions is unavailable'))
   }
-  return method(profileID, name, command, runMode, hostID) as Promise<void>
+  return method(profileID, name, command, runMode, hostID, codexConfigID) as Promise<void>
 }
 
 const updateSessionWithOptions = (
@@ -255,12 +259,13 @@ const updateSessionWithOptions = (
   command: string,
   runMode: RunMode,
   hostID: string,
+  codexConfigID: string,
 ) => {
   const method = getAppMethod('UpdateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('UpdateSessionWithOptions is unavailable'))
   }
-  return method(sessionID, profileID, command, runMode, hostID) as Promise<void>
+  return method(sessionID, profileID, command, runMode, hostID, codexConfigID) as Promise<void>
 }
 
 function Sessions({
@@ -339,14 +344,14 @@ function Sessions({
     if (needsManualPaste) {
       showTimedInfo(
         wasRestarted
-          ? 'Session restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
+          ? 'Workspace restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
           : 'Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
       )
       return
     }
 
     if (wasRestarted) {
-      showTimedInfo('Session restored and opened.')
+      showTimedInfo('Workspace restored and opened.')
     }
   }
 
@@ -371,7 +376,7 @@ function Sessions({
       refresh()
     } catch (err) {
       const errorMsg = String(err)
-      console.error('❌ Open session failed:', errorMsg)
+      console.error('❌ Open workspace failed:', errorMsg)
       setError(errorMsg)
     } finally {
       setSessionAction(null)
@@ -420,12 +425,12 @@ function Sessions({
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Sessions</h1>
+        <h1 className="text-xl font-semibold text-foreground">Workspaces</h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {sessions.length > 0 && (
             <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
               <SelectTrigger className="h-9 w-full bg-background sm:w-[148px]">
-                <SelectValue aria-label={`Sort sessions by ${SESSION_SORT_LABELS[sortMode]}`} />
+                <SelectValue aria-label={`Sort workspaces by ${SESSION_SORT_LABELS[sortMode]}`} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="most_used">{SESSION_SORT_LABELS.most_used}</SelectItem>
@@ -440,8 +445,8 @@ function Sessions({
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search sessions"
-                aria-label="Search sessions by name"
+                placeholder="Search workspaces"
+                aria-label="Search workspaces by name"
                 className="h-9 w-full pl-8 pr-8 sm:w-56"
               />
               {searchQuery && (
@@ -458,7 +463,7 @@ function Sessions({
           )}
           <Button onClick={() => setShowNewModal(true)} size="sm">
             <Plus className="w-4 h-4" />
-            New Session
+            New Workspace
           </Button>
         </div>
       </div>
@@ -502,7 +507,7 @@ function Sessions({
           )}
           {filteredSessions.length === 0 ? (
             <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
-              No sessions match “{searchQuery}”. Try a different name.
+              No workspaces match “{searchQuery}”. Try a different name.
             </div>
           ) : (
             <div className="grid gap-3">
@@ -585,7 +590,7 @@ function SessionCard({
   const statusText = !s.alive ? 'offline' : (s.attached ? 'attached' : 'ready')
   const primaryLabel = isWorking && currentAction === 'open'
     ? (!s.alive ? 'Restoring...' : 'Opening...')
-    : (!s.alive ? 'Restore & Attach' : 'Attach')
+    : (!s.alive ? 'Restore Workspace' : 'Open Workspace')
   const destructiveLabel = isWorking && currentAction === 'kill'
     ? (!s.alive ? 'Removing...' : 'Killing...')
     : (!s.alive ? 'Remove' : 'Kill')
@@ -736,7 +741,7 @@ function EmptySessionsState({
     {
       key: 'profile',
       title: 'Create a profile',
-      description: 'Profiles hold environment variables and secrets for a session.',
+      description: 'Profiles hold environment variables and secrets for a workspace.',
       done: profileCount > 0,
       actionLabel: profileCount > 0 ? 'Manage Profiles' : 'Add Profile',
       action: () => onNavigate('profiles'),
@@ -753,10 +758,10 @@ function EmptySessionsState({
     },
     {
       key: 'session',
-      title: 'Start a session',
+      title: 'Create a workspace',
       description: 'Choose a profile, then run a local shell, a saved host command, or a custom command.',
       done: false,
-      actionLabel: 'New Session',
+      actionLabel: 'New Workspace',
       action: onCreateSession,
       icon: Wrench,
     },
@@ -767,7 +772,7 @@ function EmptySessionsState({
       <CardHeader className="border-b border-border/70 bg-card/70">
         <CardTitle className="flex items-center gap-2 text-lg">
           <TerminalSquare className="w-5 h-5 text-primary" />
-          Session Setup
+          Workspace Setup
         </CardTitle>
         <CardDescription>
           Mole works best when you move through setup in a clear order instead of guessing which tab comes first.
@@ -814,7 +819,9 @@ function NewSessionModal({
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState('')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
+  const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
+  const [selectedCodexConfigId, setSelectedCodexConfigId] = useState('')
   const [runMode, setRunMode] = useState<RunMode>('shell')
   const [sessionName, setSessionName] = useState('')
   const [command, setCommand] = useState('')
@@ -833,6 +840,16 @@ function NewSessionModal({
       GetInventory()
         .then(data => setInv(data || EMPTY_INVENTORY))
         .catch(() => {})
+
+      const listCodexConfigs = getAppMethod('ListCodexConfigs')
+      if (typeof listCodexConfigs === 'function') {
+        listCodexConfigs()
+          .then((configs: codex.Config[]) => {
+            setCodexConfigs(configs || [])
+            if (configs && configs.length > 0) setSelectedCodexConfigId(configs[0].id)
+          })
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -850,12 +867,17 @@ function NewSessionModal({
     [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
   ), [inv.hosts])
 
+  const sortedCodexConfigs = useMemo(() => (
+    [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [codexConfigs])
+
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
 
   useEffect(() => {
     if (runMode === 'shell') {
       setSelectedHostId('')
+      setSelectedCodexConfigId('')
       setCommand('')
       return
     }
@@ -874,13 +896,26 @@ function NewSessionModal({
 
     if (runMode === 'custom') {
       setSelectedHostId('')
+      setSelectedCodexConfigId('')
     }
-  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap])
+
+    if (runMode === 'codex') {
+      setSelectedHostId('')
+      setCommand('')
+      if (!selectedCodexConfigId && sortedCodexConfigs.length > 0) {
+        setSelectedCodexConfigId(sortedCodexConfigs[0].id)
+      }
+    }
+  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs])
 
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before creating a host-based session')
+      setError('Select a host before creating a host-based workspace')
+      return
+    }
+    if (runMode === 'codex' && !selectedCodexConfigId) {
+      setError('Select a Codex configuration before creating a Codex workspace')
       return
     }
     setCreating(true)
@@ -892,6 +927,7 @@ function NewSessionModal({
         command.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
+        runMode === 'codex' ? selectedCodexConfigId : '',
       )
       onCreated()
     } catch (err) {
@@ -903,8 +939,8 @@ function NewSessionModal({
 
   return (
     <ModalShell
-      title="New Session"
-      description="Choose a profile and how this session should start."
+      title="New Workspace"
+      description="Choose a profile and how this workspace should start."
       onClose={onClose}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
@@ -948,10 +984,11 @@ function NewSessionModal({
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
               <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
               <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
+              <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
               {RUN_MODE_HINTS[runMode]}
@@ -1007,8 +1044,39 @@ function NewSessionModal({
             </div>
           )}
 
+          {runMode === 'codex' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Codex Configuration</label>
+              {codexConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No Codex configurations yet. Add one in Settings first.</p>
+              ) : (
+                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select a Codex configuration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedCodexConfigs.map(cfg => (
+                      <SelectItem key={cfg.id} value={cfg.id}>
+                        {cfg.name || cfg.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCodexConfigId && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                    Launch preview
+                  </div>
+                  <div className="font-mono">codex</div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Session Name</label>
+            <label className="block text-sm text-muted-foreground mb-1">Workspace Name</label>
             <input
               type="text"
               value={sessionName}
@@ -1037,7 +1105,9 @@ function EditSessionModal({
   const [selectedProfile, setSelectedProfile] = useState(initialSession.profile_id)
   const [command, setCommand] = useState(initialSession.command || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
+  const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
+  const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialSession.codex_config_id || '')
   const [runMode, setRunMode] = useState<RunMode>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
@@ -1057,6 +1127,13 @@ function EditSessionModal({
           setHydrated(true)
         })
         .catch(() => setHydrated(true))
+
+      const listCodexConfigs = getAppMethod('ListCodexConfigs')
+      if (typeof listCodexConfigs === 'function') {
+        listCodexConfigs()
+          .then((configs: codex.Config[]) => setCodexConfigs(configs || []))
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -1074,6 +1151,10 @@ function EditSessionModal({
     [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
   ), [inv.hosts])
 
+  const sortedCodexConfigs = useMemo(() => (
+    [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [codexConfigs])
+
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
 
@@ -1085,6 +1166,13 @@ function EditSessionModal({
       setSelectedHostId(initialSession.host_id)
       const host = hostMap.get(initialSession.host_id)
       setCommand(host ? buildSSHCommand(host, inv.defaults, hostMap) : initialSession.command || '')
+      return
+    }
+
+    if (initialSession.run_mode === 'codex' && initialSession.codex_config_id) {
+      setRunMode('codex')
+      setSelectedCodexConfigId(initialSession.codex_config_id)
+      setCommand('')
       return
     }
 
@@ -1109,6 +1197,7 @@ function EditSessionModal({
   useEffect(() => {
     if (runMode === 'shell') {
       setSelectedHostId('')
+      setSelectedCodexConfigId('')
       setCommand('')
       return
     }
@@ -1129,13 +1218,26 @@ function EditSessionModal({
 
     if (runMode === 'custom') {
       setSelectedHostId('')
+      setSelectedCodexConfigId('')
     }
-  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap])
+
+    if (runMode === 'codex') {
+      setSelectedHostId('')
+      setCommand('')
+      if (!selectedCodexConfigId && sortedCodexConfigs.length > 0) {
+        setSelectedCodexConfigId(sortedCodexConfigs[0].id)
+      }
+    }
+  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs])
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before saving a host-based session')
+      setError('Select a host before saving a host-based workspace')
+      return
+    }
+    if (runMode === 'codex' && !selectedCodexConfigId) {
+      setError('Select a Codex configuration before saving a Codex workspace')
       return
     }
     setUpdating(true)
@@ -1147,6 +1249,7 @@ function EditSessionModal({
         command.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
+        runMode === 'codex' ? selectedCodexConfigId : '',
       )
       onUpdated()
     } catch (err) {
@@ -1158,8 +1261,8 @@ function EditSessionModal({
 
   return (
     <ModalShell
-      title={`Edit Session: ${initialSession.name}`}
-      description="Saving will restart this tmux session."
+      title={`Edit Workspace: ${initialSession.name}`}
+      description="Saving will restart this tmux workspace."
       onClose={onClose}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
@@ -1203,10 +1306,11 @@ function EditSessionModal({
 
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
               <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
               <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
+              <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
               {RUN_MODE_HINTS[runMode]}
@@ -1259,6 +1363,37 @@ function EditSessionModal({
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
+            </div>
+          )}
+
+          {runMode === 'codex' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">Codex Configuration</label>
+              {codexConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No Codex configurations yet. Add one in Settings first.</p>
+              ) : (
+                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select a Codex configuration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedCodexConfigs.map(cfg => (
+                      <SelectItem key={cfg.id} value={cfg.id}>
+                        {cfg.name || cfg.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCodexConfigId && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                    Launch preview
+                  </div>
+                  <div className="font-mono">codex</div>
+                </div>
+              )}
             </div>
           )}
       </div>
