@@ -105,6 +105,28 @@ func SyncTmuxSessionEnv(name string, env map[string]string) error {
 	return nil
 }
 
+func EnableTmuxMouse(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
+	defer cancel()
+
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "set-option", "-t", name, "mouse", "on")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("tmux set-option mouse failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	return nil
+}
+
+func buildTmuxMouseEnableShellCommand(tmuxPath, session string) string {
+	return fmt.Sprintf("%s set-option -t %s mouse on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session))
+}
+
+
 func buildTmuxEnvScriptContent(env map[string]string, command, tmuxPath string) string {
 	var envCmds strings.Builder
 	envCmds.WriteString("# Mole environment variables\n")
@@ -206,6 +228,9 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	// Set environment variables at tmux session level for new windows/panes.
 	if err := SyncTmuxSessionEnv(name, env); err != nil {
 		fmt.Printf("⚠️ failed to sync tmux session env for %s: %v\n", name, err)
+	}
+	if err := EnableTmuxMouse(name); err != nil {
+		fmt.Printf("⚠️ failed to enable tmux mouse for %s: %v\n", name, err)
 	}
 
 	if command != "" {

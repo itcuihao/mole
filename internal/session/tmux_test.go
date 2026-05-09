@@ -93,8 +93,22 @@ func TestBuildTmuxEnvScriptContentUsesResolvedBinary(t *testing.T) {
 
 func TestBuildTmuxAttachShellCommandUsesResolvedBinary(t *testing.T) {
 	got := buildTmuxAttachShellCommand("/opt/homebrew/bin/tmux", "mole-demo", "")
-	want := "exec '/opt/homebrew/bin/tmux' attach -t 'mole-demo'"
+	want := "'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' mouse on >/dev/null 2>&1; exec '/opt/homebrew/bin/tmux' attach -t 'mole-demo'"
 	if got != want {
 		t.Fatalf("buildTmuxAttachShellCommand() = %q, want %q", got, want)
+	}
+}
+
+func TestBuildWslTmuxAttachShellCommandEnablesMouseBeforeAttach(t *testing.T) {
+	got := buildWslTmuxAttachShellCommand("mole-demo", map[string]string{"FOO": "bar"})
+
+	if !strings.Contains(got, "export FOO='bar'") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing env export: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' mouse on >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing mouse enable command: %q", got)
+	}
+	if !strings.Contains(got, "exec tmux attach -t 'mole-demo'") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing attach command: %q", got)
 	}
 }

@@ -8,7 +8,7 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal } from "lucide-react"
+import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy } from "lucide-react"
 import type { AppTab } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom' | 'codex'
@@ -19,6 +19,15 @@ type SessionRecord = session.SessionStatus & {
   codex_config_id?: string
   open_count?: number
   last_opened_at?: string
+}
+
+type SessionDraft = {
+  profileID: string
+  runMode: RunMode
+  hostID: string
+  command: string
+  sessionName: string
+  sourceName?: string
 }
 
 const RUN_MODE_LABELS: Record<RunMode, string> = {
@@ -99,6 +108,23 @@ const compareSessionsByProfile = (left: SessionRecord, right: SessionRecord) => 
 
 const profileLabel = (item: profile.Profile) => item.name || ''
 const hostLabel = (host: inventory.Host) => (host.name || host.host || '').trim()
+
+const buildDuplicateSessionName = (baseName: string, existingNames: string[]) => {
+  const normalizedBase = baseName.trim() || 'session'
+  const nameSet = new Set(existingNames.map(name => name.trim().toLowerCase()).filter(Boolean))
+  const firstCandidate = `${normalizedBase}-copy`
+
+  if (!nameSet.has(firstCandidate.toLowerCase())) {
+    return firstCandidate
+  }
+
+  let index = 2
+  while (nameSet.has(`${firstCandidate}-${index}`.toLowerCase())) {
+    index += 1
+  }
+
+  return `${firstCandidate}-${index}`
+}
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -282,6 +308,7 @@ function Sessions({
   const [defaultTerminal, setDefaultTerminal] = useState<string>('')
   const [showNewModal, setShowNewModal] = useState(false)
   const [editingSession, setEditingSession] = useState<SessionRecord | null>(null)
+  const [duplicateDraft, setDuplicateDraft] = useState<SessionDraft | null>(null)
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -422,6 +449,20 @@ function Sessions({
     })
   }, [normalizedQuery, sortedSessions])
 
+  const handleDuplicateSession = useCallback((sess: SessionRecord) => {
+    setDuplicateDraft({
+      profileID: sess.profile_id,
+      runMode: normalizeRunMode(sess.run_mode, Boolean(sess.command)),
+      hostID: sess.host_id || '',
+      command: sess.command || '',
+      sessionName: buildDuplicateSessionName(
+        sess.name || 'session',
+        sessions.map(item => item.name || ''),
+      ),
+      sourceName: sess.name || '',
+    })
+  }, [sessions])
+
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -519,6 +560,7 @@ function Sessions({
                   onOpen={handleOpenSession}
                   onKill={handleKill}
                   onEdit={setEditingSession}
+                  onDuplicate={handleDuplicateSession}
                   isWorking={sessionAction?.id === s.id}
                   currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
                 />
@@ -532,6 +574,14 @@ function Sessions({
         <NewSessionModal
           onClose={() => setShowNewModal(false)}
           onCreated={() => { setShowNewModal(false); refresh() }}
+        />
+      )}
+
+      {duplicateDraft && (
+        <NewSessionModal
+          initialDraft={duplicateDraft}
+          onClose={() => setDuplicateDraft(null)}
+          onCreated={() => { setDuplicateDraft(null); refresh() }}
         />
       )}
 
@@ -552,6 +602,7 @@ function SessionCard({
   onOpen,
   onKill,
   onEdit,
+  onDuplicate,
   isWorking,
   currentAction,
 }: {
@@ -560,6 +611,7 @@ function SessionCard({
   onOpen: (session: SessionRecord, terminalID?: string) => void
   onKill: (session: SessionRecord) => void
   onEdit: (session: SessionRecord) => void
+  onDuplicate: (session: SessionRecord) => void
   isWorking: boolean
   currentAction: 'open' | 'kill' | null
 }) {
@@ -701,6 +753,16 @@ function SessionCard({
               <button
                 onClick={() => {
                   setShowMoreMenu(false)
+                  onDuplicate(s)
+                }}
+                className={SESSION_MENU_ITEM_CLASS}
+              >
+                <Copy className="w-4 h-4 text-muted-foreground" />
+                <span>Duplicate</span>
+              </button>
+              <button
+                onClick={() => {
+                  setShowMoreMenu(false)
                   onEdit(s)
                 }}
                 className={SESSION_MENU_ITEM_CLASS}
@@ -810,21 +872,23 @@ function EmptySessionsState({
 }
 
 function NewSessionModal({
+  initialDraft,
   onClose,
   onCreated,
 }: {
+  initialDraft?: SessionDraft | null
   onClose: () => void
   onCreated: () => void
 }) {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
-  const [selectedProfile, setSelectedProfile] = useState('')
+  const [selectedProfile, setSelectedProfile] = useState(initialDraft?.profileID || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
-  const [selectedHostId, setSelectedHostId] = useState('')
+  const [selectedHostId, setSelectedHostId] = useState(initialDraft?.hostID || '')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState('')
-  const [runMode, setRunMode] = useState<RunMode>('shell')
-  const [sessionName, setSessionName] = useState('')
-  const [command, setCommand] = useState('')
+  const [runMode, setRunMode] = useState<RunMode>(initialDraft?.runMode || 'shell')
+  const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
+  const [command, setCommand] = useState(initialDraft?.command || '')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -833,7 +897,9 @@ function NewSessionModal({
       ListProfiles()
         .then(p => {
           setProfiles(p || [])
-          if (p && p.length > 0) setSelectedProfile(p[0].id)
+          if (!initialDraft?.profileID && p && p.length > 0) {
+            setSelectedProfile(p[0].id)
+          }
         })
         .catch(err => setError(String(err)))
 
@@ -908,6 +974,17 @@ function NewSessionModal({
     }
   }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs])
 
+  const isDuplicating = Boolean(initialDraft)
+  const modalTitle = isDuplicating
+    ? `Copy Session${initialDraft?.sourceName ? `: ${initialDraft.sourceName}` : ''}`
+    : 'New Session'
+  const modalDescription = isDuplicating
+    ? 'Review the copied configuration, then create a new session with a different name.'
+    : 'Choose a profile and how this session should start.'
+  const submitLabel = creating
+    ? (isDuplicating ? 'Creating Copy...' : 'Creating...')
+    : (isDuplicating ? 'Create Copy' : 'Create')
+
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
     if (runMode === 'host' && !selectedHostId) {
@@ -939,8 +1016,8 @@ function NewSessionModal({
 
   return (
     <ModalShell
-      title="New Workspace"
-      description="Choose a profile and how this workspace should start."
+      title={modalTitle}
+      description={modalDescription}
       onClose={onClose}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
@@ -952,7 +1029,7 @@ function NewSessionModal({
             onClick={handleCreate}
             disabled={creating || !selectedProfile || !sessionName.trim()}
           >
-            {creating ? 'Creating...' : 'Create'}
+            {submitLabel}
           </Button>
         </div>
       )}
