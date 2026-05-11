@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react'
 import Sessions from './pages/Sessions'
+import Profiles from './pages/Profiles'
+import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
+import { Users, Server, Settings as SettingsIcon } from "lucide-react"
 
-export type AppTab = 'sessions' | 'settings'
-
-export type SettingsSection = 'profiles' | 'hosts' | 'codex' | 'general'
+export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
 export type NavigateContext = {
   returnToNewSession?: boolean
-  settingsSection?: SettingsSection
 }
 
 function App() {
@@ -76,6 +75,13 @@ function App() {
     }
   }
 
+  const iconButtonClass = (tab: AppTab) =>
+    `flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+      activeTab === tab
+        ? 'bg-muted text-foreground'
+        : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+    }`
+
   return (
     <div className="h-full min-w-0 flex flex-col bg-background">
       <Tabs
@@ -104,13 +110,36 @@ function App() {
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Burrows
               </TabsTrigger>
-              <TabsTrigger value="settings" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Settings
-              </TabsTrigger>
             </TabsList>
           </div>
-          <div className="shrink-0">
-            <ThemeToggle />
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profiles')}
+              className={iconButtonClass('profiles')}
+              aria-label="Profiles"
+              title="Profiles"
+            >
+              <Users className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('hosts')}
+              className={iconButtonClass('hosts')}
+              aria-label="Hosts"
+              title="Hosts"
+            >
+              <Server className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              className={iconButtonClass('settings')}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <SettingsIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
@@ -122,13 +151,16 @@ function App() {
           />
         </TabsContent>
 
+        <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
+          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
+        </TabsContent>
+
+        <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
+          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
+        </TabsContent>
+
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">
-          <Settings
-            initialSection={navigateContext?.settingsSection}
-            refreshSignal={burrowRefreshSignal}
-            onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)}
-            onCreated={handleReturnFromConfig}
-          />
+          <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
         </TabsContent>
       </Tabs>
     </div>

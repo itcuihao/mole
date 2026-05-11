@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy } from "lucide-react"
-import type { AppTab, NavigateContext, SettingsSection } from '../App'
+import type { AppTab, NavigateContext } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom' | 'codex'
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -868,7 +868,7 @@ function EmptySessionsState({
       description: 'Profiles hold environment variables and secrets for a burrow.',
       done: profileCount > 0,
       actionLabel: profileCount > 0 ? 'Manage Profiles' : 'Add Profile',
-      action: () => onNavigate('settings', { settingsSection: 'profiles' }),
+      action: () => onNavigate('profiles'),
       icon: FolderGit2,
     },
     {
@@ -877,7 +877,7 @@ function EmptySessionsState({
       description: 'Optional, but useful when you want Mole to generate SSH startup commands.',
       done: hostCount > 0,
       actionLabel: hostCount > 0 ? 'Manage Hosts' : 'Add Host',
-      action: () => onNavigate('settings', { settingsSection: 'hosts' }),
+      action: () => onNavigate('hosts'),
       icon: Server,
     },
     {
@@ -1113,7 +1113,7 @@ function NewSessionModal({
                 {onNavigate && (
                   <button
                     type="button"
-                    onClick={() => { onClose(); onNavigate('settings', { returnToNewSession: true, settingsSection: 'profiles' }) }}
+                    onClick={() => { onClose(); onNavigate('profiles', { returnToNewSession: true }) }}
                     className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
                   >
                     Create one
@@ -1156,7 +1156,7 @@ function NewSessionModal({
                   {onNavigate && (
                     <button
                       type="button"
-                      onClick={() => { onClose(); onNavigate('settings', { returnToNewSession: true, settingsSection: 'hosts' }) }}
+                      onClick={() => { onClose(); onNavigate('hosts', { returnToNewSession: true }) }}
                       className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
                     >
                       Add one
