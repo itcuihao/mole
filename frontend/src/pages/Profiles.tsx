@@ -24,8 +24,10 @@ const compareByLabel = (left: string, right: string) => (
 
 function Profiles({
   refreshSignal,
+  onCreated,
 }: {
   refreshSignal?: number
+  onCreated?: () => void
 }) {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [editingProfile, setEditingProfile] = useState<profile.Profile | null>(null)
@@ -76,6 +78,7 @@ function Profiles({
   const handleSave = () => {
     setEditingProfile(null)
     refresh()
+    onCreated?.()
   }
 
   const sortedProfiles = useMemo(() => (

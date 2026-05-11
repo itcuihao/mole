@@ -9,10 +9,15 @@ import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 
 export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
+export type NavigateContext = {
+  returnToNewSession?: boolean
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
   const [newSessionSignal, setNewSessionSignal] = useState(0)
   const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
+  const [navigateContext, setNavigateContext] = useState<NavigateContext | null>(null)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
 
   useEffect(() => {
@@ -45,6 +50,7 @@ function App() {
     }
 
     const detach = EventsOn('tray:new-session', () => {
+      setNavigateContext(null)
       setActiveTab('sessions')
       setNewSessionSignal(prev => prev + 1)
     })
@@ -55,6 +61,19 @@ function App() {
       }
     }
   }, [])
+
+  const handleNavigate = (tab: AppTab, ctx?: NavigateContext) => {
+    setNavigateContext(ctx || null)
+    setActiveTab(tab)
+  }
+
+  const handleReturnFromConfig = () => {
+    if (navigateContext?.returnToNewSession) {
+      setNavigateContext(null)
+      setActiveTab('sessions')
+      setNewSessionSignal(prev => prev + 1)
+    }
+  }
 
   return (
     <div className="h-full min-w-0 flex flex-col bg-background">
@@ -102,18 +121,18 @@ function App() {
 
         <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
           <Sessions
-            onNavigate={setActiveTab}
+            onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
             burrowRefreshSignal={burrowRefreshSignal}
           />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
-          <Profiles refreshSignal={burrowRefreshSignal} />
+          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
         </TabsContent>
 
         <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
-          <Hosts refreshSignal={burrowRefreshSignal} />
+          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">

@@ -26,8 +26,10 @@ const compareHostLabels = (left: inventory.Host, right: inventory.Host) => (
 
 function Hosts({
   refreshSignal,
+  onCreated,
 }: {
   refreshSignal?: number
+  onCreated?: () => void
 }) {
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
@@ -239,6 +241,7 @@ function Hosts({
       setShowHostModal(false)
       await loadInventory()
       showTransientMessage(editingHost ? 'Host updated' : 'Host added')
+      if (!editingHost) onCreated?.()
     } catch (err) {
       setError(String(err))
     }

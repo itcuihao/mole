@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy } from "lucide-react"
-import type { AppTab } from '../App'
+import type { AppTab, NavigateContext } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom' | 'codex'
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -299,7 +299,7 @@ function Sessions({
   newSessionSignal,
   burrowRefreshSignal,
 }: {
-  onNavigate: (tab: AppTab) => void
+  onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
   newSessionSignal?: number
   burrowRefreshSignal?: number
 }) {
@@ -313,7 +313,8 @@ function Sessions({
   const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortMode, setSortMode] = useState<SessionSortMode>('most_used')
-  const [profileCount, setProfileCount] = useState(0)
+  const [profiles, setProfiles] = useState<profile.Profile[]>([])
+  const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' } | null>(null)
 
@@ -336,7 +337,7 @@ function Sessions({
         .catch(() => {})
 
       ListProfiles()
-        .then(p => setProfileCount((p || []).length))
+        .then(p => setProfiles(p || []))
         .catch(() => {})
 
       GetInventory()
@@ -440,14 +441,27 @@ function Sessions({
     }
   }, [sessions, sortMode])
 
+  const profilesInUse = useMemo(() => {
+    const usedIds = new Set(sessions.map(s => s.profile_id).filter(Boolean))
+    return profiles
+      .filter(p => usedIds.has(p.id))
+      .sort((a, b) => compareAlpha(a.name || '', b.name || ''))
+  }, [sessions, profiles])
+
   const filteredSessions = useMemo(() => {
-    if (!normalizedQuery) return sortedSessions
-    const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
-    return sortedSessions.filter(s => {
-      const name = (s.name || '').toLowerCase()
-      return tokens.every(token => name.includes(token))
-    })
-  }, [normalizedQuery, sortedSessions])
+    let result = sortedSessions
+    if (selectedProfileFilter) {
+      result = result.filter(s => s.profile_id === selectedProfileFilter)
+    }
+    if (normalizedQuery) {
+      const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
+      result = result.filter(s => {
+        const name = (s.name || '').toLowerCase()
+        return tokens.every(token => name.includes(token))
+      })
+    }
+    return result
+  }, [sortedSessions, selectedProfileFilter, normalizedQuery])
 
   const handleDuplicateSession = useCallback((sess: SessionRecord) => {
     setDuplicateDraft({
@@ -532,23 +546,69 @@ function Sessions({
 
       {sessions.length === 0 ? (
         <EmptySessionsState
-          profileCount={profileCount}
+          profileCount={profiles.length}
           hostCount={inventoryCount}
           onCreateSession={() => setShowNewModal(true)}
           onNavigate={onNavigate}
         />
       ) : (
         <>
-          {(searchQuery || sessions.length > 0) && (
+          {profilesInUse.length > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSelectedProfileFilter('')}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  !selectedProfileFilter
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                }`}
+              >
+                All
+              </button>
+              {profilesInUse.map(p => {
+                const isSelected = selectedProfileFilter === p.id
+                const color = p.color || 'hsl(var(--primary))'
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setSelectedProfileFilter(isSelected ? '' : p.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      isSelected
+                        ? ''
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                    }`}
+                    style={isSelected
+                      ? { borderColor: color, backgroundColor: `${color}18`, color }
+                      : undefined
+                    }
+                  >
+                    {p.color && (
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ backgroundColor: p.color }}
+                      />
+                    )}
+                    {p.name}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {(searchQuery || selectedProfileFilter || sessions.length > 0) && (
             <div className="mb-3 text-xs text-muted-foreground">
-              {searchQuery
+              {searchQuery || selectedProfileFilter
                 ? `Showing ${filteredSessions.length} of ${sessions.length}`
                 : `Sorted by ${SESSION_SORT_LABELS[sortMode]}`}
             </div>
           )}
           {filteredSessions.length === 0 ? (
             <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
-              No burrows match “{searchQuery}”. Try a different name.
+              {selectedProfileFilter
+                ? `No burrows in this profile${searchQuery ? ` matching "${searchQuery}"` : ''}.`
+                : `No burrows match "${searchQuery}". Try a different name.`}
             </div>
           ) : (
             <div className="grid gap-3">
@@ -574,6 +634,7 @@ function Sessions({
         <NewSessionModal
           onClose={() => setShowNewModal(false)}
           onCreated={() => { setShowNewModal(false); refresh() }}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -582,6 +643,7 @@ function Sessions({
           initialDraft={duplicateDraft}
           onClose={() => setDuplicateDraft(null)}
           onCreated={() => { setDuplicateDraft(null); refresh() }}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -797,7 +859,7 @@ function EmptySessionsState({
   profileCount: number
   hostCount: number
   onCreateSession: () => void
-  onNavigate: (tab: AppTab) => void
+  onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
 }) {
   const checklist = [
     {
@@ -875,10 +937,12 @@ function NewSessionModal({
   initialDraft,
   onClose,
   onCreated,
+  onNavigate,
 }: {
   initialDraft?: SessionDraft | null
   onClose: () => void
   onCreated: () => void
+  onNavigate?: (tab: AppTab, ctx?: NavigateContext) => void
 }) {
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState(initialDraft?.profileID || '')
@@ -1044,7 +1108,18 @@ function NewSessionModal({
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Profile</label>
             {profiles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No profiles yet. Create one in the Profiles tab first.</p>
+              <p className="text-sm text-muted-foreground">
+                No profiles yet.{' '}
+                {onNavigate && (
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); onNavigate('profiles', { returnToNewSession: true }) }}
+                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                  >
+                    Create one
+                  </button>
+                )}
+              </p>
             ) : (
               <Select value={selectedProfile} onValueChange={setSelectedProfile}>
                 <SelectTrigger className="bg-background">
@@ -1076,7 +1151,18 @@ function NewSessionModal({
             <div>
               <label className="block text-sm text-muted-foreground mb-1">SSH Host</label>
               {inv.hosts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
+                <p className="text-sm text-muted-foreground">
+                  No hosts yet.{' '}
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => { onClose(); onNavigate('hosts', { returnToNewSession: true }) }}
+                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                    >
+                      Add one
+                    </button>
+                  )}
+                </p>
               ) : (
                 <Select
                   value={selectedHostId || inv.hosts[0]?.id || ''}
