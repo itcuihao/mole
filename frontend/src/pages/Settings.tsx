@@ -5,17 +5,34 @@ import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Check, Copy, Download, KeyRound, Pencil, Plus, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload } from "lucide-react"
+import { Check, Copy, Download, KeyRound, Pencil, Plus, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Users, Server, Bot, Settings as SettingsIcon } from "lucide-react"
+import type { SettingsSection } from '../App'
+import Profiles from './Profiles'
+import Hosts from './Hosts'
 
 const getAppMethod = (method: string) => {
   return (window as any)?.go?.main?.App?.[method]
 }
 
+const SECTION_TABS: { key: SettingsSection; label: string; icon: typeof Users }[] = [
+  { key: 'profiles', label: 'Profiles', icon: Users },
+  { key: 'hosts', label: 'Hosts', icon: Server },
+  { key: 'codex', label: 'Codex', icon: Bot },
+  { key: 'general', label: 'General', icon: SettingsIcon },
+]
+
 function Settings({
+  initialSection,
+  refreshSignal,
   onBurrowImported,
+  onCreated,
 }: {
+  initialSection?: SettingsSection
+  refreshSignal?: number
   onBurrowImported?: () => void
+  onCreated?: () => void
 }) {
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection || 'profiles')
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
   const [saving, setSaving] = useState(false)
@@ -28,6 +45,12 @@ function Settings({
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
 
   useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection)
+    }
+  }, [initialSection])
+
+  useEffect(() => {
     loadSettings()
   }, [])
 
@@ -38,7 +61,6 @@ function Settings({
         GetDefaultTerminal()
       ])
       setTerminals(installed || [])
-      // Convert empty string from backend to "auto" for UI
       setDefaultTerminal(current === '' ? 'auto' : current)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
@@ -66,7 +88,6 @@ function Settings({
     setSaving(true)
     setMessage(null)
     try {
-      // Convert "auto" to empty string for backend
       const value = terminalID === 'auto' ? '' : terminalID
       await SetDefaultTerminal(value)
       setDefaultTerminal(terminalID)
@@ -124,7 +145,29 @@ function Settings({
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold text-foreground mb-6">Settings</h1>
+      <h1 className="text-xl font-semibold text-foreground mb-4">Settings</h1>
+
+      <div className="mb-4 flex flex-wrap items-center gap-1.5">
+        {SECTION_TABS.map(tab => {
+          const Icon = tab.icon
+          const isActive = activeSection === tab.key
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveSection(tab.key)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                isActive
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
 
       {message && (
         <div className={`mb-4 p-3 rounded border text-sm ${
@@ -136,213 +179,227 @@ function Settings({
         </div>
       )}
 
-      <div className="bg-card rounded-lg border border-border p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Default Terminal</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Choose which terminal application to use when attaching to burrows
-            </p>
-          </div>
-        </div>
+      {activeSection === 'profiles' && (
+        <Profiles refreshSignal={refreshSignal} onCreated={onCreated} />
+      )}
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-muted-foreground mb-2">Terminal Application</label>
-            {terminals.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No terminal applications detected. Please install iTerm2, Ghostty, or another supported terminal.
-              </div>
-            ) : (
-              <Select
-                value={defaultTerminal}
-                onValueChange={handleSave}
-                disabled={saving}
-              >
-                <SelectTrigger className="bg-background w-full">
-                  <SelectValue placeholder="Select a terminal" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">
-                    <div className="flex items-center gap-2">
-                      <TerminalIcon className="w-4 h-4 text-muted-foreground" />
-                      <span>Auto-detect (Best Available)</span>
-                    </div>
-                  </SelectItem>
-                  {terminals.map(term => (
-                    <SelectItem key={term.ID} value={term.ID}>
-                      <div className="flex items-center gap-2">
-                        <TerminalIcon className="w-4 h-4 text-muted-foreground" />
-                        <span>{term.Name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+      {activeSection === 'hosts' && (
+        <Hosts refreshSignal={refreshSignal} onCreated={onCreated} />
+      )}
+
+      {activeSection === 'codex' && (
+        <div className="bg-card rounded-lg border border-border p-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Codex Configurations</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Manage isolated Codex homes for providers such as Maxx, Qiniu, and OpenAI.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
+              <Plus className="w-4 h-4" />
+              New
+            </Button>
           </div>
 
-          {terminals.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-border">
-              <h3 className="text-sm font-medium text-foreground mb-3">Installed Terminals</h3>
-              <div className="space-y-2">
-                {terminals.map(term => (
-                  <div
-                    key={term.ID}
-                    className="flex items-center justify-between p-3 rounded bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
-                        <TerminalIcon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium text-foreground">{term.Name}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{term.AppPath}</div>
-                      </div>
+          {codexConfigs.length === 0 ? (
+            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              No Codex configurations yet. Create one to run Codex with an isolated CODEX_HOME.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {codexConfigs.map(cfg => (
+                <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                      <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                        {cfg.id}
+                      </span>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                        {cfg.auth_exists ? 'auth.json exists' : 'auth.json missing'}
+                      </span>
                     </div>
-                    {defaultTerminal === term.ID && (
-                      <div className="flex items-center gap-1 text-xs text-primary">
-                        <Check className="w-3 h-3" />
-                        <span>Default</span>
-                      </div>
-                    )}
+                    <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
+                      <Pencil className="w-3.5 h-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={async () => {
+                        if (!window.confirm(`Remove Codex configuration "${cfg.name}" from Mole? Its home directory will stay on disk.`)) return
+                        const method = getAppMethod('DeleteCodexConfig')
+                        if (typeof method !== 'function') return
+                        try {
+                          await method(cfg.id)
+                          await loadCodexConfigs()
+                          setMessage({ type: 'success', text: 'Codex configuration removed. Home directory was left untouched.' })
+                          setTimeout(() => setMessage(null), 3000)
+                        } catch (err) {
+                          setMessage({ type: 'error', text: String(err) })
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      <div className="mt-6 bg-card rounded-lg border border-border p-6">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Burrow Import / Export</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Export your profiles, host inventory, and static session definitions as one portable burrow file.
-            </p>
-          </div>
-        </div>
+      {activeSection === 'general' && (
+        <>
+          <div className="bg-card rounded-lg border border-border p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Default Terminal</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Choose which terminal application to use when attaching to burrows
+                </p>
+              </div>
+            </div>
 
-        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
-          <div className="flex items-start gap-3">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-            <div>
-              Import replaces the current burrow and stops tracked running sessions before writing the new configuration.
-              Local terminal preference is intentionally excluded and stays machine-specific.
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-2">Terminal Application</label>
+                {terminals.length === 0 ? (
+                  <div className="text-sm text-muted-foreground">
+                    No terminal applications detected. Please install iTerm2, Ghostty, or another supported terminal.
+                  </div>
+                ) : (
+                  <Select
+                    value={defaultTerminal}
+                    onValueChange={handleSave}
+                    disabled={saving}
+                  >
+                    <SelectTrigger className="bg-background w-full">
+                      <SelectValue placeholder="Select a terminal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">
+                        <div className="flex items-center gap-2">
+                          <TerminalIcon className="w-4 h-4 text-muted-foreground" />
+                          <span>Auto-detect (Best Available)</span>
+                        </div>
+                      </SelectItem>
+                      {terminals.map(term => (
+                        <SelectItem key={term.ID} value={term.ID}>
+                          <div className="flex items-center gap-2">
+                            <TerminalIcon className="w-4 h-4 text-muted-foreground" />
+                            <span>{term.Name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {terminals.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-border">
+                  <h3 className="text-sm font-medium text-foreground mb-3">Installed Terminals</h3>
+                  <div className="space-y-2">
+                    {terminals.map(term => (
+                      <div
+                        key={term.ID}
+                        className="flex items-center justify-between p-3 rounded bg-muted/30 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
+                            <TerminalIcon className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-foreground">{term.Name}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{term.AppPath}</div>
+                          </div>
+                        </div>
+                        {defaultTerminal === term.ID && (
+                          <div className="flex items-center gap-1 text-xs text-primary">
+                            <Check className="w-3 h-3" />
+                            <span>Default</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            onClick={handleExportBurrow}
-            disabled={burrowBusy !== null}
-          >
-            <Download className="w-4 h-4" />
-            {burrowBusy === 'export' ? 'Exporting...' : 'Export Burrow'}
-          </Button>
-          <Button
-            onClick={() => {
-              setBurrowBuffer('')
-              setShowImportModal(true)
-            }}
-            disabled={burrowBusy !== null}
-          >
-            <Upload className="w-4 h-4" />
-            Import Burrow
-          </Button>
-        </div>
-      </div>
+          <div className="mt-6 bg-card rounded-lg border border-border p-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Burrow Import / Export</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Export your profiles, host inventory, and static session definitions as one portable burrow file.
+                </p>
+              </div>
+            </div>
 
-      <div className="mt-6 bg-card rounded-lg border border-border p-6">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Codex Configurations</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage isolated Codex homes for providers such as Maxx, Qiniu, and OpenAI.
-            </p>
-          </div>
-          <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
-            <Plus className="w-4 h-4" />
-            New
-          </Button>
-        </div>
-
-        {codexConfigs.length === 0 ? (
-          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            No Codex configurations yet. Create one to run Codex with an isolated CODEX_HOME.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {codexConfigs.map(cfg => (
-              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
-                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                      {cfg.id}
-                    </span>
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                      {cfg.auth_exists ? 'auth.json exists' : 'auth.json missing'}
-                    </span>
-                  </div>
-                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={async () => {
-                      if (!window.confirm(`Remove Codex configuration "${cfg.name}" from Mole? Its home directory will stay on disk.`)) return
-                      const method = getAppMethod('DeleteCodexConfig')
-                      if (typeof method !== 'function') return
-                      try {
-                        await method(cfg.id)
-                        await loadCodexConfigs()
-                        setMessage({ type: 'success', text: 'Codex configuration removed. Home directory was left untouched.' })
-                        setTimeout(() => setMessage(null), 3000)
-                      } catch (err) {
-                        setMessage({ type: 'error', text: String(err) })
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Remove
-                  </Button>
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex items-start gap-3">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <div>
+                  Import replaces the current burrow and stops tracked running sessions before writing the new configuration.
+                  Local terminal preference is intentionally excluded and stays machine-specific.
                 </div>
               </div>
-            ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={handleExportBurrow}
+                disabled={burrowBusy !== null}
+              >
+                <Download className="w-4 h-4" />
+                {burrowBusy === 'export' ? 'Exporting...' : 'Export Burrow'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setBurrowBuffer('')
+                  setShowImportModal(true)
+                }}
+                disabled={burrowBusy !== null}
+              >
+                <Upload className="w-4 h-4" />
+                Import Burrow
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
 
-      <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
-        <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-          <TerminalIcon className="w-4 h-4" />
-          Supported Terminals
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Mole supports iTerm2, Ghostty, Rio, Alacritty, Warp, Kitty, and macOS Terminal.
-          Install your preferred terminal and it will be automatically detected.
-        </p>
-      </div>
+          <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
+            <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+              <TerminalIcon className="w-4 h-4" />
+              Supported Terminals
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Mole supports iTerm2, Ghostty, Rio, Alacritty, Warp, Kitty, and macOS Terminal.
+              Install your preferred terminal and it will be automatically detected.
+            </p>
+          </div>
 
-      <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
-        <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-          <TerminalIcon className="w-4 h-4" />
-          About Mole
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          A terminal burrow manager for hosts, profiles, and commands.
-        </p>
-      </div>
+          <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
+            <h3 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
+              <TerminalIcon className="w-4 h-4" />
+              About Mole
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              A terminal burrow manager for hosts, profiles, and commands.
+            </p>
+          </div>
+        </>
+      )}
 
       {showExportModal && (
         <ModalShell

@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import Sessions from './pages/Sessions'
-import Profiles from './pages/Profiles'
-import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 
-export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
+export type AppTab = 'sessions' | 'settings'
+
+export type SettingsSection = 'profiles' | 'hosts' | 'codex' | 'general'
 
 export type NavigateContext = {
   returnToNewSession?: boolean
+  settingsSection?: SettingsSection
 }
 
 function App() {
@@ -103,12 +104,6 @@ function App() {
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Burrows
               </TabsTrigger>
-              <TabsTrigger value="profiles" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Profiles
-              </TabsTrigger>
-              <TabsTrigger value="hosts" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Hosts
-              </TabsTrigger>
               <TabsTrigger value="settings" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Settings
               </TabsTrigger>
@@ -127,16 +122,13 @@ function App() {
           />
         </TabsContent>
 
-        <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
-          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
-        </TabsContent>
-
-        <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
-          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
-        </TabsContent>
-
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">
-          <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
+          <Settings
+            initialSection={navigateContext?.settingsSection}
+            refreshSignal={burrowRefreshSignal}
+            onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)}
+            onCreated={handleReturnFromConfig}
+          />
         </TabsContent>
       </Tabs>
     </div>
