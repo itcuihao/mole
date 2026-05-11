@@ -6,16 +6,17 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useTranslation, type Language } from "@/i18n/context"
 import { Check, Copy, Download, KeyRound, Pencil, Plus, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Bot, Info } from "lucide-react"
 
 type SettingsTab = 'general' | 'terminal' | 'import' | 'codex' | 'about'
 
-const SETTINGS_TABS: { key: SettingsTab; label: string; icon: typeof SettingsIcon }[] = [
-  { key: 'general', label: 'General', icon: Palette },
-  { key: 'terminal', label: 'Terminal', icon: TerminalIcon },
-  { key: 'import', label: 'Import / Export', icon: FileUp },
-  { key: 'codex', label: 'Codex', icon: Bot },
-  { key: 'about', label: 'About', icon: Info },
+const SETTINGS_TAB_KEYS: { key: SettingsTab; labelKey: string; icon: typeof SettingsIcon }[] = [
+  { key: 'general', labelKey: 'settings.tab.general', icon: Palette },
+  { key: 'terminal', labelKey: 'settings.tab.terminal', icon: TerminalIcon },
+  { key: 'import', labelKey: 'settings.tab.import', icon: FileUp },
+  { key: 'codex', labelKey: 'settings.tab.codex', icon: Bot },
+  { key: 'about', labelKey: 'settings.tab.about', icon: Info },
 ]
 
 const getAppMethod = (method: string) => {
@@ -27,6 +28,7 @@ function Settings({
 }: {
   onBurrowImported?: () => void
 }) {
+  const { t, language, setLanguage } = useTranslation()
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
@@ -80,7 +82,7 @@ function Settings({
       const value = terminalID === 'auto' ? '' : terminalID
       await SetDefaultTerminal(value)
       setDefaultTerminal(terminalID)
-      setMessage({ type: 'success', text: 'Default terminal updated' })
+      setMessage({ type: 'success', text: t('settings.terminal.updated') })
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
@@ -92,7 +94,7 @@ function Settings({
   const handleExportBurrow = async () => {
     const method = getAppMethod('ExportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: 'Burrow export is unavailable' })
+      setMessage({ type: 'error', text: t('settings.importExport.exportUnavailable') })
       return
     }
 
@@ -112,7 +114,7 @@ function Settings({
   const handleImportBurrow = async () => {
     const method = getAppMethod('ImportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: 'Burrow import is unavailable' })
+      setMessage({ type: 'error', text: t('settings.importExport.importUnavailable') })
       return
     }
 
@@ -123,7 +125,7 @@ function Settings({
       setShowImportModal(false)
       setBurrowBuffer('')
       onBurrowImported?.()
-      setMessage({ type: 'success', text: 'Burrow imported. Profiles, hosts, and session definitions were replaced.' })
+      setMessage({ type: 'success', text: t('settings.importExport.imported') })
       setTimeout(() => setMessage(null), 4000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
@@ -134,10 +136,10 @@ function Settings({
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold text-foreground mb-4">Settings</h1>
+      <h1 className="text-xl font-semibold text-foreground mb-4">{t('settings.title')}</h1>
 
       <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {SETTINGS_TABS.map(tab => {
+        {SETTINGS_TAB_KEYS.map(tab => {
           const Icon = tab.icon
           const isActive = activeTab === tab.key
           return (
@@ -152,7 +154,7 @@ function Settings({
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           )
         })}
@@ -170,13 +172,28 @@ function Settings({
 
       {activeTab === 'general' && (
         <div className="bg-card rounded-lg border border-border p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Appearance</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">{t('settings.general.appearance')}</h2>
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-foreground">Theme</div>
-              <div className="text-xs text-muted-foreground mt-0.5">Switch between light and dark mode</div>
+              <div className="text-sm font-medium text-foreground">{t('settings.general.theme')}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{t('settings.general.themeDesc')}</div>
             </div>
             <ThemeToggle />
+          </div>
+          <div className="mt-6 pt-6 border-t border-border flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium text-foreground">{t('settings.general.language')}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{t('settings.general.languageDesc')}</div>
+            </div>
+            <Select value={language} onValueChange={v => setLanguage(v as Language)}>
+              <SelectTrigger className="w-32 bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="zh">中文</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}
@@ -185,19 +202,19 @@ function Settings({
         <div className="bg-card rounded-lg border border-border p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Default Terminal</h2>
+              <h2 className="text-lg font-semibold text-foreground">{t('settings.terminal.title')}</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Choose which terminal application to use when attaching to burrows
+                {t('settings.terminal.desc')}
               </p>
             </div>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-muted-foreground mb-2">Terminal Application</label>
+              <label className="block text-sm text-muted-foreground mb-2">{t('settings.terminal.appLabel')}</label>
               {terminals.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
-                  No terminal applications detected. Please install iTerm2, Ghostty, or another supported terminal.
+                  {t('settings.terminal.noApps')}
                 </div>
               ) : (
                 <Select
@@ -206,13 +223,13 @@ function Settings({
                   disabled={saving}
                 >
                   <SelectTrigger className="bg-background w-full">
-                    <SelectValue placeholder="Select a terminal" />
+                    <SelectValue placeholder={t('settings.terminal.selectPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="auto">
                       <div className="flex items-center gap-2">
                         <TerminalIcon className="w-4 h-4 text-muted-foreground" />
-                        <span>Auto-detect (Best Available)</span>
+                        <span>{t('settings.terminal.autoDetect')}</span>
                       </div>
                     </SelectItem>
                     {terminals.map(term => (
@@ -230,7 +247,7 @@ function Settings({
 
             {terminals.length > 0 && (
               <div className="mt-6 pt-6 border-t border-border">
-                <h3 className="text-sm font-medium text-foreground mb-3">Installed Terminals</h3>
+                <h3 className="text-sm font-medium text-foreground mb-3">{t('settings.terminal.installed')}</h3>
                 <div className="space-y-2">
                   {terminals.map(term => (
                     <div
@@ -249,7 +266,7 @@ function Settings({
                       {defaultTerminal === term.ID && (
                         <div className="flex items-center gap-1 text-xs text-primary">
                           <Check className="w-3 h-3" />
-                          <span>Default</span>
+                          <span>{t('common.default')}</span>
                         </div>
                       )}
                     </div>
@@ -265,9 +282,9 @@ function Settings({
         <div className="bg-card rounded-lg border border-border p-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Burrow Import / Export</h2>
+              <h2 className="text-lg font-semibold text-foreground">{t('settings.importExport.title')}</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Export your profiles, host inventory, and static session definitions as one portable burrow file.
+                {t('settings.importExport.desc')}
               </p>
             </div>
           </div>
@@ -276,8 +293,7 @@ function Settings({
             <div className="flex items-start gap-3">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <div>
-                Import replaces the current burrow and stops tracked running sessions before writing the new configuration.
-                Local terminal preference is intentionally excluded and stays machine-specific.
+                {t('settings.importExport.warning')}
               </div>
             </div>
           </div>
@@ -289,7 +305,7 @@ function Settings({
               disabled={burrowBusy !== null}
             >
               <Download className="w-4 h-4" />
-              {burrowBusy === 'export' ? 'Exporting...' : 'Export Burrow'}
+              {burrowBusy === 'export' ? t('settings.importExport.exporting') : t('settings.importExport.exportBurrow')}
             </Button>
             <Button
               onClick={() => {
@@ -299,7 +315,7 @@ function Settings({
               disabled={burrowBusy !== null}
             >
               <Upload className="w-4 h-4" />
-              Import Burrow
+              {t('settings.importExport.importBurrow')}
             </Button>
           </div>
         </div>
@@ -309,20 +325,20 @@ function Settings({
         <div className="bg-card rounded-lg border border-border p-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Codex Configurations</h2>
+              <h2 className="text-lg font-semibold text-foreground">{t('settings.codex.title')}</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Manage isolated Codex homes for providers such as Maxx, Qiniu, and OpenAI.
+                {t('settings.codex.desc')}
               </p>
             </div>
             <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
               <Plus className="w-4 h-4" />
-              New
+              {t('common.new')}
             </Button>
           </div>
 
           {codexConfigs.length === 0 ? (
             <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              No Codex configurations yet. Create one to run Codex with an isolated CODEX_HOME.
+              {t('settings.codex.empty')}
             </div>
           ) : (
             <div className="space-y-2">
@@ -335,7 +351,7 @@ function Settings({
                         {cfg.id}
                       </span>
                       <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        {cfg.auth_exists ? 'auth.json exists' : 'auth.json missing'}
+                        {cfg.auth_exists ? t('settings.codex.authExists') : t('settings.codex.authMissing')}
                       </span>
                     </div>
                     <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
@@ -343,20 +359,20 @@ function Settings({
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
                       <Pencil className="w-3.5 h-3.5" />
-                      Edit
+                      {t('common.edit')}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={async () => {
-                        if (!window.confirm(`Remove Codex configuration "${cfg.name}" from Mole? Its home directory will stay on disk.`)) return
+                        if (!window.confirm(t('settings.codex.confirmRemove', { name: cfg.name }))) return
                         const method = getAppMethod('DeleteCodexConfig')
                         if (typeof method !== 'function') return
                         try {
                           await method(cfg.id)
                           await loadCodexConfigs()
-                          setMessage({ type: 'success', text: 'Codex configuration removed. Home directory was left untouched.' })
+                          setMessage({ type: 'success', text: t('settings.codex.removed') })
                           setTimeout(() => setMessage(null), 3000)
                         } catch (err) {
                           setMessage({ type: 'error', text: String(err) })
@@ -364,7 +380,7 @@ function Settings({
                       }}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      Remove
+                      {t('common.remove')}
                     </Button>
                   </div>
                 </div>
@@ -377,17 +393,16 @@ function Settings({
       {activeTab === 'about' && (
         <>
           <div className="bg-card rounded-lg border border-border p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-2">Supported Terminals</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-2">{t('settings.about.supportedTerminals')}</h2>
             <p className="text-sm text-muted-foreground">
-              Mole supports iTerm2, Ghostty, Rio, Alacritty, Warp, Kitty, and macOS Terminal.
-              Install your preferred terminal and it will be automatically detected.
+              {t('settings.about.supportedDesc')}
             </p>
           </div>
 
           <div className="mt-6 bg-card rounded-lg border border-border p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-2">About Mole</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-2">{t('settings.about.aboutMole')}</h2>
             <p className="text-sm text-muted-foreground">
-              A terminal burrow manager for hosts, profiles, and commands.
+              {t('settings.about.aboutDesc')}
             </p>
           </div>
         </>
@@ -395,8 +410,8 @@ function Settings({
 
       {showExportModal && (
         <ModalShell
-          title="Export Burrow"
-          description="Copy this JSON to back up or move your Mole burrow."
+          title={t('settings.importExport.exportModalTitle')}
+          description={t('settings.importExport.exportModalDesc')}
           onClose={() => setShowExportModal(false)}
           contentStyle={{ maxWidth: '760px' }}
           footer={(
@@ -406,9 +421,9 @@ function Settings({
                 onClick={() => navigator.clipboard.writeText(burrowBuffer)}
               >
                 <Copy className="w-3.5 h-3.5" />
-                Copy JSON
+                {t('settings.importExport.copyJSON')}
               </Button>
-              <Button onClick={() => setShowExportModal(false)}>Close</Button>
+              <Button onClick={() => setShowExportModal(false)}>{t('common.close')}</Button>
             </div>
           )}
         >
@@ -423,28 +438,28 @@ function Settings({
 
       {showImportModal && (
         <ModalShell
-          title="Import Burrow"
-          description="Paste a burrow JSON export to replace the current Mole configuration."
+          title={t('settings.importExport.importModalTitle')}
+          description={t('settings.importExport.importModalDesc')}
           onClose={() => setShowImportModal(false)}
           contentStyle={{ maxWidth: '760px' }}
           footer={(
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleImportBurrow} disabled={burrowBusy === 'import'}>
-                {burrowBusy === 'import' ? 'Importing...' : 'Import Burrow'}
+                {burrowBusy === 'import' ? t('settings.importExport.importing') : t('settings.importExport.importBurrow')}
               </Button>
             </div>
           )}
         >
           <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
-            Import keeps profiles, hosts, groups, defaults, and session definitions together. Running burrow state and default terminal preference are not restored.
+            {t('settings.importExport.importWarning')}
           </div>
           <Textarea
             value={burrowBuffer}
             onChange={e => setBurrowBuffer(e.target.value)}
-            placeholder="Paste burrow JSON here"
+            placeholder={t('settings.importExport.importPlaceholder')}
             rows={14}
             className="font-mono text-xs bg-muted/30 focus:bg-background"
           />
@@ -459,7 +474,7 @@ function Settings({
           onSaved={async () => {
             setCodexModal(null)
             await loadCodexConfigs()
-            setMessage({ type: 'success', text: 'Codex configuration saved' })
+            setMessage({ type: 'success', text: t('settings.codex.saved') })
             setTimeout(() => setMessage(null), 3000)
           }}
         />
@@ -479,6 +494,7 @@ function CodexConfigModal({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useTranslation()
   const [name, setName] = useState(config?.name || '')
   const [id, setId] = useState(config?.id || '')
   const [configToml, setConfigToml] = useState('')
@@ -502,9 +518,9 @@ function CodexConfigModal({
   }, [config?.id])
 
   const validateBeforeSave = () => {
-    if (!name.trim()) return 'Name is required'
+    if (!name.trim()) return t('codex.modal.nameRequired')
     if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) {
-      return 'Config ID must contain only letters, digits, underscores, and dashes'
+      return t('codex.modal.configIdHint')
     }
     try {
       validateTomlShape(configToml)
@@ -515,7 +531,7 @@ function CodexConfigModal({
       try {
         JSON.parse(authJSON)
       } catch (err) {
-        return `Invalid auth.json: ${String(err)}`
+        return t('codex.modal.invalidAuth', { error: String(err) })
       }
     }
     return ''
@@ -553,19 +569,19 @@ function CodexConfigModal({
   }
 
   const authExists = Boolean(config?.auth_exists)
-  const authActionLabel = authExists ? 'Replace auth.json' : 'Initialize auth.json'
+  const authActionLabel = authExists ? t('codex.modal.replaceAuth') : t('codex.modal.initAuth')
 
   return (
     <ModalShell
-      title={mode === 'new' ? 'New Codex Configuration' : `Edit Codex Configuration: ${config?.name || ''}`}
-      description="Codex will read config.toml and auth.json from this isolated home."
+      title={mode === 'new' ? t('codex.modal.newTitle') : t('codex.modal.editTitle', { name: config?.name || '' })}
+      description={t('codex.modal.desc')}
       onClose={onClose}
       contentStyle={{ maxWidth: '760px' }}
       footer={(
         <div className="flex justify-end gap-2">
-          <Button onClick={onClose} variant="ghost">Cancel</Button>
+          <Button onClick={onClose} variant="ghost">{t('common.cancel')}</Button>
           <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim()}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('profiles.form.saving') : t('common.save')}
           </Button>
         </div>
       )}
@@ -579,7 +595,7 @@ function CodexConfigModal({
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Name</label>
+            <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -588,7 +604,7 @@ function CodexConfigModal({
             />
           </div>
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Config ID</label>
+            <label className="block text-sm text-muted-foreground mb-1">{t('codex.modal.configId')}</label>
             <input
               value={id}
               onChange={e => setId(e.target.value)}
@@ -600,19 +616,19 @@ function CodexConfigModal({
         </div>
 
         <div>
-          <label className="block text-sm text-muted-foreground mb-1">Codex Home</label>
+          <label className="block text-sm text-muted-foreground mb-1">{t('codex.modal.codexHome')}</label>
           <div className="rounded border border-border bg-muted/20 px-3 py-2 font-mono text-xs text-muted-foreground">
             {config?.home_dir || homePreview}
           </div>
         </div>
 
         <div>
-          <label className="block text-sm text-muted-foreground mb-1">config.toml</label>
+          <label className="block text-sm text-muted-foreground mb-1">{t('codex.modal.configToml')}</label>
           <Textarea
             value={configToml}
             onChange={e => setConfigToml(e.target.value)}
             rows={12}
-            placeholder={'model_provider = "maxx"\n\n[model_providers.maxx]\nname = "maxx"\nbase_url = "https://maxx-direct.cloverstd.com"\nwire_api = "responses"'}
+            placeholder={t('codex.modal.configTomlPlaceholder')}
             className="min-h-72 font-mono text-xs"
           />
         </div>
@@ -622,10 +638,10 @@ function CodexConfigModal({
             <div>
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <KeyRound className="h-4 w-4 text-muted-foreground" />
-                auth.json
+                {t('codex.modal.authJson')}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                Status: {authExists ? 'exists' : 'missing'}. Existing auth content is not loaded back into Mole.
+                {t('codex.modal.authStatus', { status: authExists ? t('codex.modal.authExists') : t('codex.modal.authMissing') })}
               </div>
             </div>
             <Button
@@ -651,7 +667,7 @@ function CodexConfigModal({
                     onChange={e => setReplaceAuth(e.target.checked)}
                     className="mt-0.5"
                   />
-                  Replace the existing auth.json for this Codex home.
+                  {t('codex.modal.replaceAuthHint')}
                 </label>
               )}
               <Textarea

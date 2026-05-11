@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { useTranslation } from "@/i18n/context"
 import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp } from "lucide-react"
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
@@ -31,6 +32,7 @@ function Hosts({
   refreshSignal?: number
   onCreated?: () => void
 }) {
+  const { t } = useTranslation()
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
   const [loading, setLoading] = useState(false)
@@ -191,7 +193,7 @@ function Hosts({
         identity_file: defaultsForm.identity_file.trim(),
       })
       await loadInventory()
-      setMessage('Defaults updated')
+      setMessage(t('hosts.defaults.updated'))
       setTimeout(() => setMessage(''), 3000)
     } catch (err) {
       setError(String(err))
@@ -200,7 +202,7 @@ function Hosts({
 
   const handleSaveHost = async () => {
     if (!hostForm.host.trim()) {
-      setError('Host address is required')
+      setError(t('hosts.form.hostRequired'))
       return
     }
     setError('')
@@ -240,7 +242,7 @@ function Hosts({
 
       setShowHostModal(false)
       await loadInventory()
-      showTransientMessage(editingHost ? 'Host updated' : 'Host added')
+      showTransientMessage(editingHost ? t('hosts.msg.hostUpdated') : t('hosts.msg.hostAdded'))
       if (!editingHost) onCreated?.()
     } catch (err) {
       setError(String(err))
@@ -251,7 +253,7 @@ function Hosts({
     try {
       await DeleteHost(id)
       await loadInventory()
-      showTransientMessage('Host deleted')
+      showTransientMessage(t('hosts.msg.hostDeleted'))
     } catch (err) {
       setError(String(err))
     }
@@ -259,7 +261,7 @@ function Hosts({
 
   const handleSaveGroup = async () => {
     if (!groupForm.name.trim()) {
-      setError('Group name is required')
+      setError(t('hosts.group.nameRequired'))
       return
     }
     setError('')
@@ -280,9 +282,9 @@ function Hosts({
       await loadInventory()
       if (groupModalSource === 'host') {
         setHostGroupIds(prev => (prev.includes(groupID) ? prev : [...prev, groupID]))
-        showTransientMessage(editingGroup ? 'Group updated. Your host draft is still open.' : 'Group created and selected for this host.')
+        showTransientMessage(editingGroup ? t('hosts.msg.groupUpdatedDraft') : t('hosts.msg.groupCreatedSelected'))
       } else {
-        showTransientMessage(editingGroup ? 'Group updated' : 'Group added')
+        showTransientMessage(editingGroup ? t('hosts.msg.groupUpdated') : t('hosts.msg.groupAdded'))
       }
     } catch (err) {
       setError(String(err))
@@ -318,7 +320,7 @@ function Hosts({
       await DeleteHostGroup(id)
       await loadInventory()
       setHostGroupIds(prev => prev.filter(groupID => groupID !== id))
-      showTransientMessage('Group deleted')
+      showTransientMessage(t('hosts.msg.groupDeleted'))
     } catch (err) {
       setError(String(err))
     }
@@ -353,7 +355,7 @@ function Hosts({
     if (!cmd) return
     try {
       await navigator.clipboard.writeText(cmd)
-      setMessage('SSH command copied')
+      setMessage(t('hosts.msg.sshCopied'))
       setTimeout(() => setMessage(''), 2500)
     } catch (err) {
       setError(String(err))
@@ -394,14 +396,14 @@ function Hosts({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-foreground">Hosts</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
-            Manage Groups
+            {t('hosts.manageGroups')}
           </Button>
           <Button onClick={() => openHostModal()} size="sm">
             <Plus className="w-4 h-4" />
-            Add Host
+            {t('hosts.addHost')}
           </Button>
         </div>
       </div>
@@ -427,7 +429,7 @@ function Hosts({
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search name, host, or tag..."
+              placeholder={t('hosts.searchPlaceholder')}
               className="bg-muted/30 focus:bg-background max-w-sm"
             />
             {allTags.length > 0 && (
@@ -452,7 +454,7 @@ function Hosts({
             )}
             {(search || selectedTags.length > 0) && (
               <Button onClick={clearFilters} variant="ghost" size="sm" className="h-7 px-2">
-                Clear
+                {t('common.clear')}
               </Button>
             )}
           </div>
@@ -467,8 +469,8 @@ function Hosts({
         >
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-base">Defaults</CardTitle>
-              <CardDescription>Applied when a host leaves a field empty.</CardDescription>
+              <CardTitle className="text-base">{t('hosts.defaults.title')}</CardTitle>
+              <CardDescription>{t('hosts.defaults.desc')}</CardDescription>
             </div>
             <span className="text-muted-foreground">
               {showDefaults ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -479,7 +481,7 @@ function Hosts({
           <CardContent>
             <div className="grid gap-3 md:grid-cols-3">
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">User</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.user')}</label>
                 <Input
                   value={defaultsForm.user}
                   onChange={e => setDefaultsForm({ ...defaultsForm, user: e.target.value })}
@@ -488,7 +490,7 @@ function Hosts({
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Port</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.port')}</label>
                 <Input
                   value={defaultsForm.port}
                   onChange={e => setDefaultsForm({ ...defaultsForm, port: e.target.value })}
@@ -497,7 +499,7 @@ function Hosts({
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Identity File</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.identityFile')}</label>
                 <Input
                   value={defaultsForm.identity_file}
                   onChange={e => setDefaultsForm({ ...defaultsForm, identity_file: e.target.value })}
@@ -507,7 +509,7 @@ function Hosts({
               </div>
             </div>
             <div className="mt-4">
-              <Button onClick={saveDefaults} size="sm">Save Defaults</Button>
+              <Button onClick={saveDefaults} size="sm">{t('hosts.defaults.save')}</Button>
             </div>
           </CardContent>
         )}
@@ -515,14 +517,14 @@ function Hosts({
 
       <div className="grid gap-3">
         {loading ? (
-          <div className="text-sm text-muted-foreground">Loading inventory...</div>
+          <div className="text-sm text-muted-foreground">{t('hosts.loading')}</div>
         ) : inv.hosts.length === 0 ? (
           <div className="text-center text-muted-foreground py-10">
-            No hosts yet. Add one to start building your inventory.
+            {t('hosts.empty')}
           </div>
         ) : filteredHosts.length === 0 ? (
           <div className="text-center text-muted-foreground py-6">
-            No hosts match the current filters.
+            {t('hosts.noFilterMatch')}
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -536,7 +538,7 @@ function Hosts({
                       <div className="flex items-center gap-2">
                         <Server className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium text-foreground">
-                          {host.name || host.host || 'Untitled Host'}
+                          {host.name || host.host || t('hosts.untitled')}
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground font-mono mt-1">
@@ -546,12 +548,12 @@ function Hosts({
                       </div>
                       {bastion && (
                         <div className="text-xs text-muted-foreground mt-1">
-                          Bastion: {bastion.name || bastion.host}
+                          {t('hosts.bastion', { name: bastion.name || bastion.host })}
                         </div>
                       )}
                       {(host.identity_file || inv.defaults.identity_file) && (
                         <div className="text-xs text-muted-foreground mt-1 font-mono">
-                          Key: {host.identity_file || inv.defaults.identity_file}
+                          {t('hosts.key', { path: host.identity_file || inv.defaults.identity_file })}
                         </div>
                       )}
                   {host.tags && host.tags.length > 0 && (
@@ -579,15 +581,15 @@ function Hosts({
                         disabled={!command}
                       >
                         <Copy className="w-3.5 h-3.5" />
-                        Copy SSH
+                        {t('hosts.copySSH')}
                       </Button>
                       <Button onClick={() => openHostModal(host)} variant="ghost" size="sm">
                         <Pencil className="w-3.5 h-3.5" />
-                        Edit
+                        {t('common.edit')}
                       </Button>
                       <Button onClick={() => handleDeleteHost(host.id)} variant="destructive" size="sm">
                         <Trash2 className="w-3.5 h-3.5" />
-                        Delete
+                        {t('common.delete')}
                       </Button>
                     </div>
                   </div>
@@ -600,27 +602,27 @@ function Hosts({
 
       {showHostModal && (
         <ModalShell
-          title={editingHost ? 'Edit Host' : 'Add Host'}
-          description="Define how Mole connects to this machine. Leave fields empty to use Defaults."
+          title={editingHost ? t('hosts.form.editTitle') : t('hosts.form.addTitle')}
+          description={t('hosts.form.desc')}
           onClose={() => setShowHostModal(false)}
           contentStyle={{ maxWidth: '560px' }}
           bodyClassName="grid gap-5"
           footer={(
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setShowHostModal(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button onClick={handleSaveHost}>{editingHost ? 'Save' : 'Add Host'}</Button>
+              <Button onClick={handleSaveHost}>{editingHost ? t('common.save') : t('hosts.addHost')}</Button>
             </div>
           )}
         >
           <div className="grid gap-5">
               <div className="grid gap-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Connection
+                  {t('hosts.form.connection')}
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Name</label>
+                  <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.name')}</label>
                   <Input
                     value={hostForm.name}
                     onChange={e => setHostForm({ ...hostForm, name: e.target.value })}
@@ -629,7 +631,7 @@ function Hosts({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Host Address</label>
+                  <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.hostAddress')}</label>
                   <Input
                     value={hostForm.host}
                     onChange={e => setHostForm({ ...hostForm, host: e.target.value })}
@@ -642,7 +644,7 @@ function Hosts({
               <div className="grid gap-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Groups
+                    {t('hosts.form.groups')}
                   </div>
                   <Button
                     onClick={() => openGroupModal(undefined, 'host')}
@@ -651,22 +653,22 @@ function Hosts({
                     className="h-7"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    New Group
+                    {t('hosts.form.newGroup')}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Groups are named collections used to organize and filter saved hosts. Creating one here keeps this host draft open.
+                  {t('hosts.form.groupsDesc')}
                 </p>
                 {inv.groups.length === 0 ? (
                   <div className="text-xs text-muted-foreground bg-muted/20 border border-border rounded p-3 flex items-center justify-between gap-3">
-                    <span>No groups yet. Create one without leaving this host.</span>
+                    <span>{t('hosts.form.noGroups')}</span>
                     <Button
                       onClick={() => openGroupModal(undefined, 'host')}
                       variant="secondary"
                       size="sm"
                       className="h-7"
                     >
-                      Add Group
+                      {t('hosts.form.addGroup')}
                     </Button>
                   </div>
                 ) : (
@@ -697,11 +699,11 @@ function Hosts({
 
               <div className="grid gap-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Access
+                  {t('hosts.form.access')}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">User</label>
+                    <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.user')}</label>
                     <Input
                       value={hostForm.user}
                       onChange={e => setHostForm({ ...hostForm, user: e.target.value })}
@@ -710,7 +712,7 @@ function Hosts({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Port</label>
+                    <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.port')}</label>
                     <Input
                       value={hostForm.port}
                       onChange={e => setHostForm({ ...hostForm, port: e.target.value })}
@@ -720,7 +722,7 @@ function Hosts({
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Identity File</label>
+                  <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.identityFile')}</label>
                   <Input
                     value={hostForm.identity_file}
                     onChange={e => setHostForm({ ...hostForm, identity_file: e.target.value })}
@@ -732,10 +734,10 @@ function Hosts({
 
               <div className="grid gap-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Routing & Tags
+                  {t('hosts.form.routingTags')}
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Bastion Host</label>
+                  <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.bastionHost')}</label>
                   <Select
                     value={hostForm.bastion_id || 'none'}
                     onValueChange={value => setHostForm({ ...hostForm, bastion_id: value === 'none' ? '' : value })}
@@ -756,11 +758,11 @@ function Hosts({
                   </Select>
                 </div>
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Tags</label>
+                  <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.tags')}</label>
                   <Input
                     value={hostForm.tags}
                     onChange={e => setHostForm({ ...hostForm, tags: e.target.value })}
-                    placeholder="prod, app, db"
+                    placeholder={t('hosts.form.tagsPlaceholder')}
                     className="bg-muted/30 focus:bg-background"
                   />
                 </div>
@@ -771,8 +773,8 @@ function Hosts({
 
       {showGroupModal && (
         <ModalShell
-          title={editingGroup ? 'Edit Group' : 'Add Group'}
-          description="Groups are named host collections used for organization and filtering."
+          title={editingGroup ? t('hosts.group.editTitle') : t('hosts.group.addTitle')}
+          description={t('hosts.group.desc')}
           onClose={() => setShowGroupModal(false)}
           overlayClassName={groupModalSource === 'host' ? 'z-[110]' : undefined}
           contentStyle={{ maxWidth: '520px' }}
@@ -780,20 +782,20 @@ function Hosts({
           footer={(
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setShowGroupModal(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button onClick={handleSaveGroup}>{editingGroup ? 'Save' : 'Add Group'}</Button>
+              <Button onClick={handleSaveGroup}>{editingGroup ? t('common.save') : t('hosts.form.addGroup')}</Button>
             </div>
           )}
         >
           <div className="grid gap-3">
               {groupModalSource === 'host' && (
                 <div className="rounded-md border border-primary/20 bg-primary/10 p-3 text-xs text-muted-foreground">
-                  When you save this group, the host you are editing will stay open and this group will be selected automatically.
+                  {t('hosts.group.hostDraftHint')}
                 </div>
               )}
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Name</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('common.name')}</label>
                 <Input
                   value={groupForm.name}
                   onChange={e => setGroupForm({ ...groupForm, name: e.target.value })}
@@ -802,7 +804,7 @@ function Hosts({
                 />
               </div>
               <div>
-                <label className="block text-xs text-muted-foreground mb-1">Hosts</label>
+                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.group.hosts')}</label>
                 {allTags.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {allTags.map(tag => (
@@ -813,14 +815,14 @@ function Hosts({
                         size="sm"
                         className="h-7 px-2 bg-muted/30"
                       >
-                        Toggle {tag}
+                        {t('hosts.group.toggleTag', { tag })}
                       </Button>
                     ))}
                   </div>
                 )}
                 {inv.hosts.length === 0 ? (
                   <div className="text-xs text-muted-foreground bg-muted/20 border border-border rounded p-3">
-                    No hosts available. Create hosts first, then add them to this group.
+                    {t('hosts.group.noHosts')}
                   </div>
                 ) : (
                   <div className="border border-border rounded bg-muted/20 max-h-56 overflow-auto">
@@ -853,8 +855,8 @@ function Hosts({
 
       {showGroupListModal && (
         <ModalShell
-          title="Groups"
-          description="Review group membership and manage named host collections."
+          title={t('hosts.groupList.title')}
+          description={t('hosts.groupList.desc')}
           onClose={() => setShowGroupListModal(false)}
           contentStyle={{ maxWidth: '720px' }}
           footer={(
@@ -864,17 +866,17 @@ function Hosts({
                 variant="secondary"
               >
                 <Plus className="w-4 h-4" />
-                Add Group
+                {t('hosts.form.addGroup')}
               </Button>
               <Button onClick={() => setShowGroupListModal(false)} variant="ghost">
-                Close
+                {t('common.close')}
               </Button>
             </div>
           )}
         >
           <div>
               {inv.groups.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No groups yet. Create one to organize hosts.</div>
+                <div className="text-sm text-muted-foreground">{t('hosts.groupList.empty')}</div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {inv.groups.map(group => (
@@ -883,7 +885,7 @@ function Hosts({
                         <div className="flex-1">
                           <div className="text-sm font-medium text-foreground">{group.name}</div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {group.host_ids.length} hosts
+                            {t('hosts.form.hostCount', { count: group.host_ids.length })}
                           </div>
                           {group.host_ids.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
@@ -903,11 +905,11 @@ function Hosts({
                           size="sm"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          Edit
+                          {t('common.edit')}
                         </Button>
                         <Button onClick={() => handleDeleteGroup(group.id)} variant="destructive" size="sm">
                           <Trash2 className="w-3.5 h-3.5" />
-                          Delete
+                          {t('common.delete')}
                         </Button>
                       </div>
                     </div>

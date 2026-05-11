@@ -5,6 +5,7 @@ import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
+import { useTranslation } from './i18n/context'
 import { Users, Server, Settings as SettingsIcon } from "lucide-react"
 
 export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
@@ -14,6 +15,7 @@ export type NavigateContext = {
 }
 
 function App() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
   const [newSessionSignal, setNewSessionSignal] = useState(0)
   const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
@@ -108,7 +110,7 @@ function App() {
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
             <TabsList className="h-9 shrink-0 border-0 bg-transparent p-0">
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Burrows
+                {t('nav.burrows')}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -117,8 +119,8 @@ function App() {
               type="button"
               onClick={() => setActiveTab('profiles')}
               className={iconButtonClass('profiles')}
-              aria-label="Profiles"
-              title="Profiles"
+              aria-label={t('nav.profiles')}
+              title={t('nav.profiles')}
             >
               <Users className="w-4 h-4" />
             </button>
@@ -126,8 +128,8 @@ function App() {
               type="button"
               onClick={() => setActiveTab('hosts')}
               className={iconButtonClass('hosts')}
-              aria-label="Hosts"
-              title="Hosts"
+              aria-label={t('nav.hosts')}
+              title={t('nav.hosts')}
             >
               <Server className="w-4 h-4" />
             </button>
@@ -135,8 +137,8 @@ function App() {
               type="button"
               onClick={() => setActiveTab('settings')}
               className={iconButtonClass('settings')}
-              aria-label="Settings"
-              title="Settings"
+              aria-label={t('nav.settings')}
+              title={t('nav.settings')}
             >
               <SettingsIcon className="w-4 h-4" />
             </button>

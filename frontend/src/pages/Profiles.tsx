@@ -4,6 +4,7 @@ import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { cn } from '@/lib/utils'
+import { useTranslation } from "@/i18n/context"
 import { Plus, Pencil, Trash2, Upload, X, Check, Copy } from "lucide-react"
 
 const PRESET_COLORS = [
@@ -29,6 +30,7 @@ function Profiles({
   refreshSignal?: number
   onCreated?: () => void
 }) {
+  const { t } = useTranslation()
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [editingProfile, setEditingProfile] = useState<profile.Profile | null>(null)
   const [viewingProfile, setViewingProfile] = useState<profile.Profile | null>(null)
@@ -88,10 +90,10 @@ function Profiles({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-foreground">Profiles</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
         <Button onClick={handleNew} size="sm">
           <Plus className="w-4 h-4" />
-          Add Profile
+          {t('profiles.addProfile')}
         </Button>
       </div>
 
@@ -106,7 +108,7 @@ function Profiles({
 
       {profiles.length === 0 ? (
         <div className="text-center text-muted-foreground py-12">
-          No profiles yet. Create one to configure environment variables.
+          {t('profiles.empty')}
         </div>
       ) : (
         <div className="grid gap-3">
@@ -152,6 +154,7 @@ function ProfileCard({
   onEdit: (p: profile.Profile) => void
   onDelete: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const envCount = Object.keys(p.env_vars || {}).length
   const secretCount = (p.secret_keys || []).length
 
@@ -166,24 +169,24 @@ function ProfileCard({
           <div className="font-medium text-foreground">{p.name}</div>
           <div className="text-sm text-muted-foreground">
             {p.description && <span>{p.description} | </span>}
-            {envCount} var{envCount !== 1 ? 's' : ''}
-            {secretCount > 0 && `, ${secretCount} secret${secretCount !== 1 ? 's' : ''}`}
+            {t('profiles.card.varCount', { count: envCount })}
+            {secretCount > 0 && `, ${t('profiles.card.secretCount', { count: secretCount })}`}
           </div>
         </div>
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={() => onView(p)} variant="outline" size="sm" title="View and copy environment variables">
+        <Button onClick={() => onView(p)} variant="outline" size="sm" title={t('profiles.card.viewCopy')}>
           <Copy className="w-3.5 h-3.5" />
-          Copy
+          {t('profiles.card.copy')}
         </Button>
         <Button onClick={() => onEdit(p)} variant="secondary" size="sm">
           <Pencil className="w-3.5 h-3.5" />
-          Edit
+          {t('common.edit')}
         </Button>
         <Button onClick={() => onDelete(p.id)} variant="destructive" size="sm">
           <Trash2 className="w-3.5 h-3.5" />
-          Delete
+          {t('common.delete')}
         </Button>
       </div>
     </div>
@@ -207,6 +210,7 @@ function ProfileForm({
   onSave: () => void
   onCancel: () => void
 }) {
+  const { t } = useTranslation()
   const [name, setName] = useState(initial.name)
   const [description, setDescription] = useState(initial.description)
   const [color, setColor] = useState(initial.color || PRESET_COLORS[0])
@@ -347,7 +351,7 @@ function ProfileForm({
     if (!name.trim()) return
 
     if (envEntryIssues.size > 0) {
-      setError('Fix invalid or duplicate variable names before saving.')
+      setError(t('profiles.form.fixErrors'))
       return
     }
 
@@ -394,20 +398,20 @@ function ProfileForm({
   return (
     <>
       <ModalShell
-        title={isNew ? 'New Profile' : `Edit Profile: ${initial.name}`}
-        description="Profiles hold environment variables and secret flags used when sessions start."
+        title={isNew ? t('profiles.form.newTitle') : t('profiles.form.editTitle', { name: initial.name })}
+        description={t('profiles.form.desc')}
         onClose={onCancel}
         contentClassName="max-w-[920px]"
         footer={(
           <div className="flex justify-end gap-2">
             <Button onClick={onCancel} variant="ghost">
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={saving || !name.trim() || envEntryIssues.size > 0}
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving ? t('profiles.form.saving') : t('common.save')}
             </Button>
           </div>
         )}
@@ -421,7 +425,7 @@ function ProfileForm({
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Name</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
               <input
                 type="text"
                 value={name}
@@ -431,19 +435,19 @@ function ProfileForm({
               />
             </div>
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Description</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('common.description')}</label>
               <input
                 type="text"
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Optional description"
+                placeholder={t('common.description')}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Color</label>
+            <label className="block text-sm text-muted-foreground mb-2">{t('profiles.form.color')}</label>
             <div className="flex flex-wrap gap-2">
               {PRESET_COLORS.map(c => (
                 <button
@@ -466,9 +470,9 @@ function ProfileForm({
           <div className="rounded-xl border border-border bg-muted/10 p-4">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label className="text-sm font-medium text-foreground">Environment Variables</label>
+                <label className="text-sm font-medium text-foreground">{t('profiles.form.envVars')}</label>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Mark sensitive keys as secret so the UI treats them differently.
+                  {t('profiles.form.envVarsHint')}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {ENV_VAR_KEY_HINT}
@@ -481,7 +485,7 @@ function ProfileForm({
                   size="sm"
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Bulk Import
+                  {t('profiles.form.bulkImport')}
                 </Button>
                 <Button
                   onClick={addEntry}
@@ -489,13 +493,13 @@ function ProfileForm({
                   size="sm"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Add Variable
+                  {t('profiles.form.addVariable')}
                 </Button>
               </div>
             </div>
 
             {envEntries.length === 0 ? (
-              <p className="py-2 text-sm text-muted-foreground">No variables yet. Add one or import a block.</p>
+              <p className="py-2 text-sm text-muted-foreground">{t('profiles.form.noVars')}</p>
             ) : (
               <div className="space-y-2">
                 {envEntries.map((entry, idx) => {
@@ -519,7 +523,7 @@ function ProfileForm({
                           type={entry.isSecret ? 'password' : 'text'}
                           value={entry.value}
                           onChange={e => updateEntry(idx, 'value', e.target.value)}
-                          placeholder={entry.isSecret ? 'secret value (hidden)' : 'value'}
+                          placeholder={entry.isSecret ? t('profiles.form.secretPlaceholder') : t('profiles.form.valuePlaceholder')}
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
                         />
                         <label className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-muted/20 px-3 text-xs text-muted-foreground">
@@ -529,7 +533,7 @@ function ProfileForm({
                             onChange={e => updateEntry(idx, 'isSecret', e.target.checked)}
                             className="rounded"
                           />
-                          Secret
+                          {t('profiles.form.secret')}
                         </label>
                         <Button
                           onClick={() => removeEntry(idx)}
@@ -571,31 +575,32 @@ function BulkImportModal({
   onImport: (text: string) => void
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const [text, setText] = useState('')
 
   return (
     <ModalShell
-      title="Bulk Import Variables"
-      description="Paste export lines, simple KEY=value pairs, or a JSON object."
+      title={t('profiles.bulkImport.title')}
+      description={t('profiles.bulkImport.desc')}
       onClose={onClose}
       overlayClassName="z-[110]"
       contentClassName="max-w-[520px]"
       footer={(
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="ghost">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={() => onImport(text)}
             disabled={!text.trim()}
           >
-            Import
+            {t('common.import')}
           </Button>
         </div>
       )}
     >
       <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-        <p className="mb-2">Supported formats:</p>
+        <p className="mb-2">{t('profiles.bulkImport.formats')}</p>
         <div className="space-y-1 rounded-md bg-background px-3 py-2 font-mono text-xs text-foreground">
           <div>export KEY=value</div>
           <div>KEY=value</div>
@@ -607,7 +612,7 @@ function BulkImportModal({
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
-        placeholder="Paste your environment variables here..."
+        placeholder={t('profiles.bulkImport.placeholder')}
         rows={8}
         className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
       />
@@ -622,6 +627,7 @@ function ViewProfileModal({
   profile: profile.Profile
   onClose: () => void
 }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   // Generate export format text
@@ -657,7 +663,7 @@ function ViewProfileModal({
   return (
     <ModalShell
       title={p.name}
-      description={p.description || 'Review and copy environment variables from this profile.'}
+      description={p.description || t('profiles.view.desc')}
       onClose={onClose}
       contentClassName="max-w-[920px]"
       headerSlot={(
@@ -667,32 +673,32 @@ function ViewProfileModal({
             style={{ backgroundColor: p.color || '#6B7280' }}
           />
           <span>
-            {envCount} variable{envCount !== 1 ? 's' : ''}
-            {secretCount > 0 && `, including ${secretCount} secret${secretCount !== 1 ? 's' : ''}`}
+            {t('profiles.view.variableCount', { count: envCount })}
+            {secretCount > 0 && `, ${t('profiles.view.secretCount', { count: secretCount })} ${t('profiles.view.secrets')}`}
           </span>
         </div>
       )}
       footer={(
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="secondary">
-            Close
+            {t('common.close')}
           </Button>
         </div>
       )}
     >
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">
-          <label className="text-sm font-medium text-foreground">Environment Variables</label>
+          <label className="text-sm font-medium text-foreground">{t('profiles.view.envVars')}</label>
           <Button onClick={handleCopy} size="sm" variant="outline">
             {copied ? (
               <>
                 <Check className="w-3.5 h-3.5" />
-                Copied!
+                {t('profiles.view.copied')}
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                Copy All
+                {t('profiles.view.copyAll')}
               </>
             )}
           </Button>

@@ -8,6 +8,7 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "@/i18n/context"
 import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
@@ -30,24 +31,24 @@ type SessionDraft = {
   sourceName?: string
 }
 
-const RUN_MODE_LABELS: Record<RunMode, string> = {
-  shell: 'Shell',
-  host: 'SSH Host',
-  custom: 'Command',
-  codex: 'Codex',
+const RUN_MODE_LABEL_KEYS: Record<RunMode, string> = {
+  shell: 'burrows.runMode.shell',
+  host: 'burrows.runMode.host',
+  custom: 'burrows.runMode.custom',
+  codex: 'burrows.runMode.codex',
 }
 
-const RUN_MODE_HINTS: Record<RunMode, string> = {
-  shell: 'Open a terminal burrow with this profile.',
-  host: 'Pick a saved host and Mole will build the SSH command for this burrow.',
-  custom: 'Run a command as soon as the burrow starts.',
-  codex: 'Launch Codex with an isolated CODEX_HOME.',
+const RUN_MODE_HINT_KEYS: Record<RunMode, string> = {
+  shell: 'burrows.runMode.shellHint',
+  host: 'burrows.runMode.hostHint',
+  custom: 'burrows.runMode.customHint',
+  codex: 'burrows.runMode.codexHint',
 }
 
-const SESSION_SORT_LABELS: Record<SessionSortMode, string> = {
-  most_used: 'Most Used',
-  name: 'Name A-Z',
-  profile: 'Profile',
+const SESSION_SORT_LABEL_KEYS: Record<SessionSortMode, string> = {
+  most_used: 'burrows.sort.mostUsed',
+  name: 'burrows.sort.nameAZ',
+  profile: 'burrows.sort.profile',
 }
 
 const SESSION_MENU_PANEL_CLASS = 'absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 origin-top-right'
@@ -227,6 +228,7 @@ function RunModeOption({
   onSelect: (mode: RunMode) => void
   disabled?: boolean
 }) {
+  const { t } = useTranslation()
   const selected = mode === activeMode
 
   return (
@@ -243,7 +245,7 @@ function RunModeOption({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-foreground">
-          {RUN_MODE_LABELS[mode]}
+          {t(RUN_MODE_LABEL_KEYS[mode])}
         </span>
         <span
           className={`inline-flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
@@ -303,6 +305,7 @@ function Sessions({
   newSessionSignal?: number
   burrowRefreshSignal?: number
 }) {
+  const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState<string>('')
@@ -372,14 +375,14 @@ function Sessions({
     if (needsManualPaste) {
       showTimedInfo(
         wasRestarted
-          ? 'Burrow restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
-          : 'Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
+          ? t('burrows.info.restoredPaste')
+          : t('burrows.info.clipboardPaste')
       )
       return
     }
 
     if (wasRestarted) {
-      showTimedInfo('Burrow restored and opened.')
+      showTimedInfo(t('burrows.info.restored'))
     }
   }
 
@@ -417,7 +420,7 @@ function Sessions({
     try {
       await KillSession(sess.id)
       if (!sess.alive) {
-        showTimedInfo('Offline burrow removed.')
+        showTimedInfo(t('burrows.info.offlineRemoved'))
       }
       refresh()
     } catch (err) {
@@ -480,17 +483,17 @@ function Sessions({
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Burrows</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('burrows.title')}</h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {sessions.length > 0 && (
             <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
               <SelectTrigger className="h-9 w-full bg-background sm:w-[148px]">
-                <SelectValue aria-label={`Sort burrows by ${SESSION_SORT_LABELS[sortMode]}`} />
+                <SelectValue aria-label={t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="most_used">{SESSION_SORT_LABELS.most_used}</SelectItem>
-                <SelectItem value="name">{SESSION_SORT_LABELS.name}</SelectItem>
-                <SelectItem value="profile">{SESSION_SORT_LABELS.profile}</SelectItem>
+                <SelectItem value="most_used">{t('burrows.sort.mostUsed')}</SelectItem>
+                <SelectItem value="name">{t('burrows.sort.nameAZ')}</SelectItem>
+                <SelectItem value="profile">{t('burrows.sort.profile')}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -500,8 +503,8 @@ function Sessions({
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search burrows"
-                aria-label="Search burrows by name"
+                placeholder={t('burrows.searchPlaceholder')}
+                aria-label={t('burrows.searchAriaLabel')}
                 className="h-9 w-full pl-8 pr-8 sm:w-56"
               />
               {searchQuery && (
@@ -509,7 +512,7 @@ function Sessions({
                   type="button"
                   onClick={() => setSearchQuery('')}
                   className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label="Clear search"
+                  aria-label={t('burrows.clearSearch')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -518,7 +521,7 @@ function Sessions({
           )}
           <Button onClick={() => setShowNewModal(true)} size="sm">
             <Plus className="w-4 h-4" />
-            New Burrow
+            {t('burrows.newBurrow')}
           </Button>
         </div>
       </div>
@@ -564,7 +567,7 @@ function Sessions({
                     : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
                 }`}
               >
-                All
+                {t('burrows.all')}
               </button>
               {profilesInUse.map(p => {
                 const isSelected = selectedProfileFilter === p.id
@@ -600,15 +603,15 @@ function Sessions({
           {(searchQuery || selectedProfileFilter || sessions.length > 0) && (
             <div className="mb-3 text-xs text-muted-foreground">
               {searchQuery || selectedProfileFilter
-                ? `Showing ${filteredSessions.length} of ${sessions.length}`
-                : `Sorted by ${SESSION_SORT_LABELS[sortMode]}`}
+                ? t('burrows.showing', { filtered: filteredSessions.length, total: sessions.length })
+                : t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })}
             </div>
           )}
           {filteredSessions.length === 0 ? (
             <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
               {selectedProfileFilter
-                ? `No burrows in this profile${searchQuery ? ` matching "${searchQuery}"` : ''}.`
-                : `No burrows match "${searchQuery}". Try a different name.`}
+                ? (searchQuery ? t('burrows.noMatchInProfileSearch', { query: searchQuery }) : t('burrows.noMatchInProfile'))
+                : t('burrows.noMatch', { query: searchQuery })}
             </div>
           ) : (
             <div className="grid gap-3">
@@ -677,6 +680,7 @@ function SessionCard({
   isWorking: boolean
   currentAction: 'open' | 'kill' | null
 }) {
+  const { t } = useTranslation()
   const [showTerminalMenu, setShowTerminalMenu] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const terminalMenuRef = useRef<HTMLDivElement>(null)
@@ -701,13 +705,13 @@ function SessionCard({
     : s.attached
       ? 'bg-green-500 dark:bg-green-400'
       : 'bg-yellow-500 dark:bg-yellow-400'
-  const statusText = !s.alive ? 'offline' : (s.attached ? 'attached' : 'ready')
+  const statusText = !s.alive ? t('burrows.status.offline') : (s.attached ? t('burrows.status.attached') : t('burrows.status.ready'))
   const primaryLabel = isWorking && currentAction === 'open'
-    ? (!s.alive ? 'Restoring...' : 'Opening...')
-    : (!s.alive ? 'Restore Burrow' : 'Open Burrow')
+    ? (!s.alive ? t('burrows.status.restoring') : t('burrows.status.opening'))
+    : (!s.alive ? t('burrows.restoreBurrow') : t('burrows.openBurrow'))
   const destructiveLabel = isWorking && currentAction === 'kill'
-    ? (!s.alive ? 'Removing...' : 'Killing...')
-    : (!s.alive ? 'Remove' : 'Kill')
+    ? (!s.alive ? t('burrows.status.removing') : t('burrows.status.killing'))
+    : (!s.alive ? t('burrows.remove') : t('burrows.kill'))
 
   const handleTerminalSelect = (terminalID: string) => {
     setShowTerminalMenu(false)
@@ -735,14 +739,14 @@ function SessionCard({
             )}
             {statusText}
             <span className="mx-1 text-muted-foreground/50">|</span>
-            {s.alive ? `${s.windows} window${s.windows !== 1 ? 's' : ''}` : 'will restore on open'}
+            {s.alive ? t('burrows.windowCount', { count: s.windows }) : t('burrows.willRestore')}
           </div>
           {s.command && (
             <div
               className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
-              title={`Auto-runs on first attach: ${s.command}`}
+              title={t('burrows.autoRunsHint', { command: s.command })}
             >
-              <span className="shrink-0 font-mono">startup:</span>
+              <span className="shrink-0 font-mono">{t('burrows.startup')}</span>
               <CommandText command={s.command} className="min-w-0 flex-1" />
             </div>
           )}
@@ -778,7 +782,7 @@ function SessionCard({
           {showTerminalMenu && terminals.length > 0 && (
             <div className={`${SESSION_MENU_PANEL_CLASS} w-48`}>
               <div className={SESSION_MENU_LABEL_CLASS}>
-                Open with
+                {t('burrows.openWith')}
               </div>
               {terminals.map(term => (
                 <button
@@ -802,7 +806,7 @@ function SessionCard({
             variant="secondary"
             size="sm"
             className={`w-9 px-0 ${showMoreMenu ? 'border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm' : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
-            aria-label="More actions"
+            aria-label={t('burrows.moreActions')}
             disabled={isWorking}
           >
             <MoreHorizontal className="w-4 h-4" />
@@ -810,7 +814,7 @@ function SessionCard({
           {showMoreMenu && (
             <div className={`${SESSION_MENU_PANEL_CLASS} w-44`}>
               <div className={SESSION_MENU_LABEL_CLASS}>
-                Actions
+                {t('burrows.actions')}
               </div>
               <button
                 onClick={() => {
@@ -820,7 +824,7 @@ function SessionCard({
                 className={SESSION_MENU_ITEM_CLASS}
               >
                 <Copy className="w-4 h-4 text-muted-foreground" />
-                <span>Duplicate</span>
+                <span>{t('common.duplicate')}</span>
               </button>
               <button
                 onClick={() => {
@@ -830,7 +834,7 @@ function SessionCard({
                 className={SESSION_MENU_ITEM_CLASS}
               >
                 <Pencil className="w-4 h-4 text-muted-foreground" />
-                <span>Edit</span>
+                <span>{t('common.edit')}</span>
               </button>
               <button
                 onClick={() => {
@@ -861,31 +865,32 @@ function EmptySessionsState({
   onCreateSession: () => void
   onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
 }) {
+  const { t } = useTranslation()
   const checklist = [
     {
       key: 'profile',
-      title: 'Create a profile',
-      description: 'Profiles hold environment variables and secrets for a burrow.',
+      title: t('burrows.empty.profileTitle'),
+      description: t('burrows.empty.profileDesc'),
       done: profileCount > 0,
-      actionLabel: profileCount > 0 ? 'Manage Profiles' : 'Add Profile',
+      actionLabel: profileCount > 0 ? t('burrows.empty.manageProfiles') : t('burrows.empty.addProfile'),
       action: () => onNavigate('profiles'),
       icon: FolderGit2,
     },
     {
       key: 'host',
-      title: 'Add a host',
-      description: 'Optional, but useful when you want Mole to generate SSH startup commands.',
+      title: t('burrows.empty.hostTitle'),
+      description: t('burrows.empty.hostDesc'),
       done: hostCount > 0,
-      actionLabel: hostCount > 0 ? 'Manage Hosts' : 'Add Host',
+      actionLabel: hostCount > 0 ? t('burrows.empty.manageHosts') : t('burrows.empty.addHost'),
       action: () => onNavigate('hosts'),
       icon: Server,
     },
     {
       key: 'session',
-      title: 'Create a burrow',
-      description: 'Choose a profile, then run a local shell, a saved host command, or a custom command.',
+      title: t('burrows.empty.sessionTitle'),
+      description: t('burrows.empty.sessionDesc'),
       done: false,
-      actionLabel: 'New Burrow',
+      actionLabel: t('burrows.newBurrow'),
       action: onCreateSession,
       icon: Wrench,
     },
@@ -896,10 +901,10 @@ function EmptySessionsState({
       <CardHeader className="border-b border-border/70 bg-card/70">
         <CardTitle className="flex items-center gap-2 text-lg">
           <TerminalSquare className="w-5 h-5 text-primary" />
-          Burrow Setup
+          {t('burrows.empty.title')}
         </CardTitle>
         <CardDescription>
-          Mole works best when you move through setup in a clear order instead of guessing which tab comes first.
+          {t('burrows.empty.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 pt-6">
@@ -917,7 +922,7 @@ function EmptySessionsState({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-muted-foreground">0{index + 1}</span>
                   <h3 className="text-sm font-medium text-foreground">{item.title}</h3>
-                  {item.done && <Badge variant="secondary" className="text-[10px]">Ready</Badge>}
+                  {item.done && <Badge variant="secondary" className="text-[10px]">{t('common.ready')}</Badge>}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
               </div>
@@ -944,6 +949,7 @@ function NewSessionModal({
   onCreated: () => void
   onNavigate?: (tab: AppTab, ctx?: NavigateContext) => void
 }) {
+  const { t } = useTranslation()
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState(initialDraft?.profileID || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
@@ -1040,23 +1046,23 @@ function NewSessionModal({
 
   const isDuplicating = Boolean(initialDraft)
   const modalTitle = isDuplicating
-    ? `Copy Burrow${initialDraft?.sourceName ? `: ${initialDraft.sourceName}` : ''}`
-    : 'New Burrow'
+    ? `${t('burrows.modal.copyTitle')}${initialDraft?.sourceName ? `: ${initialDraft.sourceName}` : ''}`
+    : t('burrows.modal.newTitle')
   const modalDescription = isDuplicating
-    ? 'Review the copied configuration, then create a new burrow with a different name.'
-    : 'Choose a profile and how this burrow should start.'
+    ? t('burrows.modal.copyDesc')
+    : t('burrows.modal.newDesc')
   const submitLabel = creating
-    ? (isDuplicating ? 'Creating Copy...' : 'Creating...')
-    : (isDuplicating ? 'Create Copy' : 'Create')
+    ? (isDuplicating ? t('burrows.modal.creatingCopy') : t('burrows.modal.creating'))
+    : (isDuplicating ? t('burrows.modal.createCopy') : t('burrows.modal.create'))
 
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before creating a host-based burrow')
+      setError(t('burrows.modal.selectHostRequired'))
       return
     }
     if (runMode === 'codex' && !selectedCodexConfigId) {
-      setError('Select a Codex configuration before creating a Codex burrow')
+      setError(t('burrows.modal.selectCodexRequired'))
       return
     }
     setCreating(true)
@@ -1087,7 +1093,7 @@ function NewSessionModal({
       footer={(
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="ghost">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleCreate}
@@ -1106,24 +1112,24 @@ function NewSessionModal({
 
       <div className="space-y-4">
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Profile</label>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.profile')}</label>
             {profiles.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No profiles yet.{' '}
+                {t('burrows.modal.noProfiles')}{' '}
                 {onNavigate && (
                   <button
                     type="button"
                     onClick={() => { onClose(); onNavigate('profiles', { returnToNewSession: true }) }}
                     className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
                   >
-                    Create one
+                    {t('burrows.modal.createOne')}
                   </button>
                 )}
               </p>
             ) : (
               <Select value={selectedProfile} onValueChange={setSelectedProfile}>
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select a profile" />
+                  <SelectValue placeholder={t('burrows.modal.selectProfile')} />
                 </SelectTrigger>
                 <SelectContent>
                   {sortedProfiles.map(p => (
@@ -1143,23 +1149,23 @@ function NewSessionModal({
               <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {RUN_MODE_HINTS[runMode]}
+              {t(RUN_MODE_HINT_KEYS[runMode])}
             </div>
           </div>
 
           {runMode === 'host' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">SSH Host</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.sshHost')}</label>
               {inv.hosts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No hosts yet.{' '}
+                  {t('burrows.modal.noHosts')}{' '}
                   {onNavigate && (
                     <button
                       type="button"
                       onClick={() => { onClose(); onNavigate('hosts', { returnToNewSession: true }) }}
                       className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
                     >
-                      Add one
+                      {t('burrows.modal.addOne')}
                     </button>
                   )}
                 </p>
@@ -1174,7 +1180,7 @@ function NewSessionModal({
                   }}
                 >
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select a saved host" />
+                    <SelectValue placeholder={t('burrows.modal.selectHost')} />
                   </SelectTrigger>
                   <SelectContent>
                     {sortedHosts.map(h => (
@@ -1187,7 +1193,7 @@ function NewSessionModal({
               )}
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  <div className="mb-1 font-medium text-foreground">Preview</div>
+                  <div className="mb-1 font-medium text-foreground">{t('common.preview')}</div>
                   <CommandText command={hostCommand} />
                 </div>
               )}
@@ -1196,11 +1202,11 @@ function NewSessionModal({
 
           {runMode === 'custom' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Command</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
               <textarea
                 value={command}
                 onChange={e => setCommand(e.target.value)}
-                placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
+                placeholder={t('burrows.modal.commandPlaceholder')}
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
@@ -1209,13 +1215,13 @@ function NewSessionModal({
 
           {runMode === 'codex' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Codex Configuration</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.codexConfig')}</label>
               {codexConfigs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No Codex configurations yet. Add one in Settings first.</p>
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noCodex')}</p>
               ) : (
                 <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select a Codex configuration" />
+                    <SelectValue placeholder={t('burrows.modal.selectCodex')} />
                   </SelectTrigger>
                   <SelectContent>
                     {sortedCodexConfigs.map(cfg => (
@@ -1230,7 +1236,7 @@ function NewSessionModal({
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
                     <Bot className="h-3.5 w-3.5" />
-                    Launch preview
+                    {t('burrows.modal.launchPreview')}
                   </div>
                   <div className="font-mono">codex</div>
                 </div>
@@ -1239,16 +1245,16 @@ function NewSessionModal({
           )}
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Burrow Name</label>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
             <input
               type="text"
               value={sessionName}
               onChange={e => setSessionName(e.target.value)}
-              placeholder="e.g., work-claude"
+              placeholder={t('burrows.modal.namePlaceholder')}
               pattern="[a-zA-Z0-9_-]+"
               className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            <p className="text-xs text-muted-foreground mt-1">Letters, digits, underscores, dashes only</p>
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.nameHint')}</p>
           </div>
       </div>
     </ModalShell>
@@ -1264,6 +1270,7 @@ function EditSessionModal({
   onClose: () => void
   onUpdated: () => void
 }) {
+  const { t } = useTranslation()
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState(initialSession.profile_id)
   const [command, setCommand] = useState(initialSession.command || '')
@@ -1396,11 +1403,11 @@ function EditSessionModal({
   const handleUpdate = async () => {
     if (!selectedProfile) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before saving a host-based burrow')
+      setError(t('burrows.modal.selectHostRequiredEdit'))
       return
     }
     if (runMode === 'codex' && !selectedCodexConfigId) {
-      setError('Select a Codex configuration before saving a Codex burrow')
+      setError(t('burrows.modal.selectCodexRequiredEdit'))
       return
     }
     setUpdating(true)
@@ -1424,20 +1431,20 @@ function EditSessionModal({
 
   return (
     <ModalShell
-      title={`Edit Burrow: ${initialSession.name}`}
-      description="Saving will restart this tmux burrow."
+      title={t('burrows.edit.title', { name: initialSession.name })}
+      description={t('burrows.edit.desc')}
       onClose={onClose}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
         <div className="flex justify-end gap-2">
           <Button onClick={onClose} variant="ghost">
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleUpdate}
             disabled={updating || !selectedProfile}
           >
-            {updating ? 'Saving...' : 'Save & Restart'}
+            {updating ? t('burrows.edit.saving') : t('burrows.edit.saveRestart')}
           </Button>
         </div>
       )}
@@ -1450,13 +1457,13 @@ function EditSessionModal({
 
       <div className="space-y-4">
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Profile</label>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.profile')}</label>
             {profiles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Loading profiles...</p>
+              <p className="text-sm text-muted-foreground">{t('burrows.edit.loadingProfiles')}</p>
             ) : (
               <Select value={selectedProfile} onValueChange={setSelectedProfile}>
                 <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select a profile" />
+                  <SelectValue placeholder={t('burrows.modal.selectProfile')} />
                 </SelectTrigger>
                 <SelectContent>
                   {sortedProfiles.map(p => (
@@ -1476,15 +1483,15 @@ function EditSessionModal({
               <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {RUN_MODE_HINTS[runMode]}
+              {t(RUN_MODE_HINT_KEYS[runMode])}
             </div>
           </div>
 
           {runMode === 'host' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">SSH Host</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.sshHost')}</label>
               {inv.hosts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No hosts yet. Add one in the Hosts tab first.</p>
+                <p className="text-sm text-muted-foreground">{t('burrows.edit.noHostsInline')}</p>
               ) : (
                 <Select
                   value={selectedHostId || ''}
@@ -1496,7 +1503,7 @@ function EditSessionModal({
                   }}
                 >
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select a saved host" />
+                    <SelectValue placeholder={t('burrows.modal.selectHost')} />
                   </SelectTrigger>
                   <SelectContent>
                     {sortedHosts.map(h => (
@@ -1509,7 +1516,7 @@ function EditSessionModal({
               )}
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
-                  <div className="mb-1 font-medium text-foreground">Preview</div>
+                  <div className="mb-1 font-medium text-foreground">{t('common.preview')}</div>
                   <CommandText command={hostCommand} />
                 </div>
               )}
@@ -1518,11 +1525,11 @@ function EditSessionModal({
 
           {runMode === 'custom' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Command</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
               <textarea
                 value={command}
                 onChange={e => setCommand(e.target.value)}
-                placeholder="e.g., claude&#10;or: npm run dev&#10;or: ssh -J jumphost deploy@target"
+                placeholder={t('burrows.modal.commandPlaceholder')}
                 rows={3}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
               />
@@ -1531,13 +1538,13 @@ function EditSessionModal({
 
           {runMode === 'codex' && (
             <div>
-              <label className="block text-sm text-muted-foreground mb-1">Codex Configuration</label>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.codexConfig')}</label>
               {codexConfigs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No Codex configurations yet. Add one in Settings first.</p>
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noCodex')}</p>
               ) : (
                 <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
                   <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Select a Codex configuration" />
+                    <SelectValue placeholder={t('burrows.modal.selectCodex')} />
                   </SelectTrigger>
                   <SelectContent>
                     {sortedCodexConfigs.map(cfg => (
@@ -1552,7 +1559,7 @@ function EditSessionModal({
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
                     <Bot className="h-3.5 w-3.5" />
-                    Launch preview
+                    {t('burrows.modal.launchPreview')}
                   </div>
                   <div className="font-mono">codex</div>
                 </div>
