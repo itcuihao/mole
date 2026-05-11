@@ -552,8 +552,8 @@ func (m *Manager) prepareLaunchEnv(runMode, codexConfigID string, env map[string
 	return nextEnv, "codex", nil
 }
 
-// ExportWorkspaceSessions returns the portable static session configuration set.
-func (m *Manager) ExportWorkspaceSessions() ([]WorkspaceSession, error) {
+// ExportBurrowSessions returns the portable static session configuration set.
+func (m *Manager) ExportBurrowSessions() ([]WorkspaceSession, error) {
 	sessions, err := m.store.List()
 	if err != nil {
 		return nil, err
@@ -567,8 +567,8 @@ func (m *Manager) ExportWorkspaceSessions() ([]WorkspaceSession, error) {
 	return result, nil
 }
 
-// PrepareWorkspaceImport validates and normalizes imported session configs without persisting them.
-func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs map[string]struct{}, hostIDs map[string]struct{}) ([]Session, error) {
+// PrepareBurrowImport validates and normalizes imported session configs without persisting them.
+func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map[string]struct{}, hostIDs map[string]struct{}) ([]Session, error) {
 	defaultBackend, err := m.defaultBackend()
 	if err != nil {
 		return nil, err
@@ -686,7 +686,7 @@ func (m *Manager) PrepareWorkspaceImport(configs []WorkspaceSession, profileIDs 
 	return prepared, nil
 }
 
-// StopTrackedSessions terminates all currently tracked runtime sessions before destructive workspace operations.
+// StopTrackedSessions terminates all currently tracked runtime sessions before destructive burrow operations.
 func (m *Manager) StopTrackedSessions() error {
 	current, err := m.store.List()
 	if err != nil {

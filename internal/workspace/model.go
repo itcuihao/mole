@@ -8,7 +8,7 @@ import (
 
 const SchemaVersion = 1
 
-// Bundle is the portable workspace export payload.
+// Bundle is the portable burrow export payload.
 type Bundle struct {
 	SchemaVersion int                        `json:"schema_version"`
 	ExportedAt    string                     `json:"exported_at"`

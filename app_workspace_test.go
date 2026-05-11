@@ -13,8 +13,8 @@ import (
 	"mole/internal/workspace"
 )
 
-func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
-	source := newWorkspaceTestApp(t, filepath.Join(t.TempDir(), "source"))
+func TestAppExportImportBurrowRoundTrip(t *testing.T) {
+	source := newBurrowTestApp(t, filepath.Join(t.TempDir(), "source"))
 
 	profiles, err := source.profileMgr.PrepareImport([]profile.Profile{
 		{
@@ -58,7 +58,7 @@ func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
 		t.Fatalf("SaveInventory() failed: %v", err)
 	}
 
-	preparedSessions, err := source.sessionMgr.PrepareWorkspaceImport([]session.WorkspaceSession{
+	preparedSessions, err := source.sessionMgr.PrepareBurrowImport([]session.WorkspaceSession{
 		{
 			ID:        "session-1",
 			Name:      "prod-shell",
@@ -74,15 +74,15 @@ func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
 		"host-1": {},
 	})
 	if err != nil {
-		t.Fatalf("PrepareWorkspaceImport(sessions) failed: %v", err)
+		t.Fatalf("PrepareBurrowImport(sessions) failed: %v", err)
 	}
 	if err := source.sessionMgr.ReplaceAllImported(preparedSessions); err != nil {
 		t.Fatalf("ReplaceAllImported() failed: %v", err)
 	}
 
-	exported, err := source.ExportWorkspace()
+	exported, err := source.ExportBurrow()
 	if err != nil {
-		t.Fatalf("ExportWorkspace() failed: %v", err)
+		t.Fatalf("ExportBurrow() failed: %v", err)
 	}
 
 	var bundle workspace.Bundle
@@ -102,9 +102,9 @@ func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
 		t.Fatalf("len(bundle.Sessions) = %d, want 1", len(bundle.Sessions))
 	}
 
-	target := newWorkspaceTestApp(t, filepath.Join(t.TempDir(), "target"))
-	if err := target.ImportWorkspace(exported); err != nil {
-		t.Fatalf("ImportWorkspace() failed: %v", err)
+	target := newBurrowTestApp(t, filepath.Join(t.TempDir(), "target"))
+	if err := target.ImportBurrow(exported); err != nil {
+		t.Fatalf("ImportBurrow() failed: %v", err)
 	}
 
 	importedProfiles, err := target.profileMgr.List()
@@ -123,9 +123,9 @@ func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
 		t.Fatalf("imported inventory hosts = %#v, want host-1", importedInventory.Hosts)
 	}
 
-	importedSessions, err := target.sessionMgr.ExportWorkspaceSessions()
+	importedSessions, err := target.sessionMgr.ExportBurrowSessions()
 	if err != nil {
-		t.Fatalf("target.sessionMgr.ExportWorkspaceSessions() failed: %v", err)
+		t.Fatalf("target.sessionMgr.ExportBurrowSessions() failed: %v", err)
 	}
 	if len(importedSessions) != 1 {
 		t.Fatalf("len(importedSessions) = %d, want 1", len(importedSessions))
@@ -135,7 +135,7 @@ func TestAppExportImportWorkspaceRoundTrip(t *testing.T) {
 	}
 }
 
-func newWorkspaceTestApp(t *testing.T, dir string) *App {
+func newBurrowTestApp(t *testing.T, dir string) *App {
 	t.Helper()
 
 	if err := os.MkdirAll(dir, 0o755); err != nil {

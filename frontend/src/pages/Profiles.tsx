@@ -575,7 +575,7 @@ function BulkImportModal({
       title="Bulk Import Variables"
       description="Paste export lines, simple KEY=value pairs, or a JSON object."
       onClose={onClose}
-      overlayClassName="z-[60]"
+      overlayClassName="z-[110]"
       contentClassName="max-w-[520px]"
       footer={(
         <div className="flex justify-end gap-2">

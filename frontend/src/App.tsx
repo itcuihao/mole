@@ -12,7 +12,7 @@ export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('sessions')
   const [newSessionSignal, setNewSessionSignal] = useState(0)
-  const [workspaceRefreshSignal, setWorkspaceRefreshSignal] = useState(0)
+  const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
 
   useEffect(() => {
@@ -82,7 +82,7 @@ function App() {
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
             <TabsList className="h-9 shrink-0 border-0 bg-transparent p-0">
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                Workspaces
+                Burrows
               </TabsTrigger>
               <TabsTrigger value="profiles" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 Profiles
@@ -104,20 +104,20 @@ function App() {
           <Sessions
             onNavigate={setActiveTab}
             newSessionSignal={newSessionSignal}
-            workspaceRefreshSignal={workspaceRefreshSignal}
+            burrowRefreshSignal={burrowRefreshSignal}
           />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
-          <Profiles refreshSignal={workspaceRefreshSignal} />
+          <Profiles refreshSignal={burrowRefreshSignal} />
         </TabsContent>
 
         <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
-          <Hosts refreshSignal={workspaceRefreshSignal} />
+          <Hosts refreshSignal={burrowRefreshSignal} />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">
-          <Settings onWorkspaceImported={() => setWorkspaceRefreshSignal(prev => prev + 1)} />
+          <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
         </TabsContent>
       </Tabs>
     </div>

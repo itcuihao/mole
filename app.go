@@ -212,10 +212,10 @@ func (a *App) DeleteHostGroup(id string) error {
 	return a.invMgr.DeleteGroup(id)
 }
 
-// ExportWorkspace returns the full portable workspace payload as formatted JSON.
-func (a *App) ExportWorkspace() (string, error) {
+// ExportBurrow returns the full portable burrow payload as formatted JSON.
+func (a *App) ExportBurrow() (string, error) {
 	if a.profileMgr == nil || a.invMgr == nil || a.sessionMgr == nil {
-		return "", fmt.Errorf("workspace is not initialized")
+		return "", fmt.Errorf("burrow is not initialized")
 	}
 
 	profiles, err := a.profileMgr.List()
@@ -228,7 +228,7 @@ func (a *App) ExportWorkspace() (string, error) {
 		return "", err
 	}
 
-	sessions, err := a.sessionMgr.ExportWorkspaceSessions()
+	sessions, err := a.sessionMgr.ExportBurrowSessions()
 	if err != nil {
 		return "", err
 	}
@@ -249,23 +249,23 @@ func (a *App) ExportWorkspace() (string, error) {
 	return string(data), nil
 }
 
-// ImportWorkspace replaces the current workspace with the provided JSON payload.
-func (a *App) ImportWorkspace(raw string) error {
+// ImportBurrow replaces the current burrow with the provided JSON payload.
+func (a *App) ImportBurrow(raw string) error {
 	if a.profileMgr == nil || a.invMgr == nil || a.sessionMgr == nil {
-		return fmt.Errorf("workspace is not initialized")
+		return fmt.Errorf("burrow is not initialized")
 	}
 
 	if strings.TrimSpace(raw) == "" {
-		return fmt.Errorf("workspace payload cannot be empty")
+		return fmt.Errorf("burrow payload cannot be empty")
 	}
 
 	var payload workspace.Bundle
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return fmt.Errorf("invalid workspace JSON: %w", err)
+		return fmt.Errorf("invalid burrow JSON: %w", err)
 	}
 
 	if payload.SchemaVersion != workspace.SchemaVersion {
-		return fmt.Errorf("unsupported workspace schema version %d", payload.SchemaVersion)
+		return fmt.Errorf("unsupported burrow schema version %d", payload.SchemaVersion)
 	}
 
 	profiles, err := a.profileMgr.PrepareImport(payload.Profiles)
@@ -285,7 +285,7 @@ func (a *App) ImportWorkspace(raw string) error {
 		hostIDs[host.ID] = struct{}{}
 	}
 
-	sessions, err := a.sessionMgr.PrepareWorkspaceImport(payload.Sessions, profileIDs, hostIDs)
+	sessions, err := a.sessionMgr.PrepareBurrowImport(payload.Sessions, profileIDs, hostIDs)
 	if err != nil {
 		return err
 	}

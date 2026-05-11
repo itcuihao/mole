@@ -12,9 +12,9 @@ const getAppMethod = (method: string) => {
 }
 
 function Settings({
-  onWorkspaceImported,
+  onBurrowImported,
 }: {
-  onWorkspaceImported?: () => void
+  onBurrowImported?: () => void
 }) {
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
@@ -22,8 +22,8 @@ function Settings({
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
-  const [workspaceBuffer, setWorkspaceBuffer] = useState('')
-  const [workspaceBusy, setWorkspaceBusy] = useState<'export' | 'import' | null>(null)
+  const [burrowBuffer, setBurrowBuffer] = useState('')
+  const [burrowBusy, setBurrowBusy] = useState<'export' | 'import' | null>(null)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
 
@@ -79,46 +79,46 @@ function Settings({
     }
   }
 
-  const handleExportWorkspace = async () => {
-    const method = getAppMethod('ExportWorkspace')
+  const handleExportBurrow = async () => {
+    const method = getAppMethod('ExportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: 'Workspace export is unavailable' })
+      setMessage({ type: 'error', text: 'Burrow export is unavailable' })
       return
     }
 
-    setWorkspaceBusy('export')
+    setBurrowBusy('export')
     setMessage(null)
     try {
       const raw = await method()
-      setWorkspaceBuffer(String(raw || ''))
+      setBurrowBuffer(String(raw || ''))
       setShowExportModal(true)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
     } finally {
-      setWorkspaceBusy(null)
+      setBurrowBusy(null)
     }
   }
 
-  const handleImportWorkspace = async () => {
-    const method = getAppMethod('ImportWorkspace')
+  const handleImportBurrow = async () => {
+    const method = getAppMethod('ImportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: 'Workspace import is unavailable' })
+      setMessage({ type: 'error', text: 'Burrow import is unavailable' })
       return
     }
 
-    setWorkspaceBusy('import')
+    setBurrowBusy('import')
     setMessage(null)
     try {
-      await method(workspaceBuffer)
+      await method(burrowBuffer)
       setShowImportModal(false)
-      setWorkspaceBuffer('')
-      onWorkspaceImported?.()
-      setMessage({ type: 'success', text: 'Workspace imported. Profiles, hosts, and session definitions were replaced.' })
+      setBurrowBuffer('')
+      onBurrowImported?.()
+      setMessage({ type: 'success', text: 'Burrow imported. Profiles, hosts, and session definitions were replaced.' })
       setTimeout(() => setMessage(null), 4000)
     } catch (err) {
       setMessage({ type: 'error', text: String(err) })
     } finally {
-      setWorkspaceBusy(null)
+      setBurrowBusy(null)
     }
   }
 
@@ -141,7 +141,7 @@ function Settings({
           <div>
             <h2 className="text-lg font-semibold text-foreground">Default Terminal</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Choose which terminal application to use when attaching to sessions
+              Choose which terminal application to use when attaching to burrows
             </p>
           </div>
         </div>
@@ -217,9 +217,9 @@ function Settings({
       <div className="mt-6 bg-card rounded-lg border border-border p-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Workspace Import / Export</h2>
+            <h2 className="text-lg font-semibold text-foreground">Burrow Import / Export</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Export your profiles, host inventory, and static session definitions as one portable workspace file.
+              Export your profiles, host inventory, and static session definitions as one portable burrow file.
             </p>
           </div>
         </div>
@@ -228,7 +228,7 @@ function Settings({
           <div className="flex items-start gap-3">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
             <div>
-              Import replaces the current workspace and stops tracked running sessions before writing the new configuration.
+              Import replaces the current burrow and stops tracked running sessions before writing the new configuration.
               Local terminal preference is intentionally excluded and stays machine-specific.
             </div>
           </div>
@@ -237,21 +237,21 @@ function Settings({
         <div className="mt-4 flex flex-wrap gap-2">
           <Button
             variant="secondary"
-            onClick={handleExportWorkspace}
-            disabled={workspaceBusy !== null}
+            onClick={handleExportBurrow}
+            disabled={burrowBusy !== null}
           >
             <Download className="w-4 h-4" />
-            {workspaceBusy === 'export' ? 'Exporting...' : 'Export Workspace'}
+            {burrowBusy === 'export' ? 'Exporting...' : 'Export Burrow'}
           </Button>
           <Button
             onClick={() => {
-              setWorkspaceBuffer('')
+              setBurrowBuffer('')
               setShowImportModal(true)
             }}
-            disabled={workspaceBusy !== null}
+            disabled={burrowBusy !== null}
           >
             <Upload className="w-4 h-4" />
-            Import Workspace
+            Import Burrow
           </Button>
         </div>
       </div>
@@ -340,21 +340,21 @@ function Settings({
           About Mole
         </h3>
         <p className="text-xs text-muted-foreground">
-          A terminal workspace manager for hosts, profiles, and commands.
+          A terminal burrow manager for hosts, profiles, and commands.
         </p>
       </div>
 
       {showExportModal && (
         <ModalShell
-          title="Export Workspace"
-          description="Copy this JSON to back up or move your Mole workspace."
+          title="Export Burrow"
+          description="Copy this JSON to back up or move your Mole burrow."
           onClose={() => setShowExportModal(false)}
           contentStyle={{ maxWidth: '760px' }}
           footer={(
             <div className="flex justify-end gap-2">
               <Button
                 variant="secondary"
-                onClick={() => navigator.clipboard.writeText(workspaceBuffer)}
+                onClick={() => navigator.clipboard.writeText(burrowBuffer)}
               >
                 <Copy className="w-3.5 h-3.5" />
                 Copy JSON
@@ -364,7 +364,7 @@ function Settings({
           )}
         >
           <Textarea
-            value={workspaceBuffer}
+            value={burrowBuffer}
             readOnly
             rows={14}
             className="font-mono text-xs bg-muted/30 focus:bg-background"
@@ -374,8 +374,8 @@ function Settings({
 
       {showImportModal && (
         <ModalShell
-          title="Import Workspace"
-          description="Paste a workspace JSON export to replace the current Mole configuration."
+          title="Import Burrow"
+          description="Paste a burrow JSON export to replace the current Mole configuration."
           onClose={() => setShowImportModal(false)}
           contentStyle={{ maxWidth: '760px' }}
           footer={(
@@ -383,19 +383,19 @@ function Settings({
               <Button variant="ghost" onClick={() => setShowImportModal(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleImportWorkspace} disabled={workspaceBusy === 'import'}>
-                {workspaceBusy === 'import' ? 'Importing...' : 'Import Workspace'}
+              <Button onClick={handleImportBurrow} disabled={burrowBusy === 'import'}>
+                {burrowBusy === 'import' ? 'Importing...' : 'Import Burrow'}
               </Button>
             </div>
           )}
         >
           <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
-            Import keeps profiles, hosts, groups, defaults, and session definitions together. Running session state and default terminal preference are not restored.
+            Import keeps profiles, hosts, groups, defaults, and session definitions together. Running burrow state and default terminal preference are not restored.
           </div>
           <Textarea
-            value={workspaceBuffer}
-            onChange={e => setWorkspaceBuffer(e.target.value)}
-            placeholder="Paste workspace JSON here"
+            value={burrowBuffer}
+            onChange={e => setBurrowBuffer(e.target.value)}
+            placeholder="Paste burrow JSON here"
             rows={14}
             className="font-mono text-xs bg-muted/30 focus:bg-background"
           />

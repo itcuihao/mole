@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-func TestPrepareWorkspaceImportNormalizesStaticSessions(t *testing.T) {
+func TestPrepareBurrowImportNormalizesStaticSessions(t *testing.T) {
 	manager := NewManagerWithBackends(filepath.Join(t.TempDir(), "sessions.json"), nil, nil, NewTmuxBackend())
 
-	prepared, err := manager.PrepareWorkspaceImport([]WorkspaceSession{
+	prepared, err := manager.PrepareBurrowImport([]WorkspaceSession{
 		{
 			ID:        "sess-1",
 			Name:      "deploy-shell",
@@ -29,7 +29,7 @@ func TestPrepareWorkspaceImportNormalizesStaticSessions(t *testing.T) {
 		"host-1": {},
 	})
 	if err != nil {
-		t.Fatalf("PrepareWorkspaceImport() returned error: %v", err)
+		t.Fatalf("PrepareBurrowImport() returned error: %v", err)
 	}
 
 	if len(prepared) != 2 {
@@ -63,16 +63,16 @@ func TestPrepareWorkspaceImportNormalizesStaticSessions(t *testing.T) {
 	}
 }
 
-func TestPrepareWorkspaceImportRejectsUnknownProfileReference(t *testing.T) {
+func TestPrepareBurrowImportRejectsUnknownProfileReference(t *testing.T) {
 	manager := NewManagerWithBackends(filepath.Join(t.TempDir(), "sessions.json"), nil, nil, NewTmuxBackend())
 
-	_, err := manager.PrepareWorkspaceImport([]WorkspaceSession{
+	_, err := manager.PrepareBurrowImport([]WorkspaceSession{
 		{
 			Name:      "broken-session",
 			ProfileID: "missing-profile",
 		},
 	}, map[string]struct{}{}, map[string]struct{}{})
 	if err == nil {
-		t.Fatal("PrepareWorkspaceImport() returned nil error for missing profile reference")
+		t.Fatal("PrepareBurrowImport() returned nil error for missing profile reference")
 	}
 }

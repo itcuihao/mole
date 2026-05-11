@@ -38,9 +38,9 @@ const RUN_MODE_LABELS: Record<RunMode, string> = {
 }
 
 const RUN_MODE_HINTS: Record<RunMode, string> = {
-  shell: 'Open a terminal workspace with this profile.',
-  host: 'Pick a saved host and Mole will build the SSH command for this workspace.',
-  custom: 'Run a command as soon as the workspace starts.',
+  shell: 'Open a terminal burrow with this profile.',
+  host: 'Pick a saved host and Mole will build the SSH command for this burrow.',
+  custom: 'Run a command as soon as the burrow starts.',
   codex: 'Launch Codex with an isolated CODEX_HOME.',
 }
 
@@ -297,11 +297,11 @@ const updateSessionWithOptions = (
 function Sessions({
   onNavigate,
   newSessionSignal,
-  workspaceRefreshSignal,
+  burrowRefreshSignal,
 }: {
   onNavigate: (tab: AppTab) => void
   newSessionSignal?: number
-  workspaceRefreshSignal?: number
+  burrowRefreshSignal?: number
 }) {
   const [sessions, setSessions] = useState<SessionRecord[]>([])
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
@@ -347,13 +347,13 @@ function Sessions({
 
   useEffect(() => {
     loadMeta()
-  }, [loadMeta, workspaceRefreshSignal])
+  }, [loadMeta, burrowRefreshSignal])
 
   useEffect(() => {
     refresh()
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
-  }, [refresh, workspaceRefreshSignal])
+  }, [refresh, burrowRefreshSignal])
 
   useEffect(() => {
     if (!newSessionSignal) return
@@ -371,14 +371,14 @@ function Sessions({
     if (needsManualPaste) {
       showTimedInfo(
         wasRestarted
-          ? 'Workspace restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
+          ? 'Burrow restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
           : 'Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.'
       )
       return
     }
 
     if (wasRestarted) {
-      showTimedInfo('Workspace restored and opened.')
+      showTimedInfo('Burrow restored and opened.')
     }
   }
 
@@ -403,7 +403,7 @@ function Sessions({
       refresh()
     } catch (err) {
       const errorMsg = String(err)
-      console.error('❌ Open workspace failed:', errorMsg)
+      console.error('❌ Open burrow failed:', errorMsg)
       setError(errorMsg)
     } finally {
       setSessionAction(null)
@@ -416,7 +416,7 @@ function Sessions({
     try {
       await KillSession(sess.id)
       if (!sess.alive) {
-        showTimedInfo('Offline session removed.')
+        showTimedInfo('Offline burrow removed.')
       }
       refresh()
     } catch (err) {
@@ -466,12 +466,12 @@ function Sessions({
   return (
     <div className="min-w-0">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Workspaces</h1>
+        <h1 className="text-xl font-semibold text-foreground">Burrows</h1>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {sessions.length > 0 && (
             <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
               <SelectTrigger className="h-9 w-full bg-background sm:w-[148px]">
-                <SelectValue aria-label={`Sort workspaces by ${SESSION_SORT_LABELS[sortMode]}`} />
+                <SelectValue aria-label={`Sort burrows by ${SESSION_SORT_LABELS[sortMode]}`} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="most_used">{SESSION_SORT_LABELS.most_used}</SelectItem>
@@ -486,8 +486,8 @@ function Sessions({
               <Input
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search workspaces"
-                aria-label="Search workspaces by name"
+                placeholder="Search burrows"
+                aria-label="Search burrows by name"
                 className="h-9 w-full pl-8 pr-8 sm:w-56"
               />
               {searchQuery && (
@@ -504,7 +504,7 @@ function Sessions({
           )}
           <Button onClick={() => setShowNewModal(true)} size="sm">
             <Plus className="w-4 h-4" />
-            New Workspace
+            New Burrow
           </Button>
         </div>
       </div>
@@ -548,7 +548,7 @@ function Sessions({
           )}
           {filteredSessions.length === 0 ? (
             <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
-              No workspaces match “{searchQuery}”. Try a different name.
+              No burrows match “{searchQuery}”. Try a different name.
             </div>
           ) : (
             <div className="grid gap-3">
@@ -642,7 +642,7 @@ function SessionCard({
   const statusText = !s.alive ? 'offline' : (s.attached ? 'attached' : 'ready')
   const primaryLabel = isWorking && currentAction === 'open'
     ? (!s.alive ? 'Restoring...' : 'Opening...')
-    : (!s.alive ? 'Restore Workspace' : 'Open Workspace')
+    : (!s.alive ? 'Restore Burrow' : 'Open Burrow')
   const destructiveLabel = isWorking && currentAction === 'kill'
     ? (!s.alive ? 'Removing...' : 'Killing...')
     : (!s.alive ? 'Remove' : 'Kill')
@@ -803,7 +803,7 @@ function EmptySessionsState({
     {
       key: 'profile',
       title: 'Create a profile',
-      description: 'Profiles hold environment variables and secrets for a workspace.',
+      description: 'Profiles hold environment variables and secrets for a burrow.',
       done: profileCount > 0,
       actionLabel: profileCount > 0 ? 'Manage Profiles' : 'Add Profile',
       action: () => onNavigate('profiles'),
@@ -820,10 +820,10 @@ function EmptySessionsState({
     },
     {
       key: 'session',
-      title: 'Create a workspace',
+      title: 'Create a burrow',
       description: 'Choose a profile, then run a local shell, a saved host command, or a custom command.',
       done: false,
-      actionLabel: 'New Workspace',
+      actionLabel: 'New Burrow',
       action: onCreateSession,
       icon: Wrench,
     },
@@ -834,7 +834,7 @@ function EmptySessionsState({
       <CardHeader className="border-b border-border/70 bg-card/70">
         <CardTitle className="flex items-center gap-2 text-lg">
           <TerminalSquare className="w-5 h-5 text-primary" />
-          Workspace Setup
+          Burrow Setup
         </CardTitle>
         <CardDescription>
           Mole works best when you move through setup in a clear order instead of guessing which tab comes first.
@@ -976,11 +976,11 @@ function NewSessionModal({
 
   const isDuplicating = Boolean(initialDraft)
   const modalTitle = isDuplicating
-    ? `Copy Session${initialDraft?.sourceName ? `: ${initialDraft.sourceName}` : ''}`
-    : 'New Session'
+    ? `Copy Burrow${initialDraft?.sourceName ? `: ${initialDraft.sourceName}` : ''}`
+    : 'New Burrow'
   const modalDescription = isDuplicating
-    ? 'Review the copied configuration, then create a new session with a different name.'
-    : 'Choose a profile and how this session should start.'
+    ? 'Review the copied configuration, then create a new burrow with a different name.'
+    : 'Choose a profile and how this burrow should start.'
   const submitLabel = creating
     ? (isDuplicating ? 'Creating Copy...' : 'Creating...')
     : (isDuplicating ? 'Create Copy' : 'Create')
@@ -988,11 +988,11 @@ function NewSessionModal({
   const handleCreate = async () => {
     if (!selectedProfile || !sessionName.trim()) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before creating a host-based workspace')
+      setError('Select a host before creating a host-based burrow')
       return
     }
     if (runMode === 'codex' && !selectedCodexConfigId) {
-      setError('Select a Codex configuration before creating a Codex workspace')
+      setError('Select a Codex configuration before creating a Codex burrow')
       return
     }
     setCreating(true)
@@ -1153,7 +1153,7 @@ function NewSessionModal({
           )}
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Workspace Name</label>
+            <label className="block text-sm text-muted-foreground mb-1">Burrow Name</label>
             <input
               type="text"
               value={sessionName}
@@ -1310,11 +1310,11 @@ function EditSessionModal({
   const handleUpdate = async () => {
     if (!selectedProfile) return
     if (runMode === 'host' && !selectedHostId) {
-      setError('Select a host before saving a host-based workspace')
+      setError('Select a host before saving a host-based burrow')
       return
     }
     if (runMode === 'codex' && !selectedCodexConfigId) {
-      setError('Select a Codex configuration before saving a Codex workspace')
+      setError('Select a Codex configuration before saving a Codex burrow')
       return
     }
     setUpdating(true)
@@ -1338,8 +1338,8 @@ function EditSessionModal({
 
   return (
     <ModalShell
-      title={`Edit Workspace: ${initialSession.name}`}
-      description="Saving will restart this tmux workspace."
+      title={`Edit Burrow: ${initialSession.name}`}
+      description="Saving will restart this tmux burrow."
       onClose={onClose}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
