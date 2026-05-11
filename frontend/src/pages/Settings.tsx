@@ -392,6 +392,14 @@ function Settings({
 
       {activeTab === 'about' && (
         <>
+          <div className="flex flex-col items-center py-6">
+            <pre className="font-mono text-sm leading-tight text-primary/80 select-none" aria-hidden="true">
+{`┌┬┐┌─┐╷  ┌─╴
+││││ ││  ├╴
+╵ ╵└─┘└─╴└─╴`}
+            </pre>
+          </div>
+
           <div className="bg-card rounded-lg border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-2">{t('settings.about.supportedTerminals')}</h2>
             <p className="text-sm text-muted-foreground">
