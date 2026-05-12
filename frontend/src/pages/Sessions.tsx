@@ -83,11 +83,13 @@ const compareSessions = (left: SessionRecord, right: SessionRecord) => {
   const priorityDiff = sessionPriority(left) - sessionPriority(right)
   if (priorityDiff !== 0) return priorityDiff
 
-  const recentDiff = parseTimestamp(right.last_opened_at) - parseTimestamp(left.last_opened_at)
-  if (recentDiff !== 0) return recentDiff
-
+  // Open count first — stable, only changes when a session crosses another's count.
   const openCountDiff = (right.open_count || 0) - (left.open_count || 0)
   if (openCountDiff !== 0) return openCountDiff
+
+  // Tiebreak by most recently opened.
+  const recentDiff = parseTimestamp(right.last_opened_at) - parseTimestamp(left.last_opened_at)
+  if (recentDiff !== 0) return recentDiff
 
   const createdDiff = parseTimestamp(right.created_at) - parseTimestamp(left.created_at)
   if (createdDiff !== 0) return createdDiff
@@ -317,7 +319,7 @@ function Sessions({
   const [error, setError] = useState('')
   const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
-  const [sortMode, setSortMode] = useState<SessionSortMode>('most_used')
+  const [sortMode, setSortMode] = useState<SessionSortMode>('name')
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)

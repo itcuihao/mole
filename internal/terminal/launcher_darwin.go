@@ -5,7 +5,6 @@ package terminal
 import (
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 )
 
@@ -83,35 +82,14 @@ func launchITerm2(commandText string) error {
 func launchGhostty(spec LaunchSpec) error {
 	log.Printf("🚀 Launching Ghostty with command: %s", spec.CommandText)
 
-	// Ghostty may not be on PATH; resolve binary inside .app bundle.
-	ghosttyBin := resolveGhosttyBinary()
-	if ghosttyBin == "" {
-		return fmt.Errorf("Ghostty binary not found")
-	}
-
-	args := []string{"+new-window", "-e"}
+	// macOS: CLI binary launch is not supported. Use `open -na` per Ghostty docs.
+	args := []string{"-n", "-a", "Ghostty", "--args", "-e"}
 	args = append(args, spec.ExecArgs...)
-	cmd := exec.Command(ghosttyBin, args...)
+	cmd := exec.Command("open", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
 	}
 	return nil
-}
-
-func resolveGhosttyBinary() string {
-	candidates := []string{
-		"/Applications/Ghostty.app/Contents/MacOS/ghostty",
-		"/System/Applications/Ghostty.app/Contents/MacOS/ghostty",
-	}
-	for _, p := range candidates {
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	if path, err := exec.LookPath("ghostty"); err == nil {
-		return path
-	}
-	return ""
 }
 
 func launchRio(spec LaunchSpec) error {
