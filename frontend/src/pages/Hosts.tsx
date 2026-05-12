@@ -8,7 +8,7 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useTranslation } from "@/i18n/context"
-import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react"
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -28,9 +28,11 @@ const compareHostLabels = (left: inventory.Host, right: inventory.Host) => (
 function Hosts({
   refreshSignal,
   onCreated,
+  onBack,
 }: {
   refreshSignal?: number
   onCreated?: () => void
+  onBack?: () => void
 }) {
   const { t } = useTranslation()
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
@@ -396,7 +398,14 @@ function Hosts({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
+        </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
             {t('hosts.manageGroups')}

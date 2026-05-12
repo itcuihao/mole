@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy } from "lucide-react"
+import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type RunMode = 'shell' | 'host' | 'custom' | 'codex'
@@ -300,10 +300,12 @@ function Sessions({
   onNavigate,
   newSessionSignal,
   burrowRefreshSignal,
+  onDiscard,
 }: {
   onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
   newSessionSignal?: number
   burrowRefreshSignal?: number
+  onDiscard?: () => void
 }) {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionRecord[]>([])
@@ -319,7 +321,7 @@ function Sessions({
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)
-  const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' } | null>(null)
+  const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'restart' } | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -422,6 +424,19 @@ function Sessions({
       if (!sess.alive) {
         showTimedInfo(t('burrows.info.offlineRemoved'))
       }
+      refresh()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSessionAction(null)
+    }
+  }
+
+  const handleRestart = async (sess: SessionRecord) => {
+    setSessionAction({ id: sess.id, kind: 'restart' })
+    setError('')
+    try {
+      await RestartSession(sess.id)
       refresh()
     } catch (err) {
       setError(String(err))
@@ -622,6 +637,7 @@ function Sessions({
                   terminals={terminals}
                   onOpen={handleOpenSession}
                   onKill={handleKill}
+                  onRestart={handleRestart}
                   onEdit={setEditingSession}
                   onDuplicate={handleDuplicateSession}
                   isWorking={sessionAction?.id === s.id}
@@ -638,6 +654,7 @@ function Sessions({
           onClose={() => setShowNewModal(false)}
           onCreated={() => { setShowNewModal(false); refresh() }}
           onNavigate={onNavigate}
+          onDiscard={onDiscard}
         />
       )}
 
@@ -647,6 +664,7 @@ function Sessions({
           onClose={() => setDuplicateDraft(null)}
           onCreated={() => { setDuplicateDraft(null); refresh() }}
           onNavigate={onNavigate}
+          onDiscard={onDiscard}
         />
       )}
 
@@ -666,6 +684,7 @@ function SessionCard({
   terminals,
   onOpen,
   onKill,
+  onRestart,
   onEdit,
   onDuplicate,
   isWorking,
@@ -675,10 +694,11 @@ function SessionCard({
   terminals: terminal.TerminalApp[]
   onOpen: (session: SessionRecord, terminalID?: string) => void
   onKill: (session: SessionRecord) => void
+  onRestart: (session: SessionRecord) => void
   onEdit: (session: SessionRecord) => void
   onDuplicate: (session: SessionRecord) => void
   isWorking: boolean
-  currentAction: 'open' | 'kill' | null
+  currentAction: 'open' | 'kill' | 'restart' | null
 }) {
   const { t } = useTranslation()
   const [showTerminalMenu, setShowTerminalMenu] = useState(false)
@@ -712,6 +732,9 @@ function SessionCard({
   const destructiveLabel = isWorking && currentAction === 'kill'
     ? (!s.alive ? t('burrows.status.removing') : t('burrows.status.killing'))
     : (!s.alive ? t('burrows.remove') : t('burrows.kill'))
+  const restartLabel = isWorking && currentAction === 'restart'
+    ? t('burrows.status.restarting')
+    : t('burrows.restart')
 
   const handleTerminalSelect = (terminalID: string) => {
     setShowTerminalMenu(false)
@@ -836,6 +859,18 @@ function SessionCard({
                 <Pencil className="w-4 h-4 text-muted-foreground" />
                 <span>{t('common.edit')}</span>
               </button>
+              {s.alive && (
+                <button
+                  onClick={() => {
+                    setShowMoreMenu(false)
+                    onRestart(s)
+                  }}
+                  className={SESSION_MENU_ITEM_CLASS}
+                >
+                  <RotateCw className="w-4 h-4 text-muted-foreground" />
+                  <span>{restartLabel}</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowMoreMenu(false)
@@ -943,11 +978,13 @@ function NewSessionModal({
   onClose,
   onCreated,
   onNavigate,
+  onDiscard,
 }: {
   initialDraft?: SessionDraft | null
   onClose: () => void
   onCreated: () => void
   onNavigate?: (tab: AppTab, ctx?: NavigateContext) => void
+  onDiscard?: () => void
 }) {
   const { t } = useTranslation()
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
@@ -961,6 +998,22 @@ function NewSessionModal({
   const [command, setCommand] = useState(initialDraft?.command || '')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+
+  // Restore draft from localStorage when modal opens
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mole:newSessionDraft')
+      if (saved) {
+        const draft = JSON.parse(saved)
+        if (draft.profileID) setSelectedProfile(draft.profileID)
+        if (draft.runMode) setRunMode(draft.runMode as RunMode)
+        if (draft.hostID) setSelectedHostId(draft.hostID)
+        if (draft.command) setCommand(draft.command)
+        if (draft.sessionName) setSessionName(draft.sessionName)
+        localStorage.removeItem('mole:newSessionDraft')
+      }
+    } catch {}
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -1088,11 +1141,11 @@ function NewSessionModal({
     <ModalShell
       title={modalTitle}
       description={modalDescription}
-      onClose={onClose}
+      onClose={() => { onDiscard?.(); onClose() }}
       contentStyle={{ maxWidth: '640px' }}
       footer={(
         <div className="flex justify-end gap-2">
-          <Button onClick={onClose} variant="ghost">
+          <Button onClick={() => { onDiscard?.(); onClose() }} variant="ghost">
             {t('common.cancel')}
           </Button>
           <Button
@@ -1113,30 +1166,72 @@ function NewSessionModal({
       <div className="space-y-4">
           <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.profile')}</label>
+
             {profiles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t('burrows.modal.noProfiles')}{' '}
-                {onNavigate && (
-                  <button
-                    type="button"
-                    onClick={() => { onClose(); onNavigate('profiles', { returnToNewSession: true }) }}
-                    className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-                  >
-                    {t('burrows.modal.createOne')}
-                  </button>
-                )}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground flex-1">
+                  {t('burrows.modal.noProfiles')}{' '}
+                  {onNavigate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                        localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                        onClose()
+                        onNavigate('profiles', { returnToNewSession: true })
+                      }}
+                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                    >
+                      {t('burrows.modal.createOne')}
+                    </button>
+                  )}
+                </p>
+                <Button
+                  onClick={() => {
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                    localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                    onClose()
+                    onNavigate?.('profiles', { returnToNewSession: true })
+                  }}
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  className="shrink-0"
+                  title={t('burrows.quickCreate.addProfile')}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             ) : (
-              <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder={t('burrows.modal.selectProfile')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedProfiles.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Select value={selectedProfile} onValueChange={setSelectedProfile}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder={t('burrows.modal.selectProfile')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedProfiles.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={() => {
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                    localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                    onClose()
+                    onNavigate?.('profiles', { returnToNewSession: true })
+                  }}
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  className="h-9 w-9 shrink-0"
+                  title={t('burrows.quickCreate.addProfile')}
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
             )}
           </div>
 
@@ -1157,39 +1252,78 @@ function NewSessionModal({
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.sshHost')}</label>
               {inv.hosts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t('burrows.modal.noHosts')}{' '}
-                  {onNavigate && (
-                    <button
-                      type="button"
-                      onClick={() => { onClose(); onNavigate('hosts', { returnToNewSession: true }) }}
-                      className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-                    >
-                      {t('burrows.modal.addOne')}
-                    </button>
-                  )}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground flex-1">
+                    {t('burrows.modal.noHosts')}{' '}
+                    {onNavigate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                          localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                          onClose()
+                          onNavigate?.('hosts', { returnToNewSession: true })
+                        }}
+                        className="text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                      >
+                        {t('burrows.modal.addOne')}
+                      </button>
+                    )}
+                  </p>
+                  <Button
+                    onClick={() => {
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                      localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                      onClose()
+                      onNavigate?.('hosts', { returnToNewSession: true })
+                    }}
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    className="shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
               ) : (
-                <Select
-                  value={selectedHostId || inv.hosts[0]?.id || ''}
-                  onValueChange={value => {
-                    setSelectedHostId(value)
-                    const host = value ? hostMap.get(value) : null
-                    const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
-                    setCommand(nextCommand)
-                  }}
-                >
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={t('burrows.modal.selectHost')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedHosts.map(h => (
-                      <SelectItem key={h.id} value={h.id}>
-                        {h.name || h.host}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <Select
+                      value={selectedHostId || inv.hosts[0]?.id || ''}
+                      onValueChange={value => {
+                        setSelectedHostId(value)
+                        const host = value ? hostMap.get(value) : null
+                        const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
+                        setCommand(nextCommand)
+                      }}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectHost')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedHosts.map(h => (
+                          <SelectItem key={h.id} value={h.id}>
+                            {h.name || h.host}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                      localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
+                      onClose()
+                      onNavigate?.('hosts', { returnToNewSession: true })
+                    }}
+                    variant="outline"
+                    size="icon"
+                    type="button"
+                    className="h-9 w-9 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
               )}
               {selectedHost && hostCommand && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">

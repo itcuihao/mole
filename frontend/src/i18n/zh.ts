@@ -60,12 +60,14 @@ export const zh: Record<string, string> = {
   'burrows.status.opening': '打开中...',
   'burrows.status.removing': '移除中...',
   'burrows.status.killing': '终止中...',
+  'burrows.status.restarting': '重启中...',
 
   // Actions
   'burrows.openBurrow': '打开地洞',
   'burrows.restoreBurrow': '恢复地洞',
   'burrows.kill': '终止',
   'burrows.remove': '移除',
+  'burrows.restart': '重启',
 
   // Run modes
   'burrows.runMode.shell': 'Shell',
@@ -122,6 +124,16 @@ export const zh: Record<string, string> = {
   'burrows.modal.selectCodexRequired': '创建地洞前请先选择 Codex 配置',
   'burrows.modal.selectHostRequiredEdit': '保存地洞前请先选择主机',
   'burrows.modal.selectCodexRequiredEdit': '保存地洞前请先选择 Codex 配置',
+
+  // Quick create profile
+  'burrows.quickCreate.name': '配置名称',
+  'burrows.quickCreate.namePlaceholder': '例如: 生产环境 API',
+  'burrows.quickCreate.envVars': '环境变量',
+  'burrows.quickCreate.addVar': '添加',
+  'burrows.quickCreate.noVars': '还没有变量。',
+  'burrows.quickCreate.creating': '创建中...',
+  'burrows.quickCreate.create': '创建配置',
+  'burrows.quickCreate.addProfile': '添加配置',
 
   // Edit modal
   'burrows.edit.title': '编辑地洞: {{name}}',

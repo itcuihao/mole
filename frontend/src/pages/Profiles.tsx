@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { cn } from '@/lib/utils'
 import { useTranslation } from "@/i18n/context"
-import { Plus, Pencil, Trash2, Upload, X, Check, Copy } from "lucide-react"
+import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft } from "lucide-react"
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -26,9 +26,11 @@ const compareByLabel = (left: string, right: string) => (
 function Profiles({
   refreshSignal,
   onCreated,
+  onBack,
 }: {
   refreshSignal?: number
   onCreated?: () => void
+  onBack?: () => void
 }) {
   const { t } = useTranslation()
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
@@ -90,7 +92,14 @@ function Profiles({
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
+        </div>
         <Button onClick={handleNew} size="sm">
           <Plus className="w-4 h-4" />
           {t('profiles.addProfile')}

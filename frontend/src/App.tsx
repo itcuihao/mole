@@ -12,6 +12,13 @@ export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
 export type NavigateContext = {
   returnToNewSession?: boolean
+  sessionDraft?: {
+    profileID: string
+    runMode: string
+    hostID: string
+    command: string
+    sessionName: string
+  } | null
 }
 
 function App() {
@@ -77,6 +84,16 @@ function App() {
     }
   }
 
+  const handleBackToSessions = () => {
+    if (navigateContext?.returnToNewSession) {
+      setNavigateContext(null)
+      setActiveTab('sessions')
+      setNewSessionSignal(prev => prev + 1)
+    } else {
+      setActiveTab('sessions')
+    }
+  }
+
   const iconButtonClass = (tab: AppTab) =>
     `flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
       activeTab === tab
@@ -117,7 +134,7 @@ function App() {
           <div className="flex shrink-0 items-center gap-1">
             <button
               type="button"
-              onClick={() => setActiveTab('profiles')}
+              onClick={() => { setNavigateContext(null); setActiveTab('profiles') }}
               className={iconButtonClass('profiles')}
               aria-label={t('nav.profiles')}
               title={t('nav.profiles')}
@@ -126,7 +143,7 @@ function App() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('hosts')}
+              onClick={() => { setNavigateContext(null); setActiveTab('hosts') }}
               className={iconButtonClass('hosts')}
               aria-label={t('nav.hosts')}
               title={t('nav.hosts')}
@@ -135,7 +152,7 @@ function App() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('settings')}
+              onClick={() => { setNavigateContext(null); setActiveTab('settings') }}
               className={iconButtonClass('settings')}
               aria-label={t('nav.settings')}
               title={t('nav.settings')}
@@ -150,15 +167,19 @@ function App() {
             onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
             burrowRefreshSignal={burrowRefreshSignal}
+            onDiscard={() => {
+              setNavigateContext(null)
+              localStorage.removeItem('mole:newSessionDraft')
+            }}
           />
         </TabsContent>
 
         <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
-          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
+          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
         <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
-          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} />
+          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
         <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">

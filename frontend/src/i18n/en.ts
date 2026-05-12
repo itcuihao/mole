@@ -60,12 +60,14 @@ export const en: Record<string, string> = {
   'burrows.status.opening': 'Opening...',
   'burrows.status.removing': 'Removing...',
   'burrows.status.killing': 'Killing...',
+  'burrows.status.restarting': 'Restarting...',
 
   // Actions
   'burrows.openBurrow': 'Open Burrow',
   'burrows.restoreBurrow': 'Restore Burrow',
   'burrows.kill': 'Kill',
   'burrows.remove': 'Remove',
+  'burrows.restart': 'Restart',
 
   // Run modes
   'burrows.runMode.shell': 'Shell',
@@ -122,6 +124,16 @@ export const en: Record<string, string> = {
   'burrows.modal.selectCodexRequired': 'Select a Codex configuration before creating a Codex burrow',
   'burrows.modal.selectHostRequiredEdit': 'Select a host before saving a host-based burrow',
   'burrows.modal.selectCodexRequiredEdit': 'Select a Codex configuration before saving a Codex burrow',
+
+  // Quick create profile
+  'burrows.quickCreate.name': 'Profile Name',
+  'burrows.quickCreate.namePlaceholder': 'e.g., Production API',
+  'burrows.quickCreate.envVars': 'Environment Variables',
+  'burrows.quickCreate.addVar': 'Add',
+  'burrows.quickCreate.noVars': 'No variables yet.',
+  'burrows.quickCreate.creating': 'Creating...',
+  'burrows.quickCreate.create': 'Create Profile',
+  'burrows.quickCreate.addProfile': 'Add profile',
 
   // Edit modal
   'burrows.edit.title': 'Edit Burrow: {{name}}',
