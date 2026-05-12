@@ -150,7 +150,7 @@ func buildTmuxEnvScriptContent(env map[string]string, command, tmuxPath string) 
 		envCmds.WriteString("  if [ -z \"$_ran\" ]; then\n")
 		envCmds.WriteString(fmt.Sprintf("    %s setenv -t \"$_session\" MOLE_CMD_RAN 1\n", shellQuote(tmuxPath)))
 		envCmds.WriteString(fmt.Sprintf("    echo '🚀 Running startup command: %s'\n", strings.ReplaceAll(command, "'", "'\\''")))
-		envCmds.WriteString(fmt.Sprintf("    %s\n", command))
+		envCmds.WriteString(fmt.Sprintf("    %s || true\n", command))
 		envCmds.WriteString("  fi\n")
 		envCmds.WriteString("fi\n")
 	}
@@ -191,28 +191,28 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	// Determine user's preferred shell.
 	userShell := os.Getenv("SHELL")
 	if userShell == "" {
-		userShell = "/bin/zsh"
+		userShell = "/bin/bash"
 	}
 	if strings.Contains(userShell, "/") {
 		if _, err := os.Stat(userShell); err != nil {
-			userShell = "/bin/zsh"
+			userShell = "/bin/bash"
 		}
 	} else if resolved, err := exec.LookPath(userShell); err == nil {
 		userShell = resolved
 	} else {
-		userShell = "/bin/zsh"
+		userShell = "/bin/bash"
 	}
 
 	// Bootstrap the tmux pane with a POSIX-compatible shell so env loading
 	// works even when the user's login shell is fish-like.
-	runnerShell := "/bin/zsh"
+	runnerShell := "/bin/bash"
 	runnerFlag := "-lc"
 	if _, err := os.Stat(runnerShell); err != nil {
 		runnerShell = "/bin/sh"
 		runnerFlag = "-c"
 	}
 
-	shellCmd := fmt.Sprintf(". %s && exec %s", shellQuote(envScriptPath), shellQuote(userShell))
+	shellCmd := fmt.Sprintf(". %s; exec %s", shellQuote(envScriptPath), shellQuote(userShell))
 	startDir := defaultSessionWorkingDir()
 
 	// Use a stable default working directory instead of inheriting Mole's process

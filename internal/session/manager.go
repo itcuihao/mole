@@ -316,10 +316,6 @@ func (m *Manager) Restart(sessionID string) error {
 		return err
 	}
 
-	if backend.IsAlive(sess.RuntimeName()) {
-		return fmt.Errorf("session %q is already running", sess.Name)
-	}
-
 	// Resolve environment from profile and launch metadata.
 	env, err := m.environmentForSession(sess)
 	if err != nil {
@@ -331,7 +327,14 @@ func (m *Manager) Restart(sessionID string) error {
 		return err
 	}
 
-	return backend.Create(sess.RuntimeName(), env, command)
+	runtimeName := sess.RuntimeName()
+	if backend.IsAlive(runtimeName) {
+		if err := backend.Kill(runtimeName); err != nil {
+			return fmt.Errorf("failed to kill session before restart: %w", err)
+		}
+	}
+
+	return backend.Create(runtimeName, env, command)
 }
 
 // Attach opens the user's preferred terminal and attaches to a runtime session.
@@ -414,6 +417,16 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 	if backend.IsAlive(runtimeName) {
 		if err := backend.SyncEnv(runtimeName, env); err != nil {
 			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
+		}
+	} else {
+		// Session is dead (UI may be stale) — restart it before attaching so the
+		// terminal doesn't open only to fail with "can't find session".
+		command, cmdErr := m.commandForSession(sess)
+		if cmdErr != nil {
+			return Session{}, terminal.LaunchSpec{}, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
+		}
+		if createErr := backend.Create(runtimeName, env, command); createErr != nil {
+			return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
 

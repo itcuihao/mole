@@ -15,6 +15,16 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 		return startTerminalProcess(terminal.ExecPath, append([]string{"-e"}, spec.ExecArgs...)...)
 	case TerminalKitty:
 		return startTerminalProcess(terminal.ExecPath, spec.ExecArgs...)
+	case TerminalWezTerm:
+		return startTerminalProcess(terminal.ExecPath, append([]string{"-e"}, spec.ExecArgs...)...)
+	case TerminalWarp:
+		return startTerminalProcess(terminal.ExecPath, spec.ExecArgs...)
+	case TerminalTilix:
+		return startTerminalProcess(terminal.ExecPath, append([]string{"-e"}, spec.ExecArgs...)...)
+	case TerminalTerminator:
+		return startTerminalProcess(terminal.ExecPath, append([]string{"-e"}, spec.ExecArgs...)...)
+	case TerminalFoot:
+		return startTerminalProcess(terminal.ExecPath, spec.ExecArgs...)
 	default:
 		return fmt.Errorf("unsupported linux terminal: %s", terminal.ID)
 	}

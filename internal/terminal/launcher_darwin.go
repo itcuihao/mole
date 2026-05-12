@@ -5,6 +5,7 @@ package terminal
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 )
 
@@ -15,9 +16,9 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	case TerminalITerm2:
 		return launchITerm2(spec.CommandText)
 	case TerminalGhostty:
-		return launchOpenApp("Ghostty", append([]string{"-e"}, spec.ExecArgs...)...)
+		return launchGhostty(spec)
 	case TerminalRio:
-		return launchOpenApp("Rio", append([]string{"-e"}, spec.ExecArgs...)...)
+		return launchRio(spec)
 	case TerminalWarp:
 		return launchWarp(spec)
 	case TerminalAlacritty:
@@ -75,6 +76,58 @@ func launchITerm2(commandText string) error {
 	if err != nil {
 		log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
+	}
+	return nil
+}
+
+func launchGhostty(spec LaunchSpec) error {
+	log.Printf("🚀 Launching Ghostty with command: %s", spec.CommandText)
+
+	// Ghostty may not be on PATH; resolve binary inside .app bundle.
+	ghosttyBin := resolveGhosttyBinary()
+	if ghosttyBin == "" {
+		return fmt.Errorf("Ghostty binary not found")
+	}
+
+	args := []string{"+new-window", "-e"}
+	args = append(args, spec.ExecArgs...)
+	cmd := exec.Command(ghosttyBin, args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
+	}
+	return nil
+}
+
+func resolveGhosttyBinary() string {
+	candidates := []string{
+		"/Applications/Ghostty.app/Contents/MacOS/ghostty",
+		"/System/Applications/Ghostty.app/Contents/MacOS/ghostty",
+	}
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	if path, err := exec.LookPath("ghostty"); err == nil {
+		return path
+	}
+	return ""
+}
+
+func launchRio(spec LaunchSpec) error {
+	log.Printf("🚀 Launching Rio with command: %s", spec.CommandText)
+	return launchOpenAppNewInstance("Rio", append([]string{"-e"}, spec.ExecArgs...)...)
+}
+
+func launchOpenAppNewInstance(appName string, terminalArgs ...string) error {
+	args := []string{"-n", "-a", appName}
+	if len(terminalArgs) > 0 {
+		args = append(args, "--args")
+		args = append(args, terminalArgs...)
+	}
+	cmd := exec.Command("open", args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s failed: %s: %w", appName, string(output), err)
 	}
 	return nil
 }

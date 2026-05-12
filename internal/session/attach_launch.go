@@ -12,7 +12,7 @@ import (
 )
 
 func attachRunnerShell() (string, string) {
-	runnerShell := "/bin/zsh"
+	runnerShell := "/bin/bash"
 	runnerFlag := "-lc"
 	if _, err := os.Stat(runnerShell); err != nil {
 		runnerShell = "/bin/sh"

@@ -29,6 +29,10 @@ const (
 	TerminalGnome      = "gnome-terminal"
 	TerminalKonsole    = "konsole"
 	TerminalXterm      = "xterm"
+	TerminalWezTerm    = "wezterm"
+	TerminalTilix      = "tilix"
+	TerminalTerminator = "terminator"
+	TerminalFoot       = "foot"
 	TerminalPowerShell = "powershell"
 	TerminalCMD        = "cmd"
 )
