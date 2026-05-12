@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
+import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
@@ -658,12 +659,11 @@ function ViewProfileModal({
     return lines.join('\n')
   }
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const text = generateExportText()
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
+    await ClipboardSetText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const envCount = Object.keys(p.env_vars || {}).length

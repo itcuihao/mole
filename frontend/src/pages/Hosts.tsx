@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GetInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGroup, DeleteHostGroup } from '../../wailsjs/go/main/App'
+import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -356,12 +357,32 @@ function Hosts({
     const cmd = buildSSHCommand(host)
     if (!cmd) return
     try {
-      await navigator.clipboard.writeText(cmd)
+      await ClipboardSetText(cmd)
       setMessage(t('hosts.msg.sshCopied'))
       setTimeout(() => setMessage(''), 2500)
     } catch (err) {
       setError(String(err))
     }
+  }
+
+  const handleDuplicateHost = (host: inventory.Host) => {
+    setEditingHost(null)
+    setHostForm({
+      id: '',
+      name: `${host.name || host.host || ''} (copy)`,
+      host: host.host || '',
+      user: host.user || '',
+      port: host.port ? String(host.port) : '',
+      bastion_id: host.bastion_id || '',
+      identity_file: host.identity_file || '',
+      tags: (host.tags || []).join(', '),
+    })
+    setHostGroupIds(
+      inv.groups
+        .filter(g => (g.host_ids || []).includes(host.id))
+        .map(g => g.id)
+    )
+    setShowHostModal(true)
   }
 
   const toggleTagFilter = (tag: string) => {
@@ -595,6 +616,10 @@ function Hosts({
                       <Button onClick={() => openHostModal(host)} variant="ghost" size="sm">
                         <Pencil className="w-3.5 h-3.5" />
                         {t('common.edit')}
+                      </Button>
+                      <Button onClick={() => handleDuplicateHost(host)} variant="ghost" size="sm">
+                        <Copy className="w-3.5 h-3.5" />
+                        {t('common.duplicate')}
                       </Button>
                       <Button onClick={() => handleDeleteHost(host.id)} variant="destructive" size="sm">
                         <Trash2 className="w-3.5 h-3.5" />

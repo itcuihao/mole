@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
+import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { codex, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
@@ -426,7 +427,7 @@ function Settings({
             <div className="flex justify-end gap-2">
               <Button
                 variant="secondary"
-                onClick={() => navigator.clipboard.writeText(burrowBuffer)}
+                onClick={() => ClipboardSetText(burrowBuffer)}
               >
                 <Copy className="w-3.5 h-3.5" />
                 {t('settings.importExport.copyJSON')}
