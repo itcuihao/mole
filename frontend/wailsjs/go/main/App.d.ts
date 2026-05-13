@@ -13,7 +13,7 @@ export function AttachSessionWithTerminal(arg1:string,arg2:string):Promise<void>
 
 export function CreateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function CreateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<void>;
+export function CreateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<void>;
 
 export function DeleteCodexConfig(arg1:string):Promise<void>;
 
@@ -69,4 +69,4 @@ export function SetDefaultTerminal(arg1:string):Promise<void>;
 
 export function UpdateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function UpdateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<void>;
+export function UpdateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<void>;

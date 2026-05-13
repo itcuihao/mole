@@ -17,6 +17,7 @@ type SessionRecord = session.SessionStatus & {
   run_mode?: string
   host_id?: string
   codex_config_id?: string
+  den?: string
   open_count?: number
   last_opened_at?: string
 }
@@ -27,6 +28,7 @@ type SessionDraft = {
   hostID: string
   command: string
   sessionName: string
+  den: string
   sourceName?: string
 }
 
@@ -265,12 +267,13 @@ const createSessionWithOptions = (
   runMode: string,
   hostID: string,
   codexConfigID: string,
+  den: string,
 ) => {
   const method = getAppMethod('CreateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('CreateSessionWithOptions is unavailable'))
   }
-  return method(profileID, name, command, runMode, hostID, codexConfigID) as Promise<void>
+  return method(profileID, name, command, runMode, hostID, codexConfigID, den) as Promise<void>
 }
 
 const updateSessionWithOptions = (
@@ -280,12 +283,13 @@ const updateSessionWithOptions = (
   runMode: string,
   hostID: string,
   codexConfigID: string,
+  den: string,
 ) => {
   const method = getAppMethod('UpdateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('UpdateSessionWithOptions is unavailable'))
   }
-  return method(sessionID, profileID, command, runMode, hostID, codexConfigID) as Promise<void>
+  return method(sessionID, profileID, command, runMode, hostID, codexConfigID, den) as Promise<void>
 }
 
 function Sessions({
@@ -482,6 +486,7 @@ function Sessions({
       runMode: normalizeRunMode(sess.run_mode, Boolean(sess.command)),
       hostID: sess.host_id || '',
       command: sess.command || '',
+      den: sess.den || '',
       sessionName: buildDuplicateSessionName(
         sess.name || 'session',
         sessions.map(item => item.name || ''),
@@ -993,6 +998,7 @@ function NewSessionModal({
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
+  const [den, setDen] = useState(initialDraft?.den || '')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
@@ -1007,6 +1013,7 @@ function NewSessionModal({
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.command) setCommand(draft.command)
         if (draft.sessionName) setSessionName(draft.sessionName)
+        if (draft.den) setDen(draft.den)
         localStorage.removeItem('mole:newSessionDraft')
       }
     } catch {}
@@ -1155,6 +1162,7 @@ function NewSessionModal({
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        den.trim(),
       )
       onCreated()
     } catch (err) {
@@ -1202,7 +1210,7 @@ function NewSessionModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                         localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                         onClose()
                         onNavigate('profiles', { returnToNewSession: true })
@@ -1215,7 +1223,7 @@ function NewSessionModal({
                 </p>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1245,7 +1253,7 @@ function NewSessionModal({
                 </div>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1296,7 +1304,7 @@ function NewSessionModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                           localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                           onClose()
                           onNavigate?.('hosts', { returnToNewSession: true })
@@ -1309,7 +1317,7 @@ function NewSessionModal({
                   </p>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1348,7 +1356,7 @@ function NewSessionModal({
                   </div>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1461,6 +1469,18 @@ function NewSessionModal({
             />
             <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.nameHint')}</p>
           </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
+            <input
+              type="text"
+              value={den}
+              onChange={e => setDen(e.target.value)}
+              placeholder={t('burrows.modal.denPlaceholder')}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.denHint')}</p>
+          </div>
       </div>
     </ModalShell>
   )
@@ -1488,6 +1508,7 @@ function EditSessionModal({
   const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
+  const [den, setDen] = useState(initialSession.den || '')
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const [hydrated, setHydrated] = useState(false)
@@ -1657,6 +1678,7 @@ function EditSessionModal({
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        den.trim(),
       )
       onUpdated()
     } catch (err) {
@@ -1847,6 +1869,18 @@ function EditSessionModal({
               })()}
             </div>
           )}
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
+            <input
+              type="text"
+              value={den}
+              onChange={e => setDen(e.target.value)}
+              placeholder={t('burrows.modal.denPlaceholder')}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.denHint')}</p>
+          </div>
       </div>
     </ModalShell>
   )

@@ -123,12 +123,12 @@ func (a *App) ListLaunchPlugins() []session.PluginInfo {
 
 // CreateSession creates a new runtime session from a profile.
 func (a *App) CreateSession(profileID, name, command string) error {
-	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "", "")
+	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "", "", "")
 }
 
 // CreateSessionWithOptions creates a new runtime session with explicit launch metadata.
-func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID string) error {
-	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID)
+func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID, den string) error {
+	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID, den)
 }
 
 // ListSessions returns all sessions with live status.
@@ -148,12 +148,12 @@ func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) error {
 
 // UpdateSession updates a session's profile and command, recreating the runtime session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "", "")
+	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "", "", "")
 }
 
 // UpdateSessionWithOptions updates a session with explicit launch metadata.
-func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID)
+func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
+	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den)
 }
 
 // KillSession terminates a session and removes it from storage.

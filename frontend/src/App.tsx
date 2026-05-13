@@ -109,8 +109,8 @@ function App() {
         className="h-full min-w-0 flex flex-col"
       >
         {/* Header with terminal aesthetic */}
-        <div className="flex items-center justify-between border-b bg-card/50 px-4 py-3 backdrop-blur-sm">
-          <div className="flex min-w-0 items-center gap-3 overflow-x-auto pr-2">
+        <div className="drag-region flex items-center justify-between border-b bg-card px-4 py-3">
+          <div className="no-drag flex min-w-0 items-center gap-3 overflow-x-auto pr-2">
             {isMacDesktop ? (
               <>
                 <div aria-hidden="true" className="h-8 w-[78px] shrink-0" />
@@ -125,13 +125,13 @@ function App() {
               </pre>
             </div>
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
-            <TabsList className="h-9 shrink-0 border-0 bg-transparent p-0">
+            <TabsList className="no-drag h-9 shrink-0 border-0 bg-transparent p-0">
               <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
                 {t('nav.burrows')}
               </TabsTrigger>
             </TabsList>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="no-drag flex shrink-0 items-center gap-1">
             <button
               type="button"
               onClick={() => { setNavigateContext(null); setActiveTab('profiles') }}
@@ -162,7 +162,7 @@ function App() {
           </div>
         </div>
 
-        <TabsContent value="sessions" className="mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
+        <TabsContent value="sessions" className="no-drag mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
           <Sessions
             onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
@@ -176,15 +176,15 @@ function App() {
           />
         </TabsContent>
 
-        <TabsContent value="profiles" className="flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="profiles" className="no-drag flex-1 overflow-auto p-6 mt-0">
           <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
-        <TabsContent value="hosts" className="flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="hosts" className="no-drag flex-1 overflow-auto p-6 mt-0">
           <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
-        <TabsContent value="settings" className="flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="settings" className="no-drag flex-1 overflow-auto p-6 mt-0">
           <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
         </TabsContent>
       </Tabs>

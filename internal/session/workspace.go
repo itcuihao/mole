@@ -10,5 +10,6 @@ type WorkspaceSession struct {
 	RunMode       string `json:"run_mode,omitempty"`
 	HostID        string `json:"host_id,omitempty"`
 	CodexConfigID string `json:"codex_config_id,omitempty"`
+	Den           string `json:"den,omitempty"`
 	CreatedAt     string `json:"created_at,omitempty"`
 }

@@ -15,6 +15,7 @@ type LaunchSpec struct {
 	CommandText   string   // Shell-friendly form for terminals that accept text commands
 	ExecArgs      []string // Direct argv form for terminals that accept exec args
 	ClipboardText string   // Optional text copied for manual paste flows
+	Den           string   // Optional den name for tab grouping
 }
 
 // Common terminal IDs

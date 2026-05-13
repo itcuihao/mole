@@ -77,7 +77,7 @@ func (m *Manager) SetDockerManager(dockerMgr *docker.Manager) {
 }
 
 // Create creates a new runtime session with the environment from a profile.
-func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID string) error {
+func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID, den string) error {
 	if !validName.MatchString(sessionName) {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
@@ -126,6 +126,7 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codex
 		RunMode:         normalizedRunMode,
 		HostID:          normalizedHostID,
 		CodexConfigID:   normalizedCodexConfigID,
+		Den:             strings.TrimSpace(den),
 	}
 	return m.store.Save(sess)
 }
@@ -200,7 +201,7 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
-func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID string) error {
+func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
 	// Get current session
 	sess, err := m.store.Get(sessionID)
 	if err != nil {
@@ -260,6 +261,7 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexCo
 	sess.RunMode = normalizedRunMode
 	sess.HostID = normalizedHostID
 	sess.CodexConfigID = normalizedCodexConfigID
+	sess.Den = strings.TrimSpace(den)
 
 	if err := backend.Create(sess.RuntimeName(), newEnv, resolvedCommand); err != nil {
 		if isAlive && canRollback {
@@ -441,7 +443,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		}
 	}
 
-	launchSpec, err := backend.BuildAttachSpec(runtimeName, env)
+	launchSpec, err := backend.BuildAttachSpec(runtimeName, env, sess.Den)
 	if err != nil {
 		return Session{}, terminal.LaunchSpec{}, err
 	}
@@ -644,6 +646,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			RunMode:         runMode,
 			HostID:          hostID,
 			CodexConfigID:   codexConfigID,
+			Den:             strings.TrimSpace(cfg.Den),
 			CreatedAt:       createdAt,
 		})
 	}

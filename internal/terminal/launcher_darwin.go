@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 )
 
 func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
@@ -13,7 +14,7 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	case TerminalApple:
 		return launchTerminalApp(spec.CommandText)
 	case TerminalITerm2:
-		return launchITerm2(spec.CommandText)
+		return launchITerm2(spec)
 	case TerminalGhostty:
 		return launchGhostty(spec)
 	case TerminalRio:
@@ -40,6 +41,22 @@ func runOsaScriptWithArg(scriptLines []string, arg string) ([]byte, error) {
 	return cmd.CombinedOutput()
 }
 
+func runOsaScript(scriptLines []string) ([]byte, error) {
+	args := make([]string, 0, len(scriptLines)*2)
+	for _, line := range scriptLines {
+		args = append(args, "-e", line)
+	}
+
+	cmd := exec.Command("osascript", args...)
+	return cmd.CombinedOutput()
+}
+
+func escapeAppleScript(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
+}
+
 func launchTerminalApp(commandText string) error {
 	log.Printf("🚀 Launching Terminal.app with command: %s", commandText)
 	output, err := runOsaScriptWithArg([]string{
@@ -58,20 +75,59 @@ func launchTerminalApp(commandText string) error {
 	return nil
 }
 
-func launchITerm2(commandText string) error {
-	log.Printf("🚀 Launching iTerm2 with command: %s", commandText)
-	output, err := runOsaScriptWithArg([]string{
-		`on run argv`,
-		`set commandText to item 1 of argv`,
-		`tell application "iTerm"`,
-		`activate`,
-		`create window with default profile`,
-		`tell current session of current window`,
-		`write text commandText`,
-		`end tell`,
-		`end tell`,
-		`end run`,
-	}, commandText)
+func launchITerm2(spec LaunchSpec) error {
+	group := strings.TrimSpace(spec.Den)
+	log.Printf("🚀 Launching iTerm2 (group=%q) with command: %s", group, spec.CommandText)
+
+	if group == "" {
+		// No den — create new window (existing behavior)
+		output, err := runOsaScriptWithArg([]string{
+			`on run argv`,
+			`set commandText to item 1 of argv`,
+			`tell application "iTerm"`,
+			`activate`,
+			`create window with default profile`,
+			`tell current session of current window`,
+			`write text commandText`,
+			`end tell`,
+			`end tell`,
+			`end run`,
+		}, spec.CommandText)
+		if err != nil {
+			log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
+			return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
+		}
+		return nil
+	}
+
+	// Den set — find or create window, then create tab
+	windowName := "Mole: " + group
+	script := fmt.Sprintf(`
+		set windowName to "%s"
+		set commandText to "%s"
+		set targetWindow to missing value
+		tell application "iTerm"
+			activate
+			repeat with w in windows
+				if name of w is windowName then
+					set targetWindow to w
+					exit repeat
+				end if
+			end repeat
+			if targetWindow is missing value then
+				set targetWindow to (create window with default profile)
+				set name of targetWindow to windowName
+			end if
+			tell targetWindow
+				create tab with default profile
+				tell current session of current tab
+					write text commandText
+				end tell
+			end tell
+		end tell
+	`, escapeAppleScript(windowName), escapeAppleScript(spec.CommandText))
+
+	output, err := runOsaScript([]string{script})
 	if err != nil {
 		log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
@@ -80,10 +136,23 @@ func launchITerm2(commandText string) error {
 }
 
 func launchGhostty(spec LaunchSpec) error {
-	log.Printf("🚀 Launching Ghostty with command: %s", spec.CommandText)
+	group := strings.TrimSpace(spec.Den)
+	log.Printf("🚀 Launching Ghostty (group=%q) with command: %s", group, spec.CommandText)
 
-	// macOS: CLI binary launch is not supported. Use `open -na` per Ghostty docs.
-	args := []string{"-n", "-a", "Ghostty", "--args", "-e"}
+	if group == "" {
+		// No den — new instance (existing behavior)
+		args := []string{"-n", "-a", "Ghostty", "--args", "-e"}
+		args = append(args, spec.ExecArgs...)
+		cmd := exec.Command("open", args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
+		}
+		return nil
+	}
+
+	// Den set — target the same window via --window-id
+	windowID := "mole-" + group
+	args := []string{"-a", "Ghostty", "--args", "--window-id=" + windowID, "-e"}
 	args = append(args, spec.ExecArgs...)
 	cmd := exec.Command("open", args...)
 	if output, err := cmd.CombinedOutput(); err != nil {

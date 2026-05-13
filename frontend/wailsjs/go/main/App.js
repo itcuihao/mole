@@ -14,8 +14,8 @@ export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
-export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function DeleteCodexConfig(arg1) {
@@ -126,6 +126,6 @@ export function UpdateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateSession'](arg1, arg2, arg3);
 }
 
-export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }

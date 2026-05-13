@@ -26,5 +26,5 @@ type SessionBackend interface {
 	Kill(name string) error
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
-	BuildAttachSpec(name string, env map[string]string) (terminal.LaunchSpec, error)
+	BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error)
 }

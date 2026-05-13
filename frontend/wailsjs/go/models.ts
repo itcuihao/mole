@@ -254,6 +254,7 @@ export namespace session {
 	    run_mode?: string;
 	    host_id?: string;
 	    codex_config_id?: string;
+	    den?: string;
 	    created_at: string;
 	    open_count?: number;
 	    last_opened_at?: string;
@@ -278,6 +279,7 @@ export namespace session {
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
 	        this.codex_config_id = source["codex_config_id"];
+	        this.den = source["den"];
 	        this.created_at = source["created_at"];
 	        this.open_count = source["open_count"];
 	        this.last_opened_at = source["last_opened_at"];

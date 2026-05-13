@@ -22,6 +22,7 @@ type Session struct {
 	RunMode         string `json:"run_mode,omitempty"`
 	HostID          string `json:"host_id,omitempty"`
 	CodexConfigID   string `json:"codex_config_id,omitempty"`
+	Den             string `json:"den,omitempty"`
 	CreatedAt       string `json:"created_at"`
 	OpenCount       int    `json:"open_count,omitempty"`
 	LastOpenedAt    string `json:"last_opened_at,omitempty"`
@@ -67,6 +68,7 @@ func (s Session) WorkspaceConfig() WorkspaceSession {
 		RunMode:       s.RunMode,
 		HostID:        s.HostID,
 		CodexConfigID: s.CodexConfigID,
+		Den:           s.Den,
 		CreatedAt:     s.CreatedAt,
 	}
 }
