@@ -12,6 +12,7 @@ import (
 
 	"mole/internal/codex"
 	"mole/internal/config"
+	"mole/internal/docker"
 	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/session"
@@ -27,6 +28,7 @@ type App struct {
 	ctx        context.Context
 	profileMgr *profile.Manager
 	codexMgr   *codex.Manager
+	dockerMgr  *docker.Manager
 	sessionMgr *session.Manager
 	invMgr     *inventory.Manager
 	trayOnce   sync.Once
@@ -52,9 +54,11 @@ func (a *App) startup(ctx context.Context) {
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
+	a.dockerMgr = docker.NewManager(config.DockerConfigsPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
 	a.sessionMgr.SetCodexManager(a.codexMgr)
+	a.sessionMgr.SetDockerManager(a.dockerMgr)
 }
 
 // domReady wires desktop integrations that rely on the frontend runtime being available.
@@ -95,6 +99,26 @@ func (a *App) SaveCodexConfig(req codex.SaveRequest) (codex.Config, error) {
 // DeleteCodexConfig removes Codex config metadata without deleting its home directory.
 func (a *App) DeleteCodexConfig(id string) error {
 	return a.codexMgr.Delete(id)
+}
+
+// ListDockerConfigs returns all Docker container launch configurations.
+func (a *App) ListDockerConfigs() ([]docker.Config, error) {
+	return a.dockerMgr.List()
+}
+
+// SaveDockerConfig saves Docker config metadata.
+func (a *App) SaveDockerConfig(req docker.SaveRequest) (docker.Config, error) {
+	return a.dockerMgr.Save(req)
+}
+
+// DeleteDockerConfig removes Docker config metadata.
+func (a *App) DeleteDockerConfig(id string) error {
+	return a.dockerMgr.Delete(id)
+}
+
+// ListLaunchPlugins returns metadata for all registered launch plugins.
+func (a *App) ListLaunchPlugins() []session.PluginInfo {
+	return a.sessionMgr.ListLaunchPlugins()
 }
 
 // CreateSession creates a new runtime session from a profile.

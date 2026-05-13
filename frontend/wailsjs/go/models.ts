@@ -49,6 +49,47 @@ export namespace codex {
 
 }
 
+export namespace docker {
+	
+	export class Config {
+	    id: string;
+	    name: string;
+	    image: string;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.image = source["image"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class SaveRequest {
+	    id: string;
+	    name: string;
+	    image: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.image = source["image"];
+	    }
+	}
+
+}
+
 export namespace inventory {
 	
 	export class Host {
@@ -181,6 +222,28 @@ export namespace profile {
 
 export namespace session {
 	
+	export class PluginInfo {
+	    id: string;
+	    label_key: string;
+	    hint_key: string;
+	    requires_host: boolean;
+	    requires_codex: boolean;
+	    requires_command: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PluginInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label_key = source["label_key"];
+	        this.hint_key = source["hint_key"];
+	        this.requires_host = source["requires_host"];
+	        this.requires_codex = source["requires_codex"];
+	        this.requires_command = source["requires_command"];
+	    }
+	}
 	export class SessionStatus {
 	    id: string;
 	    name: string;

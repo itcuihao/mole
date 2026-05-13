@@ -74,10 +74,12 @@ export const zh: Record<string, string> = {
   'burrows.runMode.host': 'SSH 主机',
   'burrows.runMode.custom': '命令',
   'burrows.runMode.codex': 'Codex',
+  'burrows.runMode.docker': 'Docker',
   'burrows.runMode.shellHint': '使用此配置打开一个终端窟。',
   'burrows.runMode.hostHint': '选择一个已保存的主机，Mole 会为此窟构建 SSH 命令。',
   'burrows.runMode.customHint': '窟启动时立即运行命令。',
   'burrows.runMode.codexHint': '使用隔离的 CODEX_HOME 启动 Codex。',
+  'burrows.runMode.dockerHint': '启动一个新的 Docker 容器并在其中打开 shell。',
 
   // Empty state
   'burrows.empty.title': '窟设置',
@@ -115,6 +117,9 @@ export const zh: Record<string, string> = {
   'burrows.modal.commandPlaceholder': '例如: claude\n或: npm run dev\n或: ssh -J jumphost deploy@target',
   'burrows.modal.codexConfig': 'Codex 配置',
   'burrows.modal.noCodex': '还没有 Codex 配置，请先在设置中添加。',
+  'burrows.modal.dockerConfig': 'Docker 配置',
+  'burrows.modal.noDocker': '还没有 Docker 配置，请先在设置中添加。',
+  'burrows.modal.selectDocker': '选择 Docker 配置',
   'burrows.modal.selectCodex': '选择 Codex 配置',
   'burrows.modal.launchPreview': '启动预览',
   'burrows.modal.burrowName': '窟名称',
@@ -124,6 +129,8 @@ export const zh: Record<string, string> = {
   'burrows.modal.selectCodexRequired': '创建窟前请先选择 Codex 配置',
   'burrows.modal.selectHostRequiredEdit': '保存窟前请先选择主机',
   'burrows.modal.selectCodexRequiredEdit': '保存窟前请先选择 Codex 配置',
+  'burrows.modal.selectDockerRequired': '创建窟前请先选择 Docker 配置',
+  'burrows.modal.selectDockerRequiredEdit': '保存窟前请先选择 Docker 配置',
 
   // Quick create profile
   'burrows.quickCreate.name': '配置名称',
@@ -270,7 +277,7 @@ export const zh: Record<string, string> = {
   'settings.tab.general': '通用',
   'settings.tab.terminal': '终端',
   'settings.tab.import': '导入 / 导出',
-  'settings.tab.codex': 'Codex',
+  'settings.tab.plugins': '插件',
   'settings.tab.about': '关于',
 
   // Settings > General
@@ -308,6 +315,41 @@ export const zh: Record<string, string> = {
   'settings.importExport.imported': '窟已导入。配置、主机和会话定义已替换。',
   'settings.importExport.exportUnavailable': '窟导出不可用',
   'settings.importExport.importUnavailable': '窟导入不可用',
+
+  // Settings > Plugins
+  'settings.plugins.title': '插件',
+  'settings.plugins.desc': '管理窟启动插件及其配置。',
+  'settings.plugins.builtin': '内置',
+  'settings.plugins.codexName': 'Codex',
+  'settings.plugins.codexDesc': '使用隔离的 CODEX_HOME 启动 Codex，用于 AI 辅助编码。',
+  'settings.plugins.shellName': 'Shell',
+  'settings.plugins.shellDesc': '使用此配置打开一个终端窟。',
+  'settings.plugins.hostName': 'SSH 主机',
+  'settings.plugins.hostDesc': '选择一个已保存的主机，Mole 会为此窟构建 SSH 命令。',
+  'settings.plugins.customName': '命令',
+  'settings.plugins.customDesc': '窟启动时立即运行命令。',
+  'settings.plugins.dockerName': 'Docker',
+  'settings.plugins.dockerDesc': '使用自选镜像启动一个新的 Docker 容器。',
+
+  // Settings > Docker
+  'settings.docker.title': 'Docker 配置',
+  'settings.docker.desc': '管理用于启动容器化窟的 Docker 镜像。',
+  'settings.docker.empty': '还没有 Docker 配置。创建一个以在容器中启动窟。',
+  'settings.docker.saved': 'Docker 配置已保存',
+  'settings.docker.removed': 'Docker 配置已移除。',
+  'settings.docker.confirmRemove': '移除 Docker 配置 "{{name}}"？',
+
+  // Docker config modal
+  'docker.modal.newTitle': '新建 Docker 配置',
+  'docker.modal.editTitle': '编辑 Docker 配置: {{name}}',
+  'docker.modal.name': '名称',
+  'docker.modal.namePlaceholder': '例: Ubuntu 开发环境',
+  'docker.modal.configId': '配置 ID',
+  'docker.modal.configIdHint': '只允许字母、数字、下划线和短横线',
+  'docker.modal.image': 'Docker 镜像',
+  'docker.modal.imagePlaceholder': '例: ubuntu:22.04',
+  'docker.modal.commandPreview': '命令预览',
+  'docker.modal.save': '保存',
 
   // Settings > Codex
   'settings.codex.title': 'Codex 配置',

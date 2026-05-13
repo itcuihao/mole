@@ -3,8 +3,9 @@
 import {terminal} from '../models';
 import {inventory} from '../models';
 import {codex} from '../models';
-import {profile} from '../models';
+import {docker} from '../models';
 import {session} from '../models';
+import {profile} from '../models';
 
 export function AttachSession(arg1:string):Promise<void>;
 
@@ -15,6 +16,8 @@ export function CreateSession(arg1:string,arg2:string,arg3:string):Promise<void>
 export function CreateSessionWithOptions(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string):Promise<void>;
 
 export function DeleteCodexConfig(arg1:string):Promise<void>;
+
+export function DeleteDockerConfig(arg1:string):Promise<void>;
 
 export function DeleteHost(arg1:string):Promise<void>;
 
@@ -38,6 +41,10 @@ export function KillSession(arg1:string):Promise<void>;
 
 export function ListCodexConfigs():Promise<Array<codex.Config>>;
 
+export function ListDockerConfigs():Promise<Array<docker.Config>>;
+
+export function ListLaunchPlugins():Promise<Array<session.PluginInfo>>;
+
 export function ListProfiles():Promise<Array<profile.Profile>>;
 
 export function ListSessions():Promise<Array<session.SessionStatus>>;
@@ -45,6 +52,8 @@ export function ListSessions():Promise<Array<session.SessionStatus>>;
 export function RestartSession(arg1:string):Promise<void>;
 
 export function SaveCodexConfig(arg1:codex.SaveRequest):Promise<codex.Config>;
+
+export function SaveDockerConfig(arg1:docker.SaveRequest):Promise<docker.Config>;
 
 export function SaveHost(arg1:inventory.Host):Promise<void>;
 

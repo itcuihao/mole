@@ -74,10 +74,12 @@ export const en: Record<string, string> = {
   'burrows.runMode.host': 'SSH Host',
   'burrows.runMode.custom': 'Command',
   'burrows.runMode.codex': 'Codex',
+  'burrows.runMode.docker': 'Docker',
   'burrows.runMode.shellHint': 'Open a terminal burrow with this profile.',
   'burrows.runMode.hostHint': 'Pick a saved host and Mole will build the SSH command for this burrow.',
   'burrows.runMode.customHint': 'Run a command as soon as the burrow starts.',
   'burrows.runMode.codexHint': 'Launch Codex with an isolated CODEX_HOME.',
+  'burrows.runMode.dockerHint': 'Start a new Docker container and open a shell inside it.',
 
   // Empty state
   'burrows.empty.title': 'Burrow Setup',
@@ -116,6 +118,9 @@ export const en: Record<string, string> = {
   'burrows.modal.codexConfig': 'Codex Configuration',
   'burrows.modal.noCodex': 'No Codex configurations yet. Add one in Settings first.',
   'burrows.modal.selectCodex': 'Select a Codex configuration',
+  'burrows.modal.dockerConfig': 'Docker Configuration',
+  'burrows.modal.noDocker': 'No Docker configurations yet. Add one in Settings first.',
+  'burrows.modal.selectDocker': 'Select a Docker configuration',
   'burrows.modal.launchPreview': 'Launch preview',
   'burrows.modal.burrowName': 'Burrow Name',
   'burrows.modal.namePlaceholder': 'e.g., work-claude',
@@ -124,6 +129,8 @@ export const en: Record<string, string> = {
   'burrows.modal.selectCodexRequired': 'Select a Codex configuration before creating a Codex burrow',
   'burrows.modal.selectHostRequiredEdit': 'Select a host before saving a host-based burrow',
   'burrows.modal.selectCodexRequiredEdit': 'Select a Codex configuration before saving a Codex burrow',
+  'burrows.modal.selectDockerRequired': 'Select a Docker configuration before creating a Docker burrow',
+  'burrows.modal.selectDockerRequiredEdit': 'Select a Docker configuration before saving a Docker burrow',
 
   // Quick create profile
   'burrows.quickCreate.name': 'Profile Name',
@@ -270,7 +277,7 @@ export const en: Record<string, string> = {
   'settings.tab.general': 'General',
   'settings.tab.terminal': 'Terminal',
   'settings.tab.import': 'Import / Export',
-  'settings.tab.codex': 'Codex',
+  'settings.tab.plugins': 'Plugins',
   'settings.tab.about': 'About',
 
   // Settings > General
@@ -308,6 +315,41 @@ export const en: Record<string, string> = {
   'settings.importExport.imported': 'Burrow imported. Profiles, hosts, and session definitions were replaced.',
   'settings.importExport.exportUnavailable': 'Burrow export is unavailable',
   'settings.importExport.importUnavailable': 'Burrow import is unavailable',
+
+  // Settings > Plugins
+  'settings.plugins.title': 'Plugins',
+  'settings.plugins.desc': 'Manage burrow launch plugins and their configurations.',
+  'settings.plugins.builtin': 'Built-in',
+  'settings.plugins.codexName': 'Codex',
+  'settings.plugins.codexDesc': 'Launch Codex with an isolated CODEX_HOME for AI-powered coding.',
+  'settings.plugins.shellName': 'Shell',
+  'settings.plugins.shellDesc': 'Open a terminal burrow with this profile.',
+  'settings.plugins.hostName': 'SSH Host',
+  'settings.plugins.hostDesc': 'Pick a saved host and Mole will build the SSH command for this burrow.',
+  'settings.plugins.customName': 'Command',
+  'settings.plugins.customDesc': 'Run a command as soon as the burrow starts.',
+  'settings.plugins.dockerName': 'Docker',
+  'settings.plugins.dockerDesc': 'Start a new Docker container with an image of your choice.',
+
+  // Settings > Docker
+  'settings.docker.title': 'Docker Configurations',
+  'settings.docker.desc': 'Manage Docker images for launching containerized burrows.',
+  'settings.docker.empty': 'No Docker configurations yet. Create one to launch a burrow inside a container.',
+  'settings.docker.saved': 'Docker configuration saved',
+  'settings.docker.removed': 'Docker configuration removed.',
+  'settings.docker.confirmRemove': 'Remove Docker configuration "{{name}}"?',
+
+  // Docker config modal
+  'docker.modal.newTitle': 'New Docker Configuration',
+  'docker.modal.editTitle': 'Edit Docker Configuration: {{name}}',
+  'docker.modal.name': 'Name',
+  'docker.modal.namePlaceholder': 'e.g. Ubuntu Dev',
+  'docker.modal.configId': 'Config ID',
+  'docker.modal.configIdHint': 'Only letters, digits, underscores, and dashes',
+  'docker.modal.image': 'Docker Image',
+  'docker.modal.imagePlaceholder': 'e.g. ubuntu:22.04',
+  'docker.modal.commandPreview': 'Command Preview',
+  'docker.modal.save': 'Save',
 
   // Settings > Codex
   'settings.codex.title': 'Codex Configurations',

@@ -22,6 +22,10 @@ export function DeleteCodexConfig(arg1) {
   return window['go']['main']['App']['DeleteCodexConfig'](arg1);
 }
 
+export function DeleteDockerConfig(arg1) {
+  return window['go']['main']['App']['DeleteDockerConfig'](arg1);
+}
+
 export function DeleteHost(arg1) {
   return window['go']['main']['App']['DeleteHost'](arg1);
 }
@@ -66,6 +70,14 @@ export function ListCodexConfigs() {
   return window['go']['main']['App']['ListCodexConfigs']();
 }
 
+export function ListDockerConfigs() {
+  return window['go']['main']['App']['ListDockerConfigs']();
+}
+
+export function ListLaunchPlugins() {
+  return window['go']['main']['App']['ListLaunchPlugins']();
+}
+
 export function ListProfiles() {
   return window['go']['main']['App']['ListProfiles']();
 }
@@ -80,6 +92,10 @@ export function RestartSession(arg1) {
 
 export function SaveCodexConfig(arg1) {
   return window['go']['main']['App']['SaveCodexConfig'](arg1);
+}
+
+export function SaveDockerConfig(arg1) {
+  return window['go']['main']['App']['SaveDockerConfig'](arg1);
 }
 
 export function SaveHost(arg1) {

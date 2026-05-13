@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
-import { codex, terminal } from '../../wailsjs/go/models'
+import { codex, docker, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useTranslation, type Language } from "@/i18n/context"
-import { Check, Copy, Download, KeyRound, Pencil, Plus, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Bot, Info } from "lucide-react"
+import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info } from "lucide-react"
 
-type SettingsTab = 'general' | 'terminal' | 'import' | 'codex' | 'about'
+type SettingsTab = 'general' | 'terminal' | 'import' | 'plugins' | 'about'
 
 const SETTINGS_TAB_KEYS: { key: SettingsTab; labelKey: string; icon: typeof SettingsIcon }[] = [
   { key: 'general', labelKey: 'settings.tab.general', icon: Palette },
   { key: 'terminal', labelKey: 'settings.tab.terminal', icon: TerminalIcon },
   { key: 'import', labelKey: 'settings.tab.import', icon: FileUp },
-  { key: 'codex', labelKey: 'settings.tab.codex', icon: Bot },
+  { key: 'plugins', labelKey: 'settings.tab.plugins', icon: Puzzle },
   { key: 'about', labelKey: 'settings.tab.about', icon: Info },
 ]
 
@@ -41,6 +41,10 @@ function Settings({
   const [burrowBusy, setBurrowBusy] = useState<'export' | 'import' | null>(null)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
+  const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [dockerModal, setDockerModal] = useState<{ mode: 'new' | 'edit', config?: docker.Config } | null>(null)
+  const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
+  const [selectedPluginId, setSelectedPluginId] = useState<string>('')
 
   useEffect(() => {
     loadSettings()
@@ -72,8 +76,31 @@ function Settings({
     }
   }
 
+  const loadPlugins = async () => {
+    const method = getAppMethod('ListLaunchPlugins')
+    if (typeof method !== 'function') return
+    try {
+      const infos: session.PluginInfo[] = await method()
+      setPlugins(infos || [])
+      if (infos && infos.length > 0 && !selectedPluginId) {
+        setSelectedPluginId(infos[0].id)
+      }
+    } catch { /* plugin list unavailable */ }
+  }
+
+  const loadDockerConfigs = async () => {
+    const method = getAppMethod('ListDockerConfigs')
+    if (typeof method !== 'function') return
+    try {
+      const configs = await method()
+      setDockerConfigs(configs || [])
+    } catch { /* docker unavailable */ }
+  }
+
   useEffect(() => {
     loadCodexConfigs()
+    loadDockerConfigs()
+    loadPlugins()
   }, [])
 
   const handleSave = async (terminalID: string) => {
@@ -322,72 +349,187 @@ function Settings({
         </div>
       )}
 
-      {activeTab === 'codex' && (
+      {activeTab === 'plugins' && (
         <div className="bg-card rounded-lg border border-border p-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">{t('settings.codex.title')}</h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {t('settings.codex.desc')}
-              </p>
-            </div>
-            <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
-              <Plus className="w-4 h-4" />
-              {t('common.new')}
-            </Button>
-          </div>
+          <h2 className="text-lg font-semibold text-foreground mb-1">{t('settings.plugins.title')}</h2>
+          <p className="text-sm text-muted-foreground mb-6">{t('settings.plugins.desc')}</p>
 
-          {codexConfigs.length === 0 ? (
-            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              {t('settings.codex.empty')}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {codexConfigs.map(cfg => (
-                <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{cfg.name}</span>
-                      <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                        {cfg.id}
-                      </span>
-                      <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                        {cfg.auth_exists ? t('settings.codex.authExists') : t('settings.codex.authMissing')}
-                      </span>
-                    </div>
-                    <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
-                      <Pencil className="w-3.5 h-3.5" />
-                      {t('common.edit')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      onClick={async () => {
-                        if (!window.confirm(t('settings.codex.confirmRemove', { name: cfg.name }))) return
-                        const method = getAppMethod('DeleteCodexConfig')
-                        if (typeof method !== 'function') return
-                        try {
-                          await method(cfg.id)
-                          await loadCodexConfigs()
-                          setMessage({ type: 'success', text: t('settings.codex.removed') })
-                          setTimeout(() => setMessage(null), 3000)
-                        } catch (err) {
-                          setMessage({ type: 'error', text: String(err) })
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      {t('common.remove')}
-                    </Button>
-                  </div>
-                </div>
+          <div className="flex gap-0 min-h-[320px]">
+            {/* Left sidebar — plugin list */}
+            <div className="w-48 shrink-0 border-r border-border pr-4 space-y-1">
+              {plugins.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPluginId(p.id)}
+                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                    selectedPluginId === p.id
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'
+                  }`}
+                >
+                  {t(p.label_key)}
+                </button>
               ))}
             </div>
-          )}
+
+            {/* Right detail panel */}
+            <div className="flex-1 pl-6">
+              {(() => {
+                const selected = plugins.find(p => p.id === selectedPluginId)
+                if (!selected) return <div className="text-sm text-muted-foreground">{t('settings.plugins.desc')}</div>
+
+                const isCodex = selected.id === 'codex'
+                const isDocker = selected.id === 'docker'
+                const isBuiltin = !isCodex && !isDocker
+
+                const dockerCmdPreview = (cfg: docker.Config) => {
+                  const parts = ['docker', 'run', '-it', '--rm', '-v', '${HOME}:/host/home', cfg.image]
+                  return parts.join(' ')
+                }
+
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-base font-semibold text-foreground">{t(selected.label_key)}</h3>
+                      {isBuiltin && (
+                        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {t('settings.plugins.builtin')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-6">{t(selected.hint_key)}</p>
+
+                    {isCodex && (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-foreground">{t('settings.codex.title')}</h4>
+                          <Button size="sm" onClick={() => setCodexModal({ mode: 'new' })}>
+                            <Plus className="w-4 h-4" />
+                            {t('common.new')}
+                          </Button>
+                        </div>
+
+                        {codexConfigs.length === 0 ? (
+                          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                            {t('settings.codex.empty')}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {codexConfigs.map(cfg => (
+                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                                      {cfg.id}
+                                    </span>
+                                    <span className={`rounded px-1.5 py-0.5 text-[11px] ${cfg.auth_exists ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                      {cfg.auth_exists ? t('settings.codex.authExists') : t('settings.codex.authMissing')}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.home_dir}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => setCodexModal({ mode: 'edit', config: cfg })}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    {t('common.edit')}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={async () => {
+                                      if (!window.confirm(t('settings.codex.confirmRemove', { name: cfg.name }))) return
+                                      const method = getAppMethod('DeleteCodexConfig')
+                                      if (typeof method !== 'function') return
+                                      try {
+                                        await method(cfg.id)
+                                        await loadCodexConfigs()
+                                        setMessage({ type: 'success', text: t('settings.codex.removed') })
+                                        setTimeout(() => setMessage(null), 3000)
+                                      } catch (err) {
+                                        setMessage({ type: 'error', text: String(err) })
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {t('common.remove')}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {isDocker && (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-foreground">{t('settings.docker.title')}</h4>
+                          <Button size="sm" onClick={() => setDockerModal({ mode: 'new' })}>
+                            <Plus className="w-4 h-4" />
+                            {t('common.new')}
+                          </Button>
+                        </div>
+
+                        {dockerConfigs.length === 0 ? (
+                          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                            {t('settings.docker.empty')}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {dockerConfigs.map(cfg => (
+                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                                      {cfg.id}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">{cfg.image}</div>
+                                  <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground/60">{dockerCmdPreview(cfg)}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => setDockerModal({ mode: 'edit', config: cfg })}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    {t('common.edit')}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={async () => {
+                                      if (!window.confirm(t('settings.docker.confirmRemove', { name: cfg.name }))) return
+                                      const method = getAppMethod('DeleteDockerConfig')
+                                      if (typeof method !== 'function') return
+                                      try {
+                                        await method(cfg.id)
+                                        await loadDockerConfigs()
+                                        setMessage({ type: 'success', text: t('settings.docker.removed') })
+                                        setTimeout(() => setMessage(null), 3000)
+                                      } catch (err) {
+                                        setMessage({ type: 'error', text: String(err) })
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {t('common.remove')}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
         </div>
       )}
 
@@ -484,6 +626,20 @@ function Settings({
             setCodexModal(null)
             await loadCodexConfigs()
             setMessage({ type: 'success', text: t('settings.codex.saved') })
+            setTimeout(() => setMessage(null), 3000)
+          }}
+        />
+      )}
+
+      {dockerModal && (
+        <DockerConfigModal
+          mode={dockerModal.mode}
+          config={dockerModal.config}
+          onClose={() => setDockerModal(null)}
+          onSaved={async () => {
+            setDockerModal(null)
+            await loadDockerConfigs()
+            setMessage({ type: 'success', text: t('settings.docker.saved') })
             setTimeout(() => setMessage(null), 3000)
           }}
         />
@@ -688,6 +844,129 @@ function CodexConfigModal({
               />
             </div>
           )}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+function DockerConfigModal({
+  mode,
+  config,
+  onClose,
+  onSaved,
+}: {
+  mode: 'new' | 'edit'
+  config?: docker.Config
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation()
+  const [name, setName] = useState(config?.name || '')
+  const [id, setId] = useState(config?.id || '')
+  const [image, setImage] = useState(config?.image || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const dockerCmdPreview = image.trim()
+    ? ['docker', 'run', '-it', '--rm', '-v', '${HOME}:/host/home', image.trim()].join(' ')
+    : '-'
+
+  const validateBeforeSave = () => {
+    if (!name.trim()) return t('codex.modal.nameRequired')
+    if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) {
+      return t('docker.modal.configIdHint')
+    }
+    if (!image.trim()) return 'Docker image is required'
+    return ''
+  }
+
+  const handleSave = async () => {
+    const validationError = validateBeforeSave()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    const method = getAppMethod('SaveDockerConfig')
+    if (typeof method !== 'function') {
+      setError('SaveDockerConfig is unavailable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await method({
+        id: id.trim(),
+        name: name.trim(),
+        image: image.trim(),
+      })
+      onSaved()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell
+      title={mode === 'new' ? t('docker.modal.newTitle') : t('docker.modal.editTitle', { name: config?.name || '' })}
+      description={t('settings.docker.desc')}
+      onClose={onClose}
+      contentStyle={{ maxWidth: '640px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim() || !image.trim()}>
+            {saving ? t('profiles.form.saving') : t('common.save')}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('docker.modal.name')}</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('docker.modal.namePlaceholder')}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('docker.modal.configId')}</label>
+            <input
+              value={id}
+              onChange={e => setId(e.target.value)}
+              placeholder="ubuntu-dev"
+              disabled={mode === 'edit'}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">{t('docker.modal.configIdHint')}</p>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-muted-foreground mb-1">{t('docker.modal.image')}</label>
+          <input
+            value={image}
+            onChange={e => setImage(e.target.value)}
+            placeholder={t('docker.modal.imagePlaceholder')}
+            className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+          />
+        </div>
+
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">{t('docker.modal.commandPreview')}</div>
+          <div className="font-mono text-xs text-foreground break-all">{dockerCmdPreview}</div>
         </div>
       </div>
     </ModalShell>

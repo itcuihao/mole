@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
-import { codex, session, profile, terminal, inventory } from '../../wailsjs/go/models'
+import { codex, docker, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
-type RunMode = 'shell' | 'host' | 'custom' | 'codex'
 type SessionSortMode = 'most_used' | 'name' | 'profile'
 type SessionRecord = session.SessionStatus & {
   run_mode?: string
@@ -24,25 +23,11 @@ type SessionRecord = session.SessionStatus & {
 
 type SessionDraft = {
   profileID: string
-  runMode: RunMode
+  runMode: string
   hostID: string
   command: string
   sessionName: string
   sourceName?: string
-}
-
-const RUN_MODE_LABEL_KEYS: Record<RunMode, string> = {
-  shell: 'burrows.runMode.shell',
-  host: 'burrows.runMode.host',
-  custom: 'burrows.runMode.custom',
-  codex: 'burrows.runMode.codex',
-}
-
-const RUN_MODE_HINT_KEYS: Record<RunMode, string> = {
-  shell: 'burrows.runMode.shellHint',
-  host: 'burrows.runMode.hostHint',
-  custom: 'burrows.runMode.customHint',
-  codex: 'burrows.runMode.codexHint',
 }
 
 const SESSION_SORT_LABEL_KEYS: Record<SessionSortMode, string> = {
@@ -56,8 +41,11 @@ const SESSION_MENU_LABEL_CLASS = 'border-b border-border/60 bg-muted/40 px-3 py-
 const SESSION_MENU_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground'
 const SESSION_MENU_DESTRUCTIVE_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10'
 
-const normalizeRunMode = (value?: string, hasCommand = false): RunMode => {
-  if (value === 'shell' || value === 'host' || value === 'custom' || value === 'codex') {
+const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker'])
+
+const normalizeRunMode = (value?: string, hasCommand = false, availableModes?: Set<string>): string => {
+  const modes = availableModes && availableModes.size > 0 ? availableModes : KNOWN_RUN_MODES
+  if (value && modes.has(value)) {
     return value
   }
   return hasCommand ? 'custom' : 'shell'
@@ -221,13 +209,15 @@ function CommandText({
 
 function RunModeOption({
   mode,
+  labelKey,
   activeMode,
   onSelect,
   disabled = false,
 }: {
-  mode: RunMode
-  activeMode: RunMode
-  onSelect: (mode: RunMode) => void
+  mode: string
+  labelKey: string
+  activeMode: string
+  onSelect: (mode: string) => void
   disabled?: boolean
 }) {
   const { t } = useTranslation()
@@ -247,7 +237,7 @@ function RunModeOption({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-foreground">
-          {t(RUN_MODE_LABEL_KEYS[mode])}
+          {t(labelKey)}
         </span>
         <span
           className={`inline-flex h-5 w-5 items-center justify-center rounded-full border transition-colors ${
@@ -272,7 +262,7 @@ const createSessionWithOptions = (
   profileID: string,
   name: string,
   command: string,
-  runMode: RunMode,
+  runMode: string,
   hostID: string,
   codexConfigID: string,
 ) => {
@@ -287,7 +277,7 @@ const updateSessionWithOptions = (
   sessionID: string,
   profileID: string,
   command: string,
-  runMode: RunMode,
+  runMode: string,
   hostID: string,
   codexConfigID: string,
 ) => {
@@ -996,9 +986,11 @@ function NewSessionModal({
   const [selectedProfile, setSelectedProfile] = useState(initialDraft?.profileID || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
+  const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState(initialDraft?.hostID || '')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState('')
-  const [runMode, setRunMode] = useState<RunMode>(initialDraft?.runMode || 'shell')
+  const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
   const [creating, setCreating] = useState(false)
@@ -1011,7 +1003,7 @@ function NewSessionModal({
       if (saved) {
         const draft = JSON.parse(saved)
         if (draft.profileID) setSelectedProfile(draft.profileID)
-        if (draft.runMode) setRunMode(draft.runMode as RunMode)
+        if (draft.runMode) setRunMode(draft.runMode)
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.command) setCommand(draft.command)
         if (draft.sessionName) setSessionName(draft.sessionName)
@@ -1044,6 +1036,20 @@ function NewSessionModal({
           })
           .catch(() => {})
       }
+
+      const listDockerConfigs = getAppMethod('ListDockerConfigs')
+      if (typeof listDockerConfigs === 'function') {
+        listDockerConfigs()
+          .then((configs: docker.Config[]) => setDockerConfigs(configs || []))
+          .catch(() => {})
+      }
+
+      const listLaunchPlugins = getAppMethod('ListLaunchPlugins')
+      if (typeof listLaunchPlugins === 'function') {
+        listLaunchPlugins()
+          .then((infos: session.PluginInfo[]) => setPlugins(infos || []))
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -1064,6 +1070,10 @@ function NewSessionModal({
   const sortedCodexConfigs = useMemo(() => (
     [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [codexConfigs])
+
+  const sortedDockerConfigs = useMemo(() => (
+    [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [dockerConfigs])
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
@@ -1100,7 +1110,15 @@ function NewSessionModal({
         setSelectedCodexConfigId(sortedCodexConfigs[0].id)
       }
     }
-  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs])
+
+    if (runMode === 'docker') {
+      setSelectedHostId('')
+      setCommand('')
+      if (!selectedCodexConfigId && sortedDockerConfigs.length > 0) {
+        setSelectedCodexConfigId(sortedDockerConfigs[0].id)
+      }
+    }
+  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs])
 
   const isDuplicating = Boolean(initialDraft)
   const modalTitle = isDuplicating
@@ -1123,6 +1141,10 @@ function NewSessionModal({
       setError(t('burrows.modal.selectCodexRequired'))
       return
     }
+    if (runMode === 'docker' && !selectedCodexConfigId) {
+      setError(t('burrows.modal.selectDockerRequired'))
+      return
+    }
     setCreating(true)
     setError('')
     try {
@@ -1132,7 +1154,7 @@ function NewSessionModal({
         command.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
-        runMode === 'codex' ? selectedCodexConfigId : '',
+        (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
       )
       onCreated()
     } catch (err) {
@@ -1243,13 +1265,23 @@ function NewSessionModal({
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
             <div className="grid gap-2 sm:grid-cols-4">
-              <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
-              <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
-              <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
-              <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
+              {plugins.filter(p => {
+                if (p.requires_host && inv.hosts.length === 0) return false
+                if (p.id === 'codex' && codexConfigs.length === 0) return false
+                if (p.id === 'docker' && dockerConfigs.length === 0) return false
+                return true
+              }).map(p => (
+                <RunModeOption
+                  key={p.id}
+                  mode={p.id}
+                  labelKey={p.label_key}
+                  activeMode={runMode}
+                  onSelect={setRunMode}
+                />
+              ))}
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {t(RUN_MODE_HINT_KEYS[runMode])}
+              {(() => { const p = plugins.find(pl => pl.id === runMode); return p ? t(p.hint_key) : '' })()}
             </div>
           </div>
 
@@ -1383,6 +1415,40 @@ function NewSessionModal({
             </div>
           )}
 
+          {runMode === 'docker' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.dockerConfig')}</label>
+              {dockerConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noDocker')}</p>
+              ) : (
+                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={t('burrows.modal.selectDocker')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedDockerConfigs.map(cfg => (
+                      <SelectItem key={cfg.id} value={cfg.id}>
+                        {cfg.name || cfg.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCodexConfigId && (() => {
+                const selectedDockerCfg = dockerConfigs.find(c => c.id === selectedCodexConfigId)
+                return selectedDockerCfg ? (
+                  <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                    <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                      <Box className="h-3.5 w-3.5" />
+                      {t('burrows.modal.launchPreview')}
+                    </div>
+                    <div className="font-mono">{['docker', 'run', '-it', '--rm', '-v', '${HOME}:/host/home', selectedDockerCfg.image].join(' ')}</div>
+                  </div>
+                ) : null
+              })()}
+            </div>
+          )}
+
           <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
             <input
@@ -1415,9 +1481,11 @@ function EditSessionModal({
   const [command, setCommand] = useState(initialSession.command || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
+  const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialSession.codex_config_id || '')
-  const [runMode, setRunMode] = useState<RunMode>(
+  const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
   const [updating, setUpdating] = useState(false)
@@ -1443,6 +1511,20 @@ function EditSessionModal({
           .then((configs: codex.Config[]) => setCodexConfigs(configs || []))
           .catch(() => {})
       }
+
+      const listLaunchPlugins = getAppMethod('ListLaunchPlugins')
+      if (typeof listLaunchPlugins === 'function') {
+        listLaunchPlugins()
+          .then((infos: session.PluginInfo[]) => setPlugins(infos || []))
+          .catch(() => {})
+      }
+
+      const listDockerConfigs = getAppMethod('ListDockerConfigs')
+      if (typeof listDockerConfigs === 'function') {
+        listDockerConfigs()
+          .then((configs: docker.Config[]) => setDockerConfigs(configs || []))
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -1463,6 +1545,10 @@ function EditSessionModal({
   const sortedCodexConfigs = useMemo(() => (
     [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [codexConfigs])
+
+  const sortedDockerConfigs = useMemo(() => (
+    [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [dockerConfigs])
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
@@ -1537,7 +1623,15 @@ function EditSessionModal({
         setSelectedCodexConfigId(sortedCodexConfigs[0].id)
       }
     }
-  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs])
+
+    if (runMode === 'docker') {
+      setSelectedHostId('')
+      setCommand('')
+      if (!selectedCodexConfigId && sortedDockerConfigs.length > 0) {
+        setSelectedCodexConfigId(sortedDockerConfigs[0].id)
+      }
+    }
+  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs])
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
@@ -1549,6 +1643,10 @@ function EditSessionModal({
       setError(t('burrows.modal.selectCodexRequiredEdit'))
       return
     }
+    if (runMode === 'docker' && !selectedCodexConfigId) {
+      setError(t('burrows.modal.selectDockerRequiredEdit'))
+      return
+    }
     setUpdating(true)
     setError('')
     try {
@@ -1558,7 +1656,7 @@ function EditSessionModal({
         command.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
-        runMode === 'codex' ? selectedCodexConfigId : '',
+        (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
       )
       onUpdated()
     } catch (err) {
@@ -1616,13 +1714,23 @@ function EditSessionModal({
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
             <div className="grid gap-2 sm:grid-cols-4">
-              <RunModeOption mode="shell" activeMode={runMode} onSelect={setRunMode} />
-              <RunModeOption mode="host" activeMode={runMode} onSelect={setRunMode} disabled={inv.hosts.length === 0} />
-              <RunModeOption mode="custom" activeMode={runMode} onSelect={setRunMode} />
-              <RunModeOption mode="codex" activeMode={runMode} onSelect={setRunMode} disabled={codexConfigs.length === 0} />
+              {plugins.filter(p => {
+                if (p.requires_host && inv.hosts.length === 0) return false
+                if (p.id === 'codex' && codexConfigs.length === 0) return false
+                if (p.id === 'docker' && dockerConfigs.length === 0) return false
+                return true
+              }).map(p => (
+                <RunModeOption
+                  key={p.id}
+                  mode={p.id}
+                  labelKey={p.label_key}
+                  activeMode={runMode}
+                  onSelect={setRunMode}
+                />
+              ))}
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {t(RUN_MODE_HINT_KEYS[runMode])}
+              {(() => { const p = plugins.find(pl => pl.id === runMode); return p ? t(p.hint_key) : '' })()}
             </div>
           </div>
 
@@ -1703,6 +1811,40 @@ function EditSessionModal({
                   <div className="font-mono">codex</div>
                 </div>
               )}
+            </div>
+          )}
+
+          {runMode === 'docker' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.dockerConfig')}</label>
+              {dockerConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noDocker')}</p>
+              ) : (
+                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={t('burrows.modal.selectDocker')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sortedDockerConfigs.map(cfg => (
+                      <SelectItem key={cfg.id} value={cfg.id}>
+                        {cfg.name || cfg.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {selectedCodexConfigId && (() => {
+                const selectedDockerCfg = dockerConfigs.find(c => c.id === selectedCodexConfigId)
+                return selectedDockerCfg ? (
+                  <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                    <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                      <Box className="h-3.5 w-3.5" />
+                      {t('burrows.modal.launchPreview')}
+                    </div>
+                    <div className="font-mono">{['docker', 'run', '-it', '--rm', '-v', '${HOME}:/host/home', selectedDockerCfg.image].join(' ')}</div>
+                  </div>
+                ) : null
+              })()}
             </div>
           )}
       </div>

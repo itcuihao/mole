@@ -51,6 +51,11 @@ func CodexHomeRoot() string {
 	return filepath.Join(Dir(), "ai", "codex")
 }
 
+// DockerConfigsPath returns the path to docker_configs.json.
+func DockerConfigsPath() string {
+	return filepath.Join(Dir(), "docker_configs.json")
+}
+
 // EnsureDir creates the config directory if it doesn't exist.
 func EnsureDir() error {
 	return os.MkdirAll(Dir(), 0755)

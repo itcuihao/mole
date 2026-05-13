@@ -8,6 +8,7 @@ import (
 
 	"mole/internal/codex"
 	"mole/internal/config"
+	"mole/internal/docker"
 	"mole/internal/inventory"
 	"mole/internal/profile"
 	"mole/internal/terminal"
@@ -25,6 +26,7 @@ type Manager struct {
 	codexMgr         *codex.Manager
 	backends         map[string]SessionBackend
 	defaultBackendID string
+	plugins          *pluginRegistry
 }
 
 // NewManager creates a new session Manager.
@@ -51,18 +53,27 @@ func NewManagerWithBackends(storePath string, profileMgr *profile.Manager, invMg
 		registry[backend.ID()] = backend
 	}
 
-	return &Manager{
+	m := &Manager{
 		store:            NewStore(storePath),
 		profileMgr:       profileMgr,
 		invMgr:           invMgr,
 		backends:         registry,
 		defaultBackendID: defaultBackend.ID(),
+		plugins:          newPluginRegistry(),
 	}
+	m.registerBuiltinPlugins(invMgr)
+	return m
 }
 
 // SetCodexManager wires optional Codex home preparation for Codex sessions.
 func (m *Manager) SetCodexManager(codexMgr *codex.Manager) {
 	m.codexMgr = codexMgr
+	m.plugins.register(NewCodexPlugin(codexMgr))
+}
+
+// SetDockerManager wires the Docker config manager and registers the docker plugin.
+func (m *Manager) SetDockerManager(dockerMgr *docker.Manager) {
+	m.plugins.register(NewDockerPlugin(dockerMgr))
 }
 
 // Create creates a new runtime session with the environment from a profile.
@@ -467,62 +478,31 @@ func (m *Manager) resolveLaunchConfig(command, runMode, hostID, codexConfigID st
 	trimmedCodexConfigID := strings.TrimSpace(codexConfigID)
 
 	if normalizedRunMode == "" {
-		switch {
-		case trimmedCodexConfigID != "":
-			normalizedRunMode = RunModeCodex
-		case trimmedHostID != "":
-			normalizedRunMode = RunModeHost
-		case trimmedCommand != "":
-			normalizedRunMode = RunModeCustom
-		default:
-			normalizedRunMode = RunModeShell
-		}
+		normalizedRunMode = m.inferRunMode(trimmedCommand, trimmedHostID, trimmedCodexConfigID)
 	}
 
-	switch normalizedRunMode {
-	case RunModeShell:
-		return "", RunModeShell, "", "", nil
-	case RunModeCustom:
-		return trimmedCommand, RunModeCustom, "", "", nil
-	case RunModeHost:
-		if trimmedHostID == "" {
-			return "", "", "", "", fmt.Errorf("host mode requires a selected host")
-		}
-		if m.invMgr == nil {
-			return "", "", "", "", fmt.Errorf("host inventory is unavailable")
-		}
-		hostCommand, err := m.invMgr.BuildSSHCommand(trimmedHostID)
-		if err != nil {
-			return "", "", "", "", fmt.Errorf("failed to resolve host command: %w", err)
-		}
-		return hostCommand, RunModeHost, trimmedHostID, "", nil
-	case RunModeCodex:
-		if trimmedCodexConfigID == "" {
-			return "", "", "", "", fmt.Errorf("codex mode requires a selected Codex config")
-		}
-		return "codex", RunModeCodex, "", trimmedCodexConfigID, nil
-	default:
+	plugin, ok := m.plugins.get(normalizedRunMode)
+	if !ok {
 		return "", "", "", "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
 	}
+
+	cfg, err := plugin.Resolve(trimmedCommand, trimmedHostID, trimmedCodexConfigID)
+	if err != nil {
+		return "", "", "", "", err
+	}
+
+	return cfg.Command, normalizedRunMode, cfg.HostID, cfg.CodexConfigID, nil
 }
 
 func (m *Manager) commandForSession(sess Session) (string, error) {
-	if sess.RunMode == RunModeCodex {
-		return "codex", nil
+	if sess.RunMode == "" {
+		return strings.TrimSpace(sess.Command), nil
 	}
-
-	if sess.RunMode == RunModeHost && strings.TrimSpace(sess.HostID) != "" {
-		if m.invMgr == nil {
-			return "", fmt.Errorf("host inventory is unavailable")
-		}
-		command, err := m.invMgr.BuildSSHCommand(strings.TrimSpace(sess.HostID))
-		if err != nil {
-			return "", fmt.Errorf("failed to resolve host command: %w", err)
-		}
-		return command, nil
+	plugin, ok := m.plugins.get(sess.RunMode)
+	if !ok {
+		return strings.TrimSpace(sess.Command), nil
 	}
-
-	return strings.TrimSpace(sess.Command), nil
+	return plugin.Command(sess.Command, sess.HostID)
 }
 
 func (m *Manager) environmentForSession(sess Session) (map[string]string, error) {
@@ -544,25 +524,11 @@ func (m *Manager) environmentForSession(sess Session) (map[string]string, error)
 }
 
 func (m *Manager) prepareLaunchEnv(runMode, codexConfigID string, env map[string]string, command string) (map[string]string, string, error) {
-	if runMode != RunModeCodex {
+	plugin, ok := m.plugins.get(runMode)
+	if !ok {
 		return env, command, nil
 	}
-	if m.codexMgr == nil {
-		return nil, "", fmt.Errorf("Codex configuration manager is unavailable")
-	}
-
-	cfg, err := m.codexMgr.EnsureHome(strings.TrimSpace(codexConfigID))
-	if err != nil {
-		return nil, "", err
-	}
-
-	nextEnv := make(map[string]string, len(env)+1)
-	for key, value := range env {
-		nextEnv[key] = value
-	}
-	nextEnv["CODEX_HOME"] = cfg.HomeDir
-
-	return nextEnv, "codex", nil
+	return plugin.PrepareEnv(codexConfigID, env, command)
 }
 
 // ExportBurrowSessions returns the portable static session configuration set.
@@ -635,41 +601,27 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		hostID := strings.TrimSpace(cfg.HostID)
 		codexConfigID := strings.TrimSpace(cfg.CodexConfigID)
 
-		switch {
-		case runMode == "" && codexConfigID != "":
-			runMode = RunModeCodex
-		case runMode == "" && hostID != "":
-			runMode = RunModeHost
-		case runMode == "" && command != "":
-			runMode = RunModeCustom
-		case runMode == "":
-			runMode = RunModeShell
+		if runMode == "" {
+			runMode = m.inferRunMode(command, hostID, codexConfigID)
 		}
 
-		switch runMode {
-		case RunModeShell:
-			command = ""
-			hostID = ""
-			codexConfigID = ""
-		case RunModeCustom:
-			hostID = ""
-			codexConfigID = ""
-		case RunModeHost:
-			codexConfigID = ""
-			if hostID == "" {
-				return nil, fmt.Errorf("session %q uses host mode but has no host id", name)
-			}
+		plugin, ok := m.plugins.get(runMode)
+		if !ok {
+			return nil, fmt.Errorf("session %q uses unsupported run mode %q", name, runMode)
+		}
+
+		launchCfg, err := plugin.Validate(command, hostID, codexConfigID)
+		if err != nil {
+			return nil, fmt.Errorf("session %q: %w", name, err)
+		}
+		command = launchCfg.Command
+		hostID = launchCfg.HostID
+		codexConfigID = launchCfg.CodexConfigID
+
+		if runMode == RunModeHost && hostID != "" {
 			if _, exists := hostIDs[hostID]; !exists {
 				return nil, fmt.Errorf("session %q references unknown host %q", name, hostID)
 			}
-		case RunModeCodex:
-			command = "codex"
-			hostID = ""
-			if codexConfigID == "" {
-				return nil, fmt.Errorf("session %q uses codex mode but has no Codex config id", name)
-			}
-		default:
-			return nil, fmt.Errorf("session %q uses unsupported run mode %q", name, runMode)
 		}
 
 		backendID := strings.TrimSpace(cfg.BackendID)
@@ -731,4 +683,34 @@ func (m *Manager) StopTrackedSessions() error {
 // ReplaceAllImported overwrites the stored session set with prepared imported sessions.
 func (m *Manager) ReplaceAllImported(sessions []Session) error {
 	return m.store.ReplaceAll(sessions)
+}
+
+// RegisterPlugin registers a launch plugin for a run mode.
+func (m *Manager) RegisterPlugin(p LaunchPlugin) {
+	m.plugins.register(p)
+}
+
+// ListLaunchPlugins returns metadata for all registered launch plugins.
+func (m *Manager) ListLaunchPlugins() []PluginInfo {
+	return m.plugins.listInfo()
+}
+
+func (m *Manager) registerBuiltinPlugins(invMgr *inventory.Manager) {
+	m.plugins.register(NewShellPlugin())
+	m.plugins.register(NewCustomPlugin())
+	m.plugins.register(NewHostPlugin(invMgr))
+	m.plugins.register(NewCodexPlugin(m.codexMgr))
+}
+
+func (m *Manager) inferRunMode(command, hostID, codexConfigID string) string {
+	switch {
+	case codexConfigID != "":
+		return RunModeCodex
+	case hostID != "":
+		return RunModeHost
+	case command != "":
+		return RunModeCustom
+	default:
+		return RunModeShell
+	}
 }
