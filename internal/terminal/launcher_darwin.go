@@ -67,6 +67,15 @@ func closeGroupedWindowOnPlatform(terminal TerminalApp, group string) error {
 	}
 }
 
+func focusGroupedWindowOnPlatform(terminal TerminalApp, group string) (bool, error) {
+	switch terminal.ID {
+	case TerminalITerm2:
+		return focusITerm2GroupedWindow(group)
+	default:
+		return false, ErrFocusGroupedWindowUnsupported
+	}
+}
+
 func runOsaScriptWithArg(scriptLines []string, arg string) ([]byte, error) {
 	args := make([]string, 0, len(scriptLines)*2+1)
 	for _, line := range scriptLines {
@@ -255,6 +264,64 @@ func closeITerm2GroupedWindow(group string) error {
 		clearITermGroupWindowID(group)
 		return nil
 	}
+}
+
+func focusITerm2GroupedWindow(group string) (bool, error) {
+	windowName := "Mole: " + group
+	hintedWindowID := getITermGroupWindowID(group)
+	script := fmt.Sprintf(`
+		set windowName to "%s"
+		set hintedWindowID to %d
+		set targetWindow to missing value
+		tell application "iTerm"
+			activate
+			if hintedWindowID > 0 then
+				try
+					repeat with w in windows
+						if id of w is hintedWindowID then
+							set targetWindow to w
+							exit repeat
+						end if
+					end repeat
+				end try
+			end if
+			if targetWindow is missing value then
+				repeat with w in windows
+					try
+						if name of w is windowName then
+							set targetWindow to w
+							exit repeat
+						end if
+					end try
+				end repeat
+			end if
+			if targetWindow is missing value then
+				return "notfound"
+			end if
+			select targetWindow
+			return id of targetWindow
+		end tell
+	`, escapeAppleScript(windowName), hintedWindowID)
+
+	output, err := runOsaScript([]string{script})
+	if err != nil {
+		return false, fmt.Errorf("iTerm2 focus window failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	result := strings.TrimSpace(string(output))
+	if result == "notfound" || result == "" {
+		clearITermGroupWindowID(group)
+		return false, nil
+	}
+
+	windowID, parseErr := strconv.Atoi(result)
+	if parseErr != nil {
+		log.Printf("⚠️ iTerm2 focus result parse failed (group=%q, output=%q): %v", group, result, parseErr)
+		return true, nil
+	}
+
+	setITermGroupWindowID(group, windowID)
+	return true, nil
 }
 
 func launchGhostty(spec LaunchSpec) error {

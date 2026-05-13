@@ -38,3 +38,7 @@ func startTerminalProcess(path string, args ...string) error {
 func closeGroupedWindowOnPlatform(_ TerminalApp, _ string) error {
 	return ErrCloseGroupedWindowUnsupported
 }
+
+func focusGroupedWindowOnPlatform(_ TerminalApp, _ string) (bool, error) {
+	return false, ErrFocusGroupedWindowUnsupported
+}

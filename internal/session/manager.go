@@ -419,6 +419,14 @@ func (m *Manager) Attach(sessionID string) error {
 		}
 	}
 
+	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
+	if focusErr != nil {
+		return focusErr
+	}
+	if focused {
+		return nil
+	}
+
 	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
 	if err != nil {
 		return err
@@ -438,6 +446,14 @@ func (m *Manager) Attach(sessionID string) error {
 
 // AttachWithTerminal opens a specific terminal and attaches to a runtime session.
 func (m *Manager) AttachWithTerminal(sessionID, terminalID string) error {
+	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
+	if focusErr != nil {
+		return focusErr
+	}
+	if focused {
+		return nil
+	}
+
 	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
 	if err != nil {
 		return err
@@ -453,6 +469,69 @@ func (m *Manager) AttachWithTerminal(sessionID, terminalID string) error {
 		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
 	}
 	return nil
+}
+
+func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, error) {
+	if m.store == nil {
+		return false, fmt.Errorf("session manager is not fully initialized")
+	}
+	if strings.TrimSpace(terminalID) == "" {
+		return false, nil
+	}
+
+	sess, err := m.store.Get(sessionID)
+	if err != nil {
+		return false, fmt.Errorf("session not found: %w", err)
+	}
+	sess.NormalizeRuntimeMetadata()
+
+	group := strings.TrimSpace(sess.Den)
+	if group == "" {
+		return false, nil
+	}
+
+	backend, err := m.backendForSession(sess)
+	if err != nil {
+		return false, err
+	}
+
+	runtimeName := sess.RuntimeName()
+	if !backend.IsAlive(runtimeName) {
+		return false, nil
+	}
+
+	liveSessions, err := backend.List()
+	if err != nil {
+		fmt.Printf("⚠️ failed to list runtime sessions for focus decision [%s]: %v\n", runtimeName, err)
+		return false, nil
+	}
+
+	isAttached := false
+	for _, info := range liveSessions {
+		if info.Name == runtimeName {
+			isAttached = info.Attached > 0
+			break
+		}
+	}
+	if !isAttached {
+		return false, nil
+	}
+
+	focused, err := terminal.FocusGroupedWindow(terminalID, group)
+	if err != nil {
+		if errors.Is(err, terminal.ErrFocusGroupedWindowUnsupported) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !focused {
+		return false, nil
+	}
+
+	if touchErr := m.store.RecordOpen(sess.ID); touchErr != nil {
+		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
+	}
+	return true, nil
 }
 
 func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.LaunchSpec, error) {

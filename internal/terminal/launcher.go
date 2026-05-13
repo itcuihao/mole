@@ -8,6 +8,7 @@ import (
 )
 
 var ErrCloseGroupedWindowUnsupported = errors.New("closing grouped windows is not supported for this terminal")
+var ErrFocusGroupedWindowUnsupported = errors.New("focusing grouped windows is not supported for this terminal")
 
 // Launch opens the specified terminal and runs the provided command.
 func Launch(terminalID string, spec LaunchSpec) error {
@@ -62,4 +63,24 @@ func CloseGroupedWindow(terminalID, group string) error {
 	}
 
 	return closeGroupedWindowOnPlatform(*terminal, group)
+}
+
+// FocusGroupedWindow tries to bring an existing grouped window to front.
+// It returns (true, nil) when a window is found and focused.
+// It returns (false, nil) when no matching window exists.
+func FocusGroupedWindow(terminalID, group string) (bool, error) {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return false, fmt.Errorf("group is empty")
+	}
+
+	terminal := FindByID(terminalID)
+	if terminal == nil {
+		return false, fmt.Errorf("unknown terminal: %s", terminalID)
+	}
+	if !terminal.IsInstalled {
+		return false, fmt.Errorf("terminal not installed: %s", terminal.Name)
+	}
+
+	return focusGroupedWindowOnPlatform(*terminal, group)
 }
