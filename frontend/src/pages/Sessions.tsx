@@ -570,7 +570,7 @@ function Sessions({
     <div className="min-w-0 h-full flex flex-col">
       <div className="shrink-0">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-xl font-semibold text-foreground">{t('burrows.title')}</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {sessions.length > 0 && (
               <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
@@ -1109,6 +1109,7 @@ function NewSessionModal({
   const [den, setDen] = useState(initialDraft?.den || '')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [denTouched, setDenTouched] = useState(Boolean(initialDraft?.den))
 
   // Restore draft from localStorage when modal opens
   useEffect(() => {
@@ -1121,11 +1122,22 @@ function NewSessionModal({
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.command) setCommand(draft.command)
         if (draft.sessionName) setSessionName(draft.sessionName)
-        if (draft.den) setDen(draft.den)
+        if (draft.den) {
+          setDen(draft.den)
+          setDenTouched(true)
+        }
         localStorage.removeItem('mole:newSessionDraft')
       }
     } catch {}
   }, [])
+
+  useEffect(() => {
+    // Den intentionally has no profile-based default. Keep it empty unless the
+    // user (or restored draft) explicitly provided a value.
+    if (!denTouched && !initialDraft?.den && den !== '') {
+      setDen('')
+    }
+  }, [selectedProfile, denTouched, initialDraft?.den, den])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -1583,7 +1595,10 @@ function NewSessionModal({
             <input
               type="text"
               value={den}
-              onChange={e => setDen(e.target.value)}
+              onChange={e => {
+                setDenTouched(true)
+                setDen(e.target.value)
+              }}
               placeholder={t('burrows.modal.denPlaceholder')}
               className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
             />

@@ -52,7 +52,7 @@ func writeAttachEnvScript(session string, env map[string]string) (string, error)
 }
 
 func buildTmuxAttachShellCommand(tmuxPath, session, envScriptPath string) string {
-	attachCommand := fmt.Sprintf("%s; exec %s attach -t %s", buildTmuxMouseEnableShellCommand(tmuxPath, session), shellQuote(tmuxPath), shellQuote(session))
+	attachCommand := fmt.Sprintf("%s; exec %s attach -d -t %s", buildTmuxMouseEnableShellCommand(tmuxPath, session), shellQuote(tmuxPath), shellQuote(session))
 	if envScriptPath == "" {
 		return attachCommand
 	}
@@ -107,7 +107,7 @@ func buildWslTmuxAttachShellCommand(session string, env map[string]string) strin
 		parts = append(parts, exports)
 	}
 	parts = append(parts, buildWslTmuxMouseEnableShellCommand(session))
-	parts = append(parts, fmt.Sprintf("exec tmux attach -t %s", shellQuote(session)))
+	parts = append(parts, fmt.Sprintf("exec tmux attach -d -t %s", shellQuote(session)))
 	return strings.Join(parts, "; ")
 }
 
