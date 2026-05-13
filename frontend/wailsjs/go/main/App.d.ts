@@ -25,6 +25,8 @@ export function DeleteHostGroup(arg1:string):Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
 
+export function DetachSession(arg1:string):Promise<void>;
+
 export function ExportBurrow():Promise<string>;
 
 export function GetCodexConfigToml(arg1:string):Promise<string>;

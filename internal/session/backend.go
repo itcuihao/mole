@@ -24,6 +24,7 @@ type SessionBackend interface {
 	Create(name string, env map[string]string, command string) error
 	List() ([]RuntimeSessionInfo, error)
 	Kill(name string) error
+	Detach(name string) error
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
 	BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error)

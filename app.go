@@ -161,6 +161,11 @@ func (a *App) KillSession(sessionID string) error {
 	return a.sessionMgr.Kill(sessionID)
 }
 
+// DetachSession disconnects attached terminal clients while keeping the session alive.
+func (a *App) DetachSession(sessionID string) error {
+	return a.sessionMgr.Detach(sessionID)
+}
+
 // RestartSession recreates a dead runtime session using its stored configuration.
 func (a *App) RestartSession(sessionID string) error {
 	return a.sessionMgr.Restart(sessionID)

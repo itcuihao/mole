@@ -43,6 +43,10 @@ func (WslTmuxBackend) Kill(name string) error {
 	return KillWslTmuxSession(name)
 }
 
+func (WslTmuxBackend) Detach(name string) error {
+	return DetachWslTmuxSessionClients(name)
+}
+
 func (WslTmuxBackend) IsAlive(name string) bool {
 	return IsWslTmuxSessionAlive(name)
 }

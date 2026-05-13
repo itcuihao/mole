@@ -6,8 +6,36 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strconv"
 	"strings"
+	"sync"
 )
+
+var (
+	iTermGroupWindowMu    sync.Mutex
+	iTermGroupWindowByDen = make(map[string]int)
+)
+
+func getITermGroupWindowID(group string) int {
+	iTermGroupWindowMu.Lock()
+	defer iTermGroupWindowMu.Unlock()
+	return iTermGroupWindowByDen[group]
+}
+
+func setITermGroupWindowID(group string, windowID int) {
+	if group == "" || windowID <= 0 {
+		return
+	}
+	iTermGroupWindowMu.Lock()
+	iTermGroupWindowByDen[group] = windowID
+	iTermGroupWindowMu.Unlock()
+}
+
+func clearITermGroupWindowID(group string) {
+	iTermGroupWindowMu.Lock()
+	delete(iTermGroupWindowByDen, group)
+	iTermGroupWindowMu.Unlock()
+}
 
 func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	switch terminal.ID {
@@ -27,6 +55,15 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 		return launchOpenApp("kitty", spec.ExecArgs...)
 	default:
 		return launchGeneric(terminal.AppPath, spec.CommandText)
+	}
+}
+
+func closeGroupedWindowOnPlatform(terminal TerminalApp, group string) error {
+	switch terminal.ID {
+	case TerminalITerm2:
+		return closeITerm2GroupedWindow(group)
+	default:
+		return ErrCloseGroupedWindowUnsupported
 	}
 }
 
@@ -102,37 +139,122 @@ func launchITerm2(spec LaunchSpec) error {
 
 	// Den set — find or create window, then create tab
 	windowName := "Mole: " + group
+	hintedWindowID := getITermGroupWindowID(group)
 	script := fmt.Sprintf(`
 		set windowName to "%s"
 		set commandText to "%s"
+		set hintedWindowID to %d
 		set targetWindow to missing value
+		set createdWindow to false
 		tell application "iTerm"
 			activate
-			repeat with w in windows
-				if name of w is windowName then
-					set targetWindow to w
-					exit repeat
-				end if
-			end repeat
+			if hintedWindowID > 0 then
+				try
+					repeat with w in windows
+						if id of w is hintedWindowID then
+							set targetWindow to w
+							exit repeat
+						end if
+					end repeat
+				end try
+			end if
+			if targetWindow is missing value then
+				repeat with w in windows
+					try
+						if name of w is windowName then
+							set targetWindow to w
+							exit repeat
+						end if
+					end try
+				end repeat
+			end if
 			if targetWindow is missing value then
 				set targetWindow to (create window with default profile)
-				set name of targetWindow to windowName
+				set createdWindow to true
+				-- Some iTerm2 versions/configs reject writing window name (-10006).
+				-- Title customization is best-effort and must not block attaching.
+				try
+					set name of targetWindow to windowName
+				end try
 			end if
 			tell targetWindow
-				create tab with default profile
-				tell current session of current tab
+				if createdWindow then
+					set targetSession to current session of current tab
+				else
+					set newTab to (create tab with default profile)
+					set targetSession to current session of newTab
+				end if
+				tell targetSession
 					write text commandText
 				end tell
 			end tell
+			return id of targetWindow
 		end tell
-	`, escapeAppleScript(windowName), escapeAppleScript(spec.CommandText))
+	`, escapeAppleScript(windowName), escapeAppleScript(spec.CommandText), hintedWindowID)
 
 	output, err := runOsaScript([]string{script})
 	if err != nil {
 		log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
 	}
+	if windowID, parseErr := strconv.Atoi(strings.TrimSpace(string(output))); parseErr == nil {
+		setITermGroupWindowID(group, windowID)
+	} else {
+		log.Printf("⚠️ iTerm2 group window id parse failed (group=%q, output=%q): %v", group, strings.TrimSpace(string(output)), parseErr)
+	}
 	return nil
+}
+
+func closeITerm2GroupedWindow(group string) error {
+	windowName := "Mole: " + group
+	hintedWindowID := getITermGroupWindowID(group)
+	script := fmt.Sprintf(`
+		set windowName to "%s"
+		set hintedWindowID to %d
+		set targetWindow to missing value
+		tell application "iTerm"
+			if hintedWindowID > 0 then
+				try
+					repeat with w in windows
+						if id of w is hintedWindowID then
+							set targetWindow to w
+							exit repeat
+						end if
+					end repeat
+				end try
+			end if
+			if targetWindow is missing value then
+				repeat with w in windows
+					try
+						if name of w is windowName then
+							set targetWindow to w
+							exit repeat
+						end if
+					end try
+				end repeat
+			end if
+			if targetWindow is missing value then
+				return "notfound"
+			end if
+			close targetWindow
+			return "closed"
+		end tell
+	`, escapeAppleScript(windowName), hintedWindowID)
+
+	output, err := runOsaScript([]string{script})
+	if err != nil {
+		return fmt.Errorf("iTerm2 close window failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	status := strings.TrimSpace(string(output))
+	switch status {
+	case "closed", "notfound":
+		clearITermGroupWindowID(group)
+		return nil
+	default:
+		clearITermGroupWindowID(group)
+		return nil
+	}
 }
 
 func launchGhostty(spec LaunchSpec) error {

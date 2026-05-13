@@ -38,6 +38,10 @@ export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
 
+export function DetachSession(arg1) {
+  return window['go']['main']['App']['DetachSession'](arg1);
+}
+
 export function ExportBurrow() {
   return window['go']['main']['App']['ExportBurrow']();
 }

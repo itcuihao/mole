@@ -60,12 +60,14 @@ export const en: Record<string, string> = {
   'burrows.status.opening': 'Opening...',
   'burrows.status.removing': 'Removing...',
   'burrows.status.killing': 'Killing...',
+  'burrows.status.detaching': 'Closing...',
   'burrows.status.restarting': 'Restarting...',
 
   // Actions
   'burrows.openBurrow': 'Open Burrow',
   'burrows.restoreBurrow': 'Restore Burrow',
   'burrows.kill': 'Kill',
+  'burrows.detach': 'Close Window',
   'burrows.remove': 'Remove',
   'burrows.restart': 'Restart',
 
@@ -158,6 +160,7 @@ export const en: Record<string, string> = {
   'burrows.info.restoredPaste': 'Burrow restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.',
   'burrows.info.restored': 'Burrow restored and opened.',
   'burrows.info.offlineRemoved': 'Offline burrow removed.',
+  'burrows.info.detached': 'Closed terminal views for this burrow. The burrow is still running.',
 
   // Profiles
   'profiles.title': 'Profiles',

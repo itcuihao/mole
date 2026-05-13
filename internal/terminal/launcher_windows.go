@@ -22,3 +22,7 @@ func startTerminalProcess(path string, args ...string) error {
 	cmd := exec.Command(path, args...)
 	return cmd.Start()
 }
+
+func closeGroupedWindowOnPlatform(_ TerminalApp, _ string) error {
+	return ErrCloseGroupedWindowUnsupported
+}

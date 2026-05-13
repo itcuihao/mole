@@ -47,6 +47,10 @@ func (TmuxBackend) Kill(name string) error {
 	return KillTmuxSession(name)
 }
 
+func (TmuxBackend) Detach(name string) error {
+	return DetachTmuxSessionClients(name)
+}
+
 func (TmuxBackend) IsAlive(name string) bool {
 	return IsTmuxSessionAlive(name)
 }

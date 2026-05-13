@@ -114,18 +114,36 @@ func EnableTmuxMouse(name string) error {
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, tmuxPath, "set-option", "-t", name, "mouse", "on")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("tmux set-option mouse failed: %s: %w", strings.TrimSpace(string(output)), err)
+	commands := [][]string{
+		{"set-option", "-t", name, "mouse", "on"},
+		{"set-option", "-s", "set-clipboard", "on"},
+		{"set-option", "-t", name, "set-titles", "on"},
+		{"set-option", "-t", name, "set-titles-string", "Mole: " + name},
+		{"bind-key", "-T", "copy-mode-vi", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
+		{"bind-key", "-T", "copy-mode", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
+	}
+
+	for _, args := range commands {
+		cmd := exec.CommandContext(ctx, tmuxPath, args...)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("tmux %s failed: %s: %w", strings.Join(args, " "), strings.TrimSpace(string(output)), err)
+		}
 	}
 
 	return nil
 }
 
 func buildTmuxMouseEnableShellCommand(tmuxPath, session string) string {
-	return fmt.Sprintf("%s set-option -t %s mouse on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session))
+	commands := []string{
+		fmt.Sprintf("%s set-option -t %s mouse on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
+		fmt.Sprintf("%s set-option -s set-clipboard on >/dev/null 2>&1", shellQuote(tmuxPath)),
+		fmt.Sprintf("%s set-option -t %s set-titles on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
+		fmt.Sprintf("%s set-option -t %s set-titles-string %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session), shellQuote("Mole: "+session)),
+		fmt.Sprintf("%s bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
+		fmt.Sprintf("%s bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
+	}
+	return strings.Join(commands, "; ")
 }
-
 
 func buildTmuxEnvScriptContent(env map[string]string, command, tmuxPath string) string {
 	var envCmds strings.Builder
@@ -300,6 +318,27 @@ func KillTmuxSession(name string) error {
 	cmd := exec.CommandContext(ctx, tmuxPath, "kill-session", "-t", name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("tmux kill-session failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+	return nil
+}
+
+// DetachTmuxSessionClients detaches all attached clients from a tmux session
+// while keeping the session alive.
+func DetachTmuxSessionClients(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
+	defer cancel()
+
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "detach-client", "-s", name)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		if isNoTmuxServerOutput(string(output), err) || strings.Contains(string(output), "no current client") {
+			return nil
+		}
+		return fmt.Errorf("tmux detach-client failed: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 	return nil
 }

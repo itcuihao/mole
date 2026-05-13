@@ -93,9 +93,19 @@ func TestBuildTmuxEnvScriptContentUsesResolvedBinary(t *testing.T) {
 
 func TestBuildTmuxAttachShellCommandUsesResolvedBinary(t *testing.T) {
 	got := buildTmuxAttachShellCommand("/opt/homebrew/bin/tmux", "mole-demo", "")
-	want := "'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' mouse on >/dev/null 2>&1; exec '/opt/homebrew/bin/tmux' attach -t 'mole-demo'"
-	if got != want {
-		t.Fatalf("buildTmuxAttachShellCommand() = %q, want %q", got, want)
+	wants := []string{
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' mouse on >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' set-option -s set-clipboard on >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' set-titles on >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' set-titles-string 'Mole: mole-demo' >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'pbcopy' >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'pbcopy' >/dev/null 2>&1",
+		"exec '/opt/homebrew/bin/tmux' attach -t 'mole-demo'",
+	}
+	for _, want := range wants {
+		if !strings.Contains(got, want) {
+			t.Fatalf("buildTmuxAttachShellCommand() missing %q: %q", want, got)
+		}
 	}
 }
 
@@ -107,6 +117,21 @@ func TestBuildWslTmuxAttachShellCommandEnablesMouseBeforeAttach(t *testing.T) {
 	}
 	if !strings.Contains(got, "tmux set-option -t 'mole-demo' mouse on >/dev/null 2>&1") {
 		t.Fatalf("buildWslTmuxAttachShellCommand() missing mouse enable command: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -s set-clipboard on >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing set-clipboard command: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' set-titles on >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing set-titles command: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' set-titles-string 'Mole: mole-demo' >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing set-titles-string command: %q", got)
+	}
+	if !strings.Contains(got, "tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing vi mouse-copy binding: %q", got)
+	}
+	if !strings.Contains(got, "tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing emacs mouse-copy binding: %q", got)
 	}
 	if !strings.Contains(got, "exec tmux attach -t 'mole-demo'") {
 		t.Fatalf("buildWslTmuxAttachShellCommand() missing attach command: %q", got)

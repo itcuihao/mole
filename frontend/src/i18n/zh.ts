@@ -60,12 +60,14 @@ export const zh: Record<string, string> = {
   'burrows.status.opening': '打开中...',
   'burrows.status.removing': '移除中...',
   'burrows.status.killing': '终止中...',
+  'burrows.status.detaching': '关闭中...',
   'burrows.status.restarting': '重启中...',
 
   // Actions
   'burrows.openBurrow': '打开窟',
   'burrows.restoreBurrow': '恢复窟',
   'burrows.kill': '终止',
+  'burrows.detach': '关闭窗口',
   'burrows.remove': '移除',
   'burrows.restart': '重启',
 
@@ -158,6 +160,7 @@ export const zh: Record<string, string> = {
   'burrows.info.restoredPaste': '窟已恢复并打开，命令已复制到剪贴板。按 Cmd+V 然后回车。',
   'burrows.info.restored': '窟已恢复并打开。',
   'burrows.info.offlineRemoved': '离线窟已移除。',
+  'burrows.info.detached': '已关闭该窟的终端视图，窟本体仍在运行。',
 
   // Profiles
   'profiles.title': '配置',

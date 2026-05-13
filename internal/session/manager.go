@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -309,6 +310,55 @@ func (m *Manager) Kill(sessionID string) error {
 		return err
 	}
 	return m.store.Delete(sessionID)
+}
+
+// Detach disconnects all terminal clients attached to a runtime session while
+// keeping the session and its metadata alive.
+func (m *Manager) Detach(sessionID string) error {
+	sess, err := m.store.Get(sessionID)
+	if err != nil {
+		return fmt.Errorf("session not found: %w", err)
+	}
+	sess.NormalizeRuntimeMetadata()
+
+	backend, err := m.backendForSession(sess)
+	if err != nil {
+		return err
+	}
+
+	runtimeName := sess.RuntimeName()
+	if !backend.IsAlive(runtimeName) {
+		return nil
+	}
+
+	if err := backend.Detach(runtimeName); err != nil {
+		return err
+	}
+
+	group := strings.TrimSpace(sess.Den)
+	if group == "" {
+		return nil
+	}
+
+	settings, err := config.LoadSettings()
+	if err != nil {
+		settings = &config.Settings{}
+	}
+
+	terminalID := settings.DefaultTerminal
+	if terminalID == "" {
+		if bestTerminal := terminal.GetDefaultTerminal(); bestTerminal != nil {
+			terminalID = bestTerminal.ID
+		} else {
+			terminalID = terminal.DefaultTerminalID()
+		}
+	}
+
+	if err := terminal.CloseGroupedWindow(terminalID, group); err != nil && !errors.Is(err, terminal.ErrCloseGroupedWindowUnsupported) {
+		return err
+	}
+
+	return nil
 }
 
 // Restart recreates a dead runtime session using its stored configuration.

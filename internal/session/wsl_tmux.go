@@ -57,16 +57,34 @@ func EnableWslTmuxMouse(name string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
-	script := fmt.Sprintf("tmux set-option -t %s mouse on", shellQuote(name))
-	if output, err := runWslShellCommandContext(ctx, script); err != nil {
-		return fmt.Errorf("wsl tmux set-option mouse failed: %s: %w", strings.TrimSpace(string(output)), err)
+	commands := []string{
+		fmt.Sprintf("tmux set-option -t %s mouse on", shellQuote(name)),
+		"tmux set-option -s set-clipboard on",
+		fmt.Sprintf("tmux set-option -t %s set-titles on", shellQuote(name)),
+		fmt.Sprintf("tmux set-option -t %s set-titles-string %s", shellQuote(name), shellQuote("Mole: "+name)),
+		"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
+		"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
+	}
+
+	for _, script := range commands {
+		if output, err := runWslShellCommandContext(ctx, script); err != nil {
+			return fmt.Errorf("wsl %s failed: %s: %w", script, strings.TrimSpace(string(output)), err)
+		}
 	}
 
 	return nil
 }
 
 func buildWslTmuxMouseEnableShellCommand(session string) string {
-	return fmt.Sprintf("tmux set-option -t %s mouse on >/dev/null 2>&1", shellQuote(session))
+	commands := []string{
+		fmt.Sprintf("tmux set-option -t %s mouse on >/dev/null 2>&1", shellQuote(session)),
+		"tmux set-option -s set-clipboard on >/dev/null 2>&1",
+		fmt.Sprintf("tmux set-option -t %s set-titles on >/dev/null 2>&1", shellQuote(session)),
+		fmt.Sprintf("tmux set-option -t %s set-titles-string %s >/dev/null 2>&1", shellQuote(session), shellQuote("Mole: "+session)),
+		"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
+		"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
+	}
+	return strings.Join(commands, "; ")
 }
 
 func detectWslUserShell() string {
@@ -143,6 +161,21 @@ func KillWslTmuxSession(name string) error {
 	output, err := runWslShellCommandContext(ctx, fmt.Sprintf("tmux kill-session -t %s", shellQuote(name)))
 	if err != nil {
 		return fmt.Errorf("wsl tmux kill-session failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+	return nil
+}
+
+func DetachWslTmuxSessionClients(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
+	defer cancel()
+
+	output, err := runWslShellCommandContext(ctx, fmt.Sprintf("tmux detach-client -s %s", shellQuote(name)))
+	if err != nil {
+		trimmed := strings.TrimSpace(string(output))
+		if isNoTmuxServerOutput(string(output), err) || strings.Contains(trimmed, "no current client") {
+			return nil
+		}
+		return fmt.Errorf("wsl tmux detach-client failed: %s: %w", trimmed, err)
 	}
 	return nil
 }
