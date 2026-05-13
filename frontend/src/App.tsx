@@ -105,7 +105,7 @@ function App() {
     <div className="h-full min-w-0 flex flex-col bg-background">
       <Tabs
         value={activeTab}
-        onValueChange={value => setActiveTab(value as AppTab)}
+        onValueChange={value => { setNavigateContext(null); setActiveTab(value as AppTab) }}
         className="h-full min-w-0 flex flex-col"
       >
         {/* Header with terminal aesthetic */}
@@ -167,8 +167,10 @@ function App() {
             onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
             burrowRefreshSignal={burrowRefreshSignal}
+            onNewSessionSignalHandled={() => setNewSessionSignal(0)}
             onDiscard={() => {
               setNavigateContext(null)
+              setNewSessionSignal(0)
               localStorage.removeItem('mole:newSessionDraft')
             }}
           />

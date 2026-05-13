@@ -303,11 +303,13 @@ function Sessions({
   newSessionSignal,
   burrowRefreshSignal,
   onDiscard,
+  onNewSessionSignalHandled,
 }: {
   onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
   newSessionSignal?: number
   burrowRefreshSignal?: number
   onDiscard?: () => void
+  onNewSessionSignalHandled?: () => void
 }) {
   const { t } = useTranslation()
   const [sessions, setSessions] = useState<SessionRecord[]>([])
@@ -366,6 +368,7 @@ function Sessions({
   useEffect(() => {
     if (!newSessionSignal) return
     setShowNewModal(true)
+    onNewSessionSignalHandled?.()
   }, [newSessionSignal])
 
   const showTimedInfo = (text: string, duration = 7000) => {
