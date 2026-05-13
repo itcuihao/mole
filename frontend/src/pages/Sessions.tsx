@@ -1107,6 +1107,7 @@ function NewSessionModal({
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
   const [den, setDen] = useState(initialDraft?.den || '')
+  const [denSuggestions, setDenSuggestions] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [denTouched, setDenTouched] = useState(Boolean(initialDraft?.den))
@@ -1149,6 +1150,24 @@ function NewSessionModal({
           }
         })
         .catch(err => setError(String(err)))
+
+      ListSessions()
+        .then(items => {
+          const counts = new Map<string, number>()
+          ;(items || []).forEach(item => {
+            const key = (item.den || '').trim()
+            if (!key) return
+            counts.set(key, (counts.get(key) || 0) + 1)
+          })
+          const suggestions = Array.from(counts.entries())
+            .sort((a, b) => {
+              if (b[1] !== a[1]) return b[1] - a[1]
+              return compareAlpha(a[0], b[0])
+            })
+            .map(([name]) => name)
+          setDenSuggestions(suggestions)
+        })
+        .catch(() => {})
 
       GetInventory()
         .then(data => setInv(data || EMPTY_INVENTORY))
@@ -1603,6 +1622,47 @@ function NewSessionModal({
               className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.denHint')}</p>
+            {denSuggestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {denSuggestions.map(item => {
+                  const selected = den.trim() === item
+                  if (selected) {
+                    return (
+                      <div
+                        key={item}
+                        className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+                      >
+                        <span>{item}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDenTouched(true)
+                            setDen('')
+                          }}
+                          className="rounded-full p-0.5 text-primary/80 hover:bg-primary/15 hover:text-primary"
+                          aria-label={t('common.clear')}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )
+                  }
+                  return (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => {
+                        setDenTouched(true)
+                        setDen(item)
+                      }}
+                      className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                    >
+                      {item}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
       </div>
     </ModalShell>
