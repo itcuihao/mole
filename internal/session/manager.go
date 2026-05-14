@@ -583,23 +583,6 @@ func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, erro
 		return false, nil
 	}
 
-	liveSessions, err := backend.List()
-	if err != nil {
-		fmt.Printf("⚠️ failed to list runtime sessions for focus decision [%s]: %v\n", runtimeName, err)
-		return false, nil
-	}
-
-	isAttached := false
-	for _, info := range liveSessions {
-		if info.Name == runtimeName {
-			isAttached = info.Attached > 0
-			break
-		}
-	}
-	if !isAttached {
-		return false, nil
-	}
-
 	focused, err := terminal.FocusGroupedWindow(terminalID, group)
 	if err != nil {
 		if errors.Is(err, terminal.ErrFocusGroupedWindowUnsupported) {
