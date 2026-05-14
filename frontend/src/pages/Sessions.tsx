@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
 import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/i18n/context"
 import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
@@ -43,10 +44,6 @@ const SESSION_SORT_LABEL_KEYS: Record<SessionSortMode, string> = {
   profile: 'burrows.sort.profile',
 }
 
-const SESSION_MENU_PANEL_CLASS = 'absolute right-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 origin-top-right'
-const SESSION_MENU_LABEL_CLASS = 'border-b border-border/60 bg-muted/40 px-3 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground'
-const SESSION_MENU_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground'
-const SESSION_MENU_DESTRUCTIVE_ITEM_CLASS = 'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10'
 const ALL_PROFILE_FILTER_VALUE = '__all_profiles__'
 const NO_DEN_FILTER_VALUE = '__no_den__'
 
@@ -421,14 +418,12 @@ function Sessions({
   onNavigate,
   newSessionSignal,
   burrowRefreshSignal,
-  onBurrowOpenStart,
   onDiscard,
   onNewSessionSignalHandled,
 }: {
   onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
   newSessionSignal?: number
   burrowRefreshSignal?: number
-  onBurrowOpenStart?: () => void
   onDiscard?: () => void
   onNewSessionSignalHandled?: () => void
 }) {
@@ -524,7 +519,6 @@ function Sessions({
 
     setSessionAction({ id: sess.id, kind: 'open' })
     setError('')
-    onBurrowOpenStart?.()
     try {
       if (!sess.alive) {
         await RestartSession(sess.id)
@@ -790,9 +784,6 @@ function Sessions({
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
-            <p className="text-sm text-muted-foreground">
-              Keep dens, profiles, and launch paths close enough to open without losing the thread.
-            </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {sessions.length > 0 && (
@@ -1069,26 +1060,7 @@ function SessionCard({
   currentAction: 'open' | 'kill' | 'restart' | null
 }) {
   const { t } = useTranslation()
-  const [showTerminalMenu, setShowTerminalMenu] = useState(false)
-  const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [confirmKill, setConfirmKill] = useState(false)
-  const terminalMenuRef = useRef<HTMLDivElement>(null)
-  const moreMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node
-      if (terminalMenuRef.current && terminalMenuRef.current.contains(target)) return
-      if (moreMenuRef.current && moreMenuRef.current.contains(target)) return
-      setShowTerminalMenu(false)
-      setShowMoreMenu(false)
-      setConfirmKill(false)
-    }
-    if (showTerminalMenu || showMoreMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showTerminalMenu, showMoreMenu])
 
   const statusColor = !s.alive
     ? 'bg-muted-foreground/70'
@@ -1105,11 +1077,6 @@ function SessionCard({
   const restartLabel = isWorking && currentAction === 'restart'
     ? t('burrows.status.restarting')
     : t('burrows.restart')
-
-  const handleTerminalSelect = (terminalID: string) => {
-    setShowTerminalMenu(false)
-    onOpen(s, terminalID)
-  }
 
   return (
     <div className="breathing-card surface-panel flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all sm:flex-row sm:items-start sm:justify-between">
@@ -1154,127 +1121,93 @@ function SessionCard({
       </div>
 
       <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:self-center">
-        <div className="relative" ref={terminalMenuRef}>
-          <div className="flex">
-            <Button
-              onClick={() => onOpen(s)}
-              size="sm"
-              className="rounded-r-none pr-2 shadow-md"
-              disabled={isWorking}
-            >
-              <Play className="w-3.5 h-3.5" />
-              {primaryLabel}
-            </Button>
-            {terminals.length > 0 && (
-              <Button
-                onClick={() => {
-                  setShowTerminalMenu(!showTerminalMenu)
-                  setShowMoreMenu(false)
-                }}
-                size="sm"
-                className={`rounded-l-none border-l border-primary-foreground/20 pl-1 pr-1.5 ${showTerminalMenu ? 'bg-primary/90' : ''}`}
-                disabled={isWorking}
-              >
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
-          {showTerminalMenu && terminals.length > 0 && (
-            <div className={`${SESSION_MENU_PANEL_CLASS} w-48`}>
-              <div className={SESSION_MENU_LABEL_CLASS}>
-                {t('burrows.openWith')}
-              </div>
-              {terminals.map(term => (
-                <button
-                  key={term.ID}
-                  onClick={() => handleTerminalSelect(term.ID)}
-                  className={SESSION_MENU_ITEM_CLASS}
-                >
-                  <TerminalSquare className="w-4 h-4 text-muted-foreground" />
-                  <span>{term.Name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="relative" ref={moreMenuRef}>
+        <div className="flex">
           <Button
-            onClick={() => {
-              setShowMoreMenu(!showMoreMenu)
-              setShowTerminalMenu(false)
-            }}
-            variant="secondary"
+            onClick={() => onOpen(s)}
             size="sm"
-            className={`w-9 px-0 ${showMoreMenu ? 'border-border bg-popover text-popover-foreground shadow-lg backdrop-blur-sm' : 'bg-secondary text-secondary-foreground hover:bg-secondary/90'}`}
-            aria-label={t('burrows.moreActions')}
+            className="rounded-r-none pr-2 shadow-md"
             disabled={isWorking}
           >
-            <MoreHorizontal className="w-4 h-4" />
+            <Play className="w-3.5 h-3.5" />
+            {primaryLabel}
           </Button>
-          {showMoreMenu && (
-            <div className={`${SESSION_MENU_PANEL_CLASS} w-44`}>
-              <div className={SESSION_MENU_LABEL_CLASS}>
-                {t('burrows.actions')}
-              </div>
-              <button
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  onDuplicate(s)
-                }}
-                className={SESSION_MENU_ITEM_CLASS}
-              >
-                <Copy className="w-4 h-4 text-muted-foreground" />
-                <span>{t('common.duplicate')}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  onEdit(s)
-                }}
-                className={SESSION_MENU_ITEM_CLASS}
-              >
-                <Pencil className="w-4 h-4 text-muted-foreground" />
-                <span>{t('common.edit')}</span>
-              </button>
-              {s.alive && (
-                <button
-                  onClick={() => {
-                    setShowMoreMenu(false)
-                    onRestart(s)
-                  }}
-                  className={SESSION_MENU_ITEM_CLASS}
+          {terminals.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className="rounded-l-none border-l border-primary-foreground/20 pl-1 pr-1.5 data-[state=open]:bg-primary/90"
+                  disabled={isWorking}
                 >
-                  <RotateCw className="w-4 h-4 text-muted-foreground" />
-                  <span>{restartLabel}</span>
-                </button>
-              )}
-              {confirmKill ? (
-                <button
-                  onClick={() => {
-                    setShowMoreMenu(false)
-                    setConfirmKill(false)
-                    onKill(s)
-                  }}
-                  className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>{t('burrows.confirmDestroy')}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setConfirmKill(true)
-                  }}
-                  className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>{destructiveLabel}</span>
-                </button>
-              )}
-            </div>
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>{t('burrows.openWith')}</DropdownMenuLabel>
+                {terminals.map(term => (
+                  <DropdownMenuItem key={term.ID} onSelect={() => onOpen(s, term.ID)}>
+                    <TerminalSquare className="w-4 h-4 text-muted-foreground" />
+                    <span>{term.Name}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
+        <DropdownMenu onOpenChange={(open: boolean) => { if (!open) setConfirmKill(false) }}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-9 px-0 data-[state=open]:border-border data-[state=open]:bg-popover data-[state=open]:text-popover-foreground data-[state=open]:shadow-lg data-[state=open]:backdrop-blur-sm"
+              aria-label={t('burrows.moreActions')}
+              disabled={isWorking}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuLabel>{t('burrows.actions')}</DropdownMenuLabel>
+            <DropdownMenuItem onSelect={() => onDuplicate(s)}>
+              <Copy className="w-4 h-4 text-muted-foreground" />
+              <span>{t('common.duplicate')}</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onEdit(s)}>
+              <Pencil className="w-4 h-4 text-muted-foreground" />
+              <span>{t('common.edit')}</span>
+            </DropdownMenuItem>
+            {s.alive && (
+              <DropdownMenuItem onSelect={() => onRestart(s)}>
+                <RotateCw className="w-4 h-4 text-muted-foreground" />
+                <span>{restartLabel}</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            {confirmKill ? (
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onSelect={() => {
+                  setConfirmKill(false)
+                  onKill(s)
+                }}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>{t('burrows.confirmDestroy')}</span>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                onSelect={(e: Event) => {
+                  e.preventDefault()
+                  setConfirmKill(true)
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{destructiveLabel}</span>
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   )
