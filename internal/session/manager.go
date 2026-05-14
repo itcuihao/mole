@@ -138,9 +138,17 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
+	// Record profile timestamp for change detection on attach
+	prof, profErr := m.profileMgr.Get(profileID)
+	profileUpdatedAt := ""
+	if profErr == nil {
+		profileUpdatedAt = prof.UpdatedAt
+	}
+
 	sess := Session{
-		Name:            sessionName,
-		ProfileID:       profileID,
+		Name:             sessionName,
+		ProfileID:        profileID,
+		ProfileUpdatedAt: profileUpdatedAt,
 		BackendID:       backend.ID(),
 		TmuxSessionName: tmuxName,
 		Command:         launchCfg.Command,
@@ -284,6 +292,11 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 
 	nextSession := sess
 	nextSession.ProfileID = profileID
+
+	// Refresh profile timestamp
+	if prof, profErr := m.profileMgr.Get(profileID); profErr == nil {
+		nextSession.ProfileUpdatedAt = prof.UpdatedAt
+	}
 	nextSession.BackendID = backend.ID()
 	nextSession.Command = launchCfg.Command
 	nextSession.RunMode = normalizedRunMode
@@ -455,11 +468,23 @@ func (m *Manager) Restart(sessionID string) error {
 		}
 	}
 
-	return backend.Create(runtimeName, env, command)
+	if err := backend.Create(runtimeName, env, command); err != nil {
+		return err
+	}
+
+	// Refresh profile timestamp after successful restart
+	if prof, profErr := m.profileMgr.Get(sess.ProfileID); profErr == nil {
+		sess.ProfileUpdatedAt = prof.UpdatedAt
+		_ = m.store.Update(sess)
+	}
+
+	return nil
 }
 
 // Attach opens the user's preferred terminal and attaches to a runtime session.
-func (m *Manager) Attach(sessionID string) error {
+// Returns (profileChanged, error) where profileChanged indicates the profile was
+// modified since the session was last started.
+func (m *Manager) Attach(sessionID string) (bool, error) {
 	// Load user's preferred terminal
 	settings, err := config.LoadSettings()
 	if err != nil {
@@ -479,54 +504,54 @@ func (m *Manager) Attach(sessionID string) error {
 
 	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
 	if focusErr != nil {
-		return focusErr
+		return false, focusErr
 	}
 	if focused {
-		return nil
+		return false, nil
 	}
 
-	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
+	sess, launchSpec, profileChanged, err := m.resolveAttachLaunchSpec(sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
-		return err
+		return false, err
 	}
 	if touchErr := m.store.RecordOpen(sess.ID); touchErr != nil {
 		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
 	}
-	return nil
+	return profileChanged, nil
 }
 
 // AttachWithTerminal opens a specific terminal and attaches to a runtime session.
-func (m *Manager) AttachWithTerminal(sessionID, terminalID string) error {
+func (m *Manager) AttachWithTerminal(sessionID, terminalID string) (bool, error) {
 	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
 	if focusErr != nil {
-		return focusErr
+		return false, focusErr
 	}
 	if focused {
-		return nil
+		return false, nil
 	}
 
-	sess, launchSpec, err := m.resolveAttachLaunchSpec(sessionID)
+	sess, launchSpec, profileChanged, err := m.resolveAttachLaunchSpec(sessionID)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
 		// Log error for debugging
 		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
-		return err
+		return false, err
 	}
 	if touchErr := m.store.RecordOpen(sess.ID); touchErr != nil {
 		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
 	}
-	return nil
+	return profileChanged, nil
 }
 
 func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, error) {
@@ -592,25 +617,33 @@ func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, erro
 	return true, nil
 }
 
-func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.LaunchSpec, error) {
+func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.LaunchSpec, bool, error) {
 	if m.store == nil || m.profileMgr == nil {
-		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session manager is not fully initialized")
+		return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session manager is not fully initialized")
 	}
 
 	sess, err := m.store.Get(sessionID)
 	if err != nil {
-		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session not found: %w", err)
+		return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session not found: %w", err)
 	}
 	sess.NormalizeRuntimeMetadata()
 
+	// Detect profile changes since session was last started
+	profileChanged := false
+	if prof, profErr := m.profileMgr.Get(sess.ProfileID); profErr == nil {
+		if sess.ProfileUpdatedAt != "" && prof.UpdatedAt != "" && sess.ProfileUpdatedAt < prof.UpdatedAt {
+			profileChanged = true
+		}
+	}
+
 	backend, backendErr := m.backendForSession(sess)
 	if backendErr != nil {
-		return Session{}, terminal.LaunchSpec{}, backendErr
+		return Session{}, terminal.LaunchSpec{}, false, backendErr
 	}
 
 	env, err := m.environmentForSession(sess)
 	if err != nil {
-		return Session{}, terminal.LaunchSpec{}, fmt.Errorf("failed to resolve attach env for [%s]: %w", sess.RuntimeName(), err)
+		return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve attach env for [%s]: %w", sess.RuntimeName(), err)
 	}
 
 	runtimeName := sess.RuntimeName()
@@ -623,19 +656,19 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		// terminal doesn't open only to fail with "can't find session".
 		command, cmdErr := m.commandForSession(sess)
 		if cmdErr != nil {
-			return Session{}, terminal.LaunchSpec{}, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
+			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 		}
 		if createErr := backend.Create(runtimeName, env, command); createErr != nil {
-			return Session{}, terminal.LaunchSpec{}, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
+			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
 
 	launchSpec, err := backend.BuildAttachSpec(runtimeName, env, sess.Den)
 	if err != nil {
-		return Session{}, terminal.LaunchSpec{}, err
+		return Session{}, terminal.LaunchSpec{}, false, err
 	}
 
-	return sess, launchSpec, nil
+	return sess, launchSpec, profileChanged, nil
 }
 
 func (m *Manager) defaultBackend() (SessionBackend, error) {
@@ -721,6 +754,34 @@ func (m *Manager) prepareLaunchEnv(sess Session, env map[string]string, command 
 		return env, command, nil
 	}
 	return plugin.PrepareEnv(sess, env, command)
+}
+
+// SyncEnvForProfile pushes the latest profile env vars to all alive sessions
+// that reference the given profile. Only new panes/windows inherit the changes.
+func (m *Manager) SyncEnvForProfile(profileID string) {
+	sessions, err := m.store.List()
+	if err != nil {
+		return
+	}
+
+	env, err := m.profileMgr.GetFullEnv(profileID)
+	if err != nil {
+		return
+	}
+
+	for _, sess := range sessions {
+		if sess.ProfileID != profileID {
+			continue
+		}
+		sess.NormalizeRuntimeMetadata()
+		backend, backendErr := m.backendForSession(sess)
+		if backendErr != nil {
+			continue
+		}
+		if backend.IsAlive(sess.RuntimeName()) {
+			_ = backend.SyncEnv(sess.RuntimeName(), env)
+		}
+	}
 }
 
 func trimStringMap(values map[string]string) map[string]string {

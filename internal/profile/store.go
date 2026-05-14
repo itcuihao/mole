@@ -77,22 +77,26 @@ func (s *Store) Save(p Profile) error {
 		return err
 	}
 
+	now := time.Now().Format(time.RFC3339Nano)
 	if p.ID == "" {
 		p.ID = uuid.New().String()
-		p.CreatedAt = time.Now().Format(time.RFC3339Nano)
+		p.CreatedAt = now
+		p.UpdatedAt = now
 		profiles = append(profiles, p)
 	} else {
 		found := false
 		for i, existing := range profiles {
 			if existing.ID == p.ID {
 				p.CreatedAt = existing.CreatedAt
+				p.UpdatedAt = now
 				profiles[i] = p
 				found = true
 				break
 			}
 		}
 		if !found {
-			p.CreatedAt = time.Now().Format(time.RFC3339Nano)
+			p.CreatedAt = now
+			p.UpdatedAt = now
 			profiles = append(profiles, p)
 		}
 	}

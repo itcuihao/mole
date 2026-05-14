@@ -8,9 +8,9 @@ import {docker} from '../models';
 import {pluginconfig} from '../models';
 import {profile} from '../models';
 
-export function AttachSession(arg1:string):Promise<void>;
+export function AttachSession(arg1:string):Promise<boolean>;
 
-export function AttachSessionWithTerminal(arg1:string,arg2:string):Promise<void>;
+export function AttachSessionWithTerminal(arg1:string,arg2:string):Promise<boolean>;
 
 export function CreateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 

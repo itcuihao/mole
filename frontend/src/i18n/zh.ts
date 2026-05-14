@@ -62,15 +62,14 @@ export const zh: Record<string, string> = {
   'burrows.status.restoring': '恢复中...',
   'burrows.status.opening': '打开中...',
   'burrows.status.removing': '移除中...',
-  'burrows.status.killing': '终止中...',
-  'burrows.status.detaching': '关闭中...',
+  'burrows.status.killing': '销毁中...',
   'burrows.status.restarting': '重启中...',
 
   // Actions
   'burrows.openBurrow': '打开窟',
   'burrows.restoreBurrow': '恢复窟',
-  'burrows.kill': '终止',
-  'burrows.detach': '关闭窗口',
+  'burrows.destroy': '销毁',
+  'burrows.confirmDestroy': '确认销毁？',
   'burrows.remove': '移除',
   'burrows.restart': '重启',
 
@@ -182,6 +181,7 @@ export const zh: Record<string, string> = {
   'burrows.info.restored': '窟已恢复并打开。',
   'burrows.info.offlineRemoved': '离线窟已移除。',
   'burrows.info.detached': '已关闭该窟的终端视图，窟本体仍在运行。',
+  'burrows.info.profileChanged': '关联的配置已更新。新建的窗口/面板将使用最新配置，如需完全生效请重启该窟。',
 
   // Profiles
   'profiles.title': '配置',

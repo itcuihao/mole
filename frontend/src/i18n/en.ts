@@ -62,15 +62,14 @@ export const en: Record<string, string> = {
   'burrows.status.restoring': 'Restoring...',
   'burrows.status.opening': 'Opening...',
   'burrows.status.removing': 'Removing...',
-  'burrows.status.killing': 'Killing...',
-  'burrows.status.detaching': 'Closing...',
+  'burrows.status.killing': 'Destroying...',
   'burrows.status.restarting': 'Restarting...',
 
   // Actions
   'burrows.openBurrow': 'Open Burrow',
   'burrows.restoreBurrow': 'Restore Burrow',
-  'burrows.kill': 'Kill',
-  'burrows.detach': 'Close Window',
+  'burrows.destroy': 'Destroy',
+  'burrows.confirmDestroy': 'Confirm destroy?',
   'burrows.remove': 'Remove',
   'burrows.restart': 'Restart',
 
@@ -182,6 +181,7 @@ export const en: Record<string, string> = {
   'burrows.info.restored': 'Burrow restored and opened.',
   'burrows.info.offlineRemoved': 'Offline burrow removed.',
   'burrows.info.detached': 'Closed terminal views for this burrow. The burrow is still running.',
+  'burrows.info.profileChanged': 'Profile has been updated since this burrow was started. New panes will use the latest config; restart the burrow for full effect.',
 
   // Profiles
   'profiles.title': 'Profiles',

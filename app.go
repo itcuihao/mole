@@ -76,8 +76,13 @@ func (a *App) ListProfiles() ([]profile.Profile, error) {
 }
 
 // SaveProfile saves a profile with optional secrets.
+// After saving, it syncs the updated env vars to all alive sessions using this profile.
 func (a *App) SaveProfile(p profile.Profile, secrets map[string]string) error {
-	return a.profileMgr.Save(p, secrets)
+	if err := a.profileMgr.Save(p, secrets); err != nil {
+		return err
+	}
+	a.sessionMgr.SyncEnvForProfile(p.ID)
+	return nil
 }
 
 // DeleteProfile removes a profile by ID.
@@ -161,12 +166,14 @@ func (a *App) ListSessions() ([]session.SessionStatus, error) {
 }
 
 // AttachSession opens the user's preferred terminal and attaches to a session.
-func (a *App) AttachSession(sessionID string) error {
+// Returns true if the profile was modified since the session was last started.
+func (a *App) AttachSession(sessionID string) (bool, error) {
 	return a.sessionMgr.Attach(sessionID)
 }
 
 // AttachSessionWithTerminal opens a specific terminal and attaches to a session.
-func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) error {
+// Returns true if the profile was modified since the session was last started.
+func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) (bool, error) {
 	return a.sessionMgr.AttachWithTerminal(sessionID, terminalID)
 }
 
@@ -412,7 +419,7 @@ func (a *App) startTray() {
 				runtime.EventsEmit(a.ctx, "tray:new-session")
 			},
 			OnAttach: func(sessionID string) {
-				if err := a.sessionMgr.Attach(sessionID); err != nil {
+				if _, err := a.sessionMgr.Attach(sessionID); err != nil {
 					log.Printf("[Tray] Attach failed for %s: %v", sessionID, err)
 				}
 			},

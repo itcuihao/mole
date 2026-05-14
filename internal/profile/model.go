@@ -9,4 +9,5 @@ type Profile struct {
 	EnvVars     map[string]string `json:"env_vars"`
 	SecretKeys  []string          `json:"secret_keys"`
 	CreatedAt   string            `json:"created_at"`
+	UpdatedAt   string            `json:"updated_at,omitempty"`
 }

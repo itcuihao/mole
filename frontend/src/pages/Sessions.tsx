@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, DetachSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
 import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, LogOut } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -389,7 +389,7 @@ function Sessions({
   const [selectedDenFilter, setSelectedDenFilter] = useState<string>('')
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)
-  const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'detach' | 'restart' } | null>(null)
+  const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'restart' } | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -468,10 +468,12 @@ function Sessions({
         await RestartSession(sess.id)
       }
 
-      if (terminalID) {
-        await AttachSessionWithTerminal(sess.id, terminalID)
-      } else {
-        await AttachSession(sess.id)
+      const profileChanged = terminalID
+        ? await AttachSessionWithTerminal(sess.id, terminalID)
+        : await AttachSession(sess.id)
+
+      if (profileChanged) {
+        showTimedInfo(t('burrows.info.profileChanged'), 10000)
       }
 
       showAttachHint(resolvedTerminal, wasRestarted)
@@ -493,20 +495,6 @@ function Sessions({
       if (!sess.alive) {
         showTimedInfo(t('burrows.info.offlineRemoved'))
       }
-      refresh()
-    } catch (err) {
-      setError(String(err))
-    } finally {
-      setSessionAction(null)
-    }
-  }
-
-  const handleDetach = async (sess: SessionRecord) => {
-    setSessionAction({ id: sess.id, kind: 'detach' })
-    setError('')
-    try {
-      await DetachSession(sess.id)
-      showTimedInfo(t('burrows.info.detached'))
       refresh()
     } catch (err) {
       setError(String(err))
@@ -797,7 +785,6 @@ function Sessions({
                   terminals={terminals}
                   onOpen={handleOpenSession}
                   onKill={handleKill}
-                  onDetach={handleDetach}
                   onRestart={handleRestart}
                   onEdit={setEditingSession}
                   onDuplicate={handleDuplicateSession}
@@ -845,7 +832,6 @@ function SessionCard({
   terminals,
   onOpen,
   onKill,
-  onDetach,
   onRestart,
   onEdit,
   onDuplicate,
@@ -856,16 +842,16 @@ function SessionCard({
   terminals: terminal.TerminalApp[]
   onOpen: (session: SessionRecord, terminalID?: string) => void
   onKill: (session: SessionRecord) => void
-  onDetach: (session: SessionRecord) => void
   onRestart: (session: SessionRecord) => void
   onEdit: (session: SessionRecord) => void
   onDuplicate: (session: SessionRecord) => void
   isWorking: boolean
-  currentAction: 'open' | 'kill' | 'detach' | 'restart' | null
+  currentAction: 'open' | 'kill' | 'restart' | null
 }) {
   const { t } = useTranslation()
   const [showTerminalMenu, setShowTerminalMenu] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [confirmKill, setConfirmKill] = useState(false)
   const terminalMenuRef = useRef<HTMLDivElement>(null)
   const moreMenuRef = useRef<HTMLDivElement>(null)
 
@@ -876,6 +862,7 @@ function SessionCard({
       if (moreMenuRef.current && moreMenuRef.current.contains(target)) return
       setShowTerminalMenu(false)
       setShowMoreMenu(false)
+      setConfirmKill(false)
     }
     if (showTerminalMenu || showMoreMenu) {
       document.addEventListener('mousedown', handleClickOutside)
@@ -894,13 +881,10 @@ function SessionCard({
     : (!s.alive ? t('burrows.restoreBurrow') : t('burrows.openBurrow'))
   const destructiveLabel = isWorking && currentAction === 'kill'
     ? (!s.alive ? t('burrows.status.removing') : t('burrows.status.killing'))
-    : (!s.alive ? t('burrows.remove') : t('burrows.kill'))
+    : (!s.alive ? t('burrows.remove') : t('burrows.destroy'))
   const restartLabel = isWorking && currentAction === 'restart'
     ? t('burrows.status.restarting')
     : t('burrows.restart')
-  const detachLabel = isWorking && currentAction === 'detach'
-    ? t('burrows.status.detaching')
-    : t('burrows.detach')
 
   const handleTerminalSelect = (terminalID: string) => {
     setShowTerminalMenu(false)
@@ -1029,18 +1013,6 @@ function SessionCard({
                 <button
                   onClick={() => {
                     setShowMoreMenu(false)
-                    onDetach(s)
-                  }}
-                  className={SESSION_MENU_ITEM_CLASS}
-                >
-                  <LogOut className="w-4 h-4 text-muted-foreground" />
-                  <span>{detachLabel}</span>
-                </button>
-              )}
-              {s.alive && (
-                <button
-                  onClick={() => {
-                    setShowMoreMenu(false)
                     onRestart(s)
                   }}
                   className={SESSION_MENU_ITEM_CLASS}
@@ -1049,16 +1021,30 @@ function SessionCard({
                   <span>{restartLabel}</span>
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  onKill(s)
-                }}
-                className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{destructiveLabel}</span>
-              </button>
+              {confirmKill ? (
+                <button
+                  onClick={() => {
+                    setShowMoreMenu(false)
+                    setConfirmKill(false)
+                    onKill(s)
+                  }}
+                  className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>{t('burrows.confirmDestroy')}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setConfirmKill(true)
+                  }}
+                  className={SESSION_MENU_DESTRUCTIVE_ITEM_CLASS}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{destructiveLabel}</span>
+                </button>
+              )}
             </div>
           )}
         </div>

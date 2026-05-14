@@ -18,21 +18,22 @@ const (
 
 // Session represents stored metadata for a runtime session.
 type Session struct {
-	ID              string            `json:"id"`
-	Name            string            `json:"name"`
-	ProfileID       string            `json:"profile_id"`
-	BackendID       string            `json:"backend_id,omitempty"`
-	TmuxSessionName string            `json:"tmux_session_name"`
-	Command         string            `json:"command"` // Optional command to run (e.g., "claude")
-	RunMode         string            `json:"run_mode,omitempty"`
-	HostID          string            `json:"host_id,omitempty"`
-	CodexConfigID   string            `json:"codex_config_id,omitempty"`
-	PluginConfigID  string            `json:"plugin_config_id,omitempty"`
-	PluginData      map[string]string `json:"plugin_data,omitempty"`
-	Den             string            `json:"den,omitempty"`
-	CreatedAt       string            `json:"created_at"`
-	OpenCount       int               `json:"open_count,omitempty"`
-	LastOpenedAt    string            `json:"last_opened_at,omitempty"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	ProfileID        string            `json:"profile_id"`
+	ProfileUpdatedAt string            `json:"profile_updated_at,omitempty"`
+	BackendID        string            `json:"backend_id,omitempty"`
+	TmuxSessionName  string            `json:"tmux_session_name"`
+	Command          string            `json:"command"` // Optional command to run (e.g., "claude")
+	RunMode          string            `json:"run_mode,omitempty"`
+	HostID           string            `json:"host_id,omitempty"`
+	CodexConfigID    string            `json:"codex_config_id,omitempty"`
+	PluginConfigID   string            `json:"plugin_config_id,omitempty"`
+	PluginData       map[string]string `json:"plugin_data,omitempty"`
+	Den              string            `json:"den,omitempty"`
+	CreatedAt        string            `json:"created_at"`
+	OpenCount        int               `json:"open_count,omitempty"`
+	LastOpenedAt     string            `json:"last_opened_at,omitempty"`
 }
 
 func (s Session) EffectiveBackendID() string {

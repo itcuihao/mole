@@ -246,6 +246,7 @@ export namespace profile {
 	    env_vars: Record<string, string>;
 	    secret_keys: string[];
 	    created_at: string;
+	    updated_at?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Profile(source);
@@ -260,6 +261,7 @@ export namespace profile {
 	        this.env_vars = source["env_vars"];
 	        this.secret_keys = source["secret_keys"];
 	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
 	    }
 	}
 
@@ -323,6 +325,7 @@ export namespace session {
 	    id: string;
 	    name: string;
 	    profile_id: string;
+	    profile_updated_at?: string;
 	    backend_id?: string;
 	    tmux_session_name: string;
 	    command: string;
@@ -350,6 +353,7 @@ export namespace session {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.profile_id = source["profile_id"];
+	        this.profile_updated_at = source["profile_updated_at"];
 	        this.backend_id = source["backend_id"];
 	        this.tmux_session_name = source["tmux_session_name"];
 	        this.command = source["command"];
