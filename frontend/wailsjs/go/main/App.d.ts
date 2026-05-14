@@ -38,11 +38,15 @@ export function GetCodexConfigToml(arg1:string):Promise<string>;
 
 export function GetDefaultTerminal():Promise<string>;
 
+export function GetDenOrder(arg1:string):Promise<Array<string>>;
+
 export function GetInstalledTerminals():Promise<Array<terminal.TerminalApp>>;
 
 export function GetInventory():Promise<inventory.Inventory>;
 
 export function ImportBurrow(arg1:string):Promise<void>;
+
+export function ImportSSHConfig(arg1:inventory.SSHConfigImportRequest):Promise<void>;
 
 export function KillSession(arg1:string):Promise<void>;
 
@@ -58,9 +62,15 @@ export function ListProfiles():Promise<Array<profile.Profile>>;
 
 export function ListSessions():Promise<Array<session.SessionStatus>>;
 
+export function OpenDen(arg1:string):Promise<session.OpenDenResult>;
+
+export function PreviewSSHConfigImport(arg1:string):Promise<inventory.SSHConfigImportPreview>;
+
 export function RestartSession(arg1:string):Promise<void>;
 
 export function SaveCodexConfig(arg1:codex.SaveRequest):Promise<codex.Config>;
+
+export function SaveDenOrder(arg1:string,arg2:Array<string>):Promise<void>;
 
 export function SaveDockerConfig(arg1:docker.SaveRequest):Promise<docker.Config>;
 

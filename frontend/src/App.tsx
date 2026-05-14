@@ -3,6 +3,7 @@ import Sessions from './pages/Sessions'
 import Profiles from './pages/Profiles'
 import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
+import { MoleMascot } from './components/mole-mascot'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 import { useTranslation } from './i18n/context'
@@ -28,6 +29,7 @@ function App() {
   const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
   const [navigateContext, setNavigateContext] = useState<NavigateContext | null>(null)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
+  const [mascotActionToken, setMascotActionToken] = useState(0)
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof (window as any)?.runtime?.Environment !== 'function') {
@@ -109,7 +111,7 @@ function App() {
         className="h-full min-w-0 flex flex-col"
       >
         {/* Header with terminal aesthetic */}
-        <div className="drag-region flex items-center justify-between border-b bg-card px-4 py-3">
+        <div className="drag-region flex items-center justify-between border-b border-border/80 bg-card/85 px-4 py-3 shadow-sm backdrop-blur-md">
           <div className="no-drag flex min-w-0 items-center gap-3 overflow-x-auto pr-2">
             {isMacDesktop ? (
               <>
@@ -117,18 +119,21 @@ function App() {
                 <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
               </>
             ) : null}
-            <div className="shrink-0" role="img" aria-label="Mole">
-              <pre className="font-mono text-[7px] leading-[0.88] text-primary/90 select-none" aria-hidden="true">
+            <div className="flex shrink-0 items-center gap-2">
+              <MoleMascot actionToken={mascotActionToken} />
+              <div className="hidden min-[980px]:block" role="img" aria-label="Mole">
+                <pre className="font-mono text-[7px] leading-[0.88] text-primary/85 select-none" aria-hidden="true">
 {`┌┬┐┌─┐╷  ┌─╴
 ││││ ││  ├╴
 ╵ ╵└─┘└─╴└─╴`}
-              </pre>
+                </pre>
+              </div>
             </div>
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
             <TabsList className="no-drag h-9 shrink-0 border-0 bg-transparent p-0">
               <TabsTrigger
                 value="sessions"
-                className="px-3 data-[state=active]:bg-muted"
+                className="px-3.5 data-[state=active]:bg-[hsl(var(--selected))] data-[state=active]:text-[hsl(var(--selected-foreground))]"
                 aria-label={t('nav.burrows')}
                 title={t('nav.burrows')}
               >
@@ -170,11 +175,12 @@ function App() {
           </div>
         </div>
 
-        <TabsContent value="sessions" className="no-drag mt-0 flex-1 overflow-y-auto overflow-x-hidden p-6">
+        <TabsContent value="sessions" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
           <Sessions
             onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
             burrowRefreshSignal={burrowRefreshSignal}
+            onBurrowOpenStart={() => setMascotActionToken(prev => prev + 1)}
             onNewSessionSignalHandled={() => setNewSessionSignal(0)}
             onDiscard={() => {
               setNavigateContext(null)
@@ -184,15 +190,15 @@ function App() {
           />
         </TabsContent>
 
-        <TabsContent value="profiles" className="no-drag flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="profiles" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
           <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
-        <TabsContent value="hosts" className="no-drag flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="hosts" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
           <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
         </TabsContent>
 
-        <TabsContent value="settings" className="no-drag flex-1 overflow-auto p-6 mt-0">
+        <TabsContent value="settings" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
           <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
         </TabsContent>
       </Tabs>

@@ -51,6 +51,9 @@ Thumbs.db
 .playwright-mcp/
 mole
 
+# Docs
+docs/prd/
+
 # Python cache
 __pycache__/
 *.pyc

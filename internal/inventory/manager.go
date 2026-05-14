@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -101,6 +102,19 @@ func (m *Manager) DeleteHost(id string) error {
 				h.BastionID = ""
 				inv.Hosts[i] = h
 			}
+			if len(h.JumpHostIDs) > 0 {
+				nextJumpIDs := make([]string, 0, len(h.JumpHostIDs))
+				for _, jumpID := range h.JumpHostIDs {
+					if jumpID != id {
+						nextJumpIDs = append(nextJumpIDs, jumpID)
+					}
+				}
+				h.JumpHostIDs = nextJumpIDs
+				if len(nextJumpIDs) > 0 {
+					h.BastionID = nextJumpIDs[0]
+				}
+				inv.Hosts[i] = h
+			}
 		}
 
 		m.normalize(inv)
@@ -190,10 +204,31 @@ func (m *Manager) normalize(inv *Inventory) {
 		inv.Groups = []HostGroup{}
 	}
 	for i, h := range inv.Hosts {
+		h.SourceAlias = strings.TrimSpace(h.SourceAlias)
 		if h.Tags == nil {
 			h.Tags = []string{}
-			inv.Hosts[i] = h
 		}
+		if h.JumpHostIDs == nil {
+			h.JumpHostIDs = []string{}
+		}
+		if len(h.JumpHostIDs) == 0 && strings.TrimSpace(h.BastionID) != "" {
+			h.JumpHostIDs = []string{strings.TrimSpace(h.BastionID)}
+		}
+		filteredJumpIDs := make([]string, 0, len(h.JumpHostIDs))
+		for _, jumpID := range h.JumpHostIDs {
+			trimmed := strings.TrimSpace(jumpID)
+			if trimmed == "" || trimmed == h.ID {
+				continue
+			}
+			filteredJumpIDs = append(filteredJumpIDs, trimmed)
+		}
+		h.JumpHostIDs = uniqueStrings(filteredJumpIDs)
+		if len(h.JumpHostIDs) > 0 {
+			h.BastionID = h.JumpHostIDs[0]
+		} else {
+			h.BastionID = ""
+		}
+		inv.Hosts[i] = h
 	}
 	for i, g := range inv.Groups {
 		if g.HostIDs == nil {
@@ -206,11 +241,66 @@ func (m *Manager) normalize(inv *Inventory) {
 	}
 }
 
+type hostConnection struct {
+	target   string
+	user     string
+	port     int
+	identity string
+}
+
 func buildSSHCommand(host Host, defaults HostDefaults, hostMap map[string]Host) string {
 	if host.Host == "" {
 		return ""
 	}
 
+	targetConn := resolveHostConnection(host, defaults)
+
+	parts := []string{"ssh"}
+	if targetConn.identity != "" {
+		parts = append(parts, "-i", targetConn.identity)
+	}
+	if targetConn.port != 0 && targetConn.port != 22 {
+		parts = append(parts, "-p", fmt.Sprintf("%d", targetConn.port))
+	}
+
+	jumpIDs := host.JumpHostIDs
+	if len(jumpIDs) == 0 && host.BastionID != "" {
+		jumpIDs = []string{host.BastionID}
+	}
+	if len(jumpIDs) > 0 {
+		hops := make([]hostConnection, 0, len(jumpIDs))
+		canUseProxyJump := true
+		for _, jumpID := range jumpIDs {
+			if bastion, ok := hostMap[jumpID]; ok && bastion.Host != "" {
+				conn := resolveHostConnection(bastion, defaults)
+				hops = append(hops, conn)
+				if conn.identity != "" {
+					canUseProxyJump = false
+				}
+			}
+		}
+		if len(hops) > 0 {
+			if canUseProxyJump {
+				jumpSpecs := make([]string, 0, len(hops))
+				for _, hop := range hops {
+					jumpSpecs = append(jumpSpecs, hop.jumpSpec())
+				}
+				parts = append(parts, "-J", strings.Join(jumpSpecs, ","))
+			} else {
+				parts = append(parts, "-o", fmt.Sprintf("ProxyCommand=%s", shellQuote(buildNestedProxyCommand(hops))))
+			}
+		}
+	}
+
+	parts = append(parts, targetConn.targetSpec())
+	return joinArgs(parts)
+}
+
+func joinArgs(args []string) string {
+	return strings.Join(args, " ")
+}
+
+func resolveHostConnection(host Host, defaults HostDefaults) hostConnection {
 	user := host.User
 	if user == "" {
 		user = defaults.User
@@ -226,44 +316,45 @@ func buildSSHCommand(host Host, defaults HostDefaults, hostMap map[string]Host) 
 		identity = defaults.IdentityFile
 	}
 
-	parts := []string{"ssh"}
-	if identity != "" {
-		parts = append(parts, "-i", identity)
+	return hostConnection{
+		target:   host.Host,
+		user:     user,
+		port:     port,
+		identity: identity,
 	}
-	if port != 0 && port != 22 {
-		parts = append(parts, "-p", fmt.Sprintf("%d", port))
-	}
-
-	if host.BastionID != "" {
-		if bastion, ok := hostMap[host.BastionID]; ok && bastion.Host != "" {
-			bastionUser := bastion.User
-			if bastionUser == "" {
-				bastionUser = defaults.User
-			}
-			bastionTarget := bastion.Host
-			if bastionUser != "" {
-				bastionTarget = fmt.Sprintf("%s@%s", bastionUser, bastion.Host)
-			}
-			parts = append(parts, "-J", bastionTarget)
-		}
-	}
-
-	target := host.Host
-	if user != "" {
-		target = fmt.Sprintf("%s@%s", user, host.Host)
-	}
-
-	return fmt.Sprintf("%s %s", parts[0], joinArgs(append(parts[1:], target)))
 }
 
-func joinArgs(args []string) string {
-	if len(args) == 0 {
-		return ""
+func (c hostConnection) targetSpec() string {
+	if c.user == "" {
+		return c.target
 	}
+	return fmt.Sprintf("%s@%s", c.user, c.target)
+}
 
-	result := args[0]
-	for _, arg := range args[1:] {
-		result += " " + arg
+func (c hostConnection) jumpSpec() string {
+	spec := c.targetSpec()
+	if c.port != 0 && c.port != 22 {
+		spec = fmt.Sprintf("%s:%d", spec, c.port)
 	}
-	return result
+	return spec
+}
+
+func buildNestedProxyCommand(hops []hostConnection) string {
+	last := hops[len(hops)-1]
+	args := []string{"ssh"}
+	if last.identity != "" {
+		args = append(args, "-i", last.identity)
+	}
+	if last.port != 0 && last.port != 22 {
+		args = append(args, "-p", fmt.Sprintf("%d", last.port))
+	}
+	if len(hops) > 1 {
+		args = append(args, "-o", fmt.Sprintf("ProxyCommand=%s", shellQuote(buildNestedProxyCommand(hops[:len(hops)-1]))))
+	}
+	args = append(args, "-W", "%h:%p", last.targetSpec())
+	return joinArgs(args)
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
 }

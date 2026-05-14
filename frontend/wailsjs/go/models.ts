@@ -95,10 +95,12 @@ export namespace inventory {
 	export class Host {
 	    id: string;
 	    name: string;
+	    source_alias?: string;
 	    host: string;
 	    user: string;
 	    port: number;
 	    bastion_id: string;
+	    jump_host_ids?: string[];
 	    identity_file: string;
 	    tags: string[];
 	
@@ -110,10 +112,12 @@ export namespace inventory {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.source_alias = source["source_alias"];
 	        this.host = source["host"];
 	        this.user = source["user"];
 	        this.port = source["port"];
 	        this.bastion_id = source["bastion_id"];
+	        this.jump_host_ids = source["jump_host_ids"];
 	        this.identity_file = source["identity_file"];
 	        this.tags = source["tags"];
 	    }
@@ -187,6 +191,90 @@ export namespace inventory {
 		    }
 		    return a;
 		}
+	}
+	export class SSHConfigImportCandidate {
+	    alias: string;
+	    name: string;
+	    host: string;
+	    user?: string;
+	    port?: number;
+	    identity_file?: string;
+	    jump_aliases?: string[];
+	    importable: boolean;
+	    blocked_reason?: string;
+	    conflict_kind?: string;
+	    conflict_host_id?: string;
+	    conflict_host_name?: string;
+	    warnings?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigImportCandidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.alias = source["alias"];
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.user = source["user"];
+	        this.port = source["port"];
+	        this.identity_file = source["identity_file"];
+	        this.jump_aliases = source["jump_aliases"];
+	        this.importable = source["importable"];
+	        this.blocked_reason = source["blocked_reason"];
+	        this.conflict_kind = source["conflict_kind"];
+	        this.conflict_host_id = source["conflict_host_id"];
+	        this.conflict_host_name = source["conflict_host_name"];
+	        this.warnings = source["warnings"];
+	    }
+	}
+	export class SSHConfigImportPreview {
+	    path: string;
+	    candidates: SSHConfigImportCandidate[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigImportPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.candidates = this.convertValues(source["candidates"], SSHConfigImportCandidate);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class SSHConfigImportRequest {
+	    path: string;
+	    aliases: string[];
+	    conflict_strategy: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SSHConfigImportRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.aliases = source["aliases"];
+	        this.conflict_strategy = source["conflict_strategy"];
+	    }
 	}
 
 }
@@ -269,6 +357,56 @@ export namespace profile {
 
 export namespace session {
 	
+	export class OpenDenFailure {
+	    session_id: string;
+	    name: string;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OpenDenFailure(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session_id = source["session_id"];
+	        this.name = source["name"];
+	        this.error = source["error"];
+	    }
+	}
+	export class OpenDenResult {
+	    opened: string[];
+	    skipped: string[];
+	    failed: OpenDenFailure[];
+	
+	    static createFrom(source: any = {}) {
+	        return new OpenDenResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.opened = source["opened"];
+	        this.skipped = source["skipped"];
+	        this.failed = this.convertValues(source["failed"], OpenDenFailure);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PluginInfo {
 	    id: string;
 	    label_key: string;

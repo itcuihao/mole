@@ -3,11 +3,17 @@ package session
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type storeData struct {
+	Sessions  []Session            `json:"sessions"`
+	DenOrders map[string][]string  `json:"den_orders,omitempty"`
+}
 
 // Store handles Session persistence to a JSON file.
 type Store struct {
@@ -20,33 +26,61 @@ func NewStore(path string) *Store {
 	return &Store{path: path}
 }
 
-func (s *Store) load() ([]Session, error) {
+func (s *Store) loadData() (storeData, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []Session{}, nil
+			return storeData{Sessions: []Session{}, DenOrders: map[string][]string{}}, nil
 		}
-		return nil, err
+		return storeData{}, err
 	}
 	if len(data) == 0 {
-		return []Session{}, nil
+		return storeData{Sessions: []Session{}, DenOrders: map[string][]string{}}, nil
 	}
-	var sessions []Session
-	if err := json.Unmarshal(data, &sessions); err != nil {
-		return nil, err
+
+	var payload storeData
+	if err := json.Unmarshal(data, &payload); err == nil && payload.Sessions != nil {
+		normalizeStoreData(&payload)
+		return payload, nil
 	}
-	for i := range sessions {
-		sessions[i].NormalizeRuntimeMetadata()
+
+	var legacy []Session
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return storeData{}, err
 	}
-	return sessions, nil
+
+	payload = storeData{
+		Sessions: legacy,
+		DenOrders: map[string][]string{},
+	}
+	normalizeStoreData(&payload)
+	return payload, nil
 }
 
-func (s *Store) save(sessions []Session) error {
-	data, err := json.MarshalIndent(sessions, "", "  ")
+func (s *Store) load() ([]Session, error) {
+	payload, err := s.loadData()
+	if err != nil {
+		return nil, err
+	}
+	return payload.Sessions, nil
+}
+
+func (s *Store) saveData(payload storeData) error {
+	normalizeStoreData(&payload)
+	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0o644)
+}
+
+func (s *Store) save(sessions []Session) error {
+	payload, err := s.loadData()
+	if err != nil {
+		return err
+	}
+	payload.Sessions = sessions
+	return s.saveData(payload)
 }
 
 // List returns all sessions.
@@ -89,7 +123,7 @@ func (s *Store) Save(sess Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.load()
+	payload, err := s.loadData()
 	if err != nil {
 		return err
 	}
@@ -100,14 +134,19 @@ func (s *Store) Save(sess Session) error {
 	}
 	sess.NormalizeRuntimeMetadata()
 
-	sessions = append(sessions, sess)
-	return s.save(sessions)
+	payload.Sessions = append(payload.Sessions, sess)
+	return s.saveData(payload)
 }
 
 // ReplaceAll overwrites the full stored session set.
 func (s *Store) ReplaceAll(sessions []Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	payload, err := s.loadData()
+	if err != nil {
+		return err
+	}
 
 	if sessions == nil {
 		sessions = []Session{}
@@ -123,7 +162,8 @@ func (s *Store) ReplaceAll(sessions []Session) error {
 		sessions[i].NormalizeRuntimeMetadata()
 	}
 
-	return s.save(sessions)
+	payload.Sessions = sessions
+	return s.saveData(payload)
 }
 
 // Update modifies an existing session.
@@ -131,17 +171,17 @@ func (s *Store) Update(sess Session) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.load()
+	payload, err := s.loadData()
 	if err != nil {
 		return err
 	}
 
 	found := false
-	for i, existing := range sessions {
+	for i, existing := range payload.Sessions {
 		if existing.ID == sess.ID {
 			sess.CreatedAt = existing.CreatedAt // preserve creation time
 			sess.NormalizeRuntimeMetadata()
-			sessions[i] = sess
+			payload.Sessions[i] = sess
 			found = true
 			break
 		}
@@ -151,7 +191,7 @@ func (s *Store) Update(sess Session) error {
 		return os.ErrNotExist
 	}
 
-	return s.save(sessions)
+	return s.saveData(payload)
 }
 
 // RecordOpen increments usage counters for a session after a successful attach.
@@ -159,18 +199,18 @@ func (s *Store) RecordOpen(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.load()
+	payload, err := s.loadData()
 	if err != nil {
 		return err
 	}
 
 	found := false
-	for i, existing := range sessions {
+	for i, existing := range payload.Sessions {
 		if existing.ID == id {
 			existing.OpenCount++
 			existing.LastOpenedAt = time.Now().Format(time.RFC3339Nano)
 			existing.NormalizeRuntimeMetadata()
-			sessions[i] = existing
+			payload.Sessions[i] = existing
 			found = true
 			break
 		}
@@ -180,7 +220,7 @@ func (s *Store) RecordOpen(id string) error {
 		return os.ErrNotExist
 	}
 
-	return s.save(sessions)
+	return s.saveData(payload)
 }
 
 // Delete removes a session by ID.
@@ -188,18 +228,19 @@ func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.load()
+	payload, err := s.loadData()
 	if err != nil {
 		return err
 	}
 
-	filtered := sessions[:0]
-	for _, sess := range sessions {
+	filtered := payload.Sessions[:0]
+	for _, sess := range payload.Sessions {
 		if sess.ID != id {
 			filtered = append(filtered, sess)
 		}
 	}
-	return s.save(filtered)
+	payload.Sessions = filtered
+	return s.saveData(payload)
 }
 
 // DeleteByTmuxName removes a session by its tmux session name.
@@ -207,18 +248,19 @@ func (s *Store) DeleteByTmuxName(tmuxName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	sessions, err := s.load()
+	payload, err := s.loadData()
 	if err != nil {
 		return err
 	}
 
-	filtered := sessions[:0]
-	for _, sess := range sessions {
+	filtered := payload.Sessions[:0]
+	for _, sess := range payload.Sessions {
 		if sess.TmuxSessionName != tmuxName {
 			filtered = append(filtered, sess)
 		}
 	}
-	return s.save(filtered)
+	payload.Sessions = filtered
+	return s.saveData(payload)
 }
 
 // GetByRuntimeName returns a session by its runtime session name.
@@ -229,4 +271,121 @@ func (s *Store) GetByRuntimeName(runtimeName string) (Session, error) {
 // DeleteByRuntimeName removes a session by its runtime session name.
 func (s *Store) DeleteByRuntimeName(runtimeName string) error {
 	return s.DeleteByTmuxName(runtimeName)
+}
+
+func (s *Store) GetDenOrder(den string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	payload, err := s.loadData()
+	if err != nil {
+		return nil, err
+	}
+
+	key := strings.TrimSpace(den)
+	order := append([]string{}, payload.DenOrders[key]...)
+	return order, nil
+}
+
+func (s *Store) SaveDenOrder(den string, sessionIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	payload, err := s.loadData()
+	if err != nil {
+		return err
+	}
+
+	key := strings.TrimSpace(den)
+	if key == "" {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	filtered := make([]string, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		trimmed := strings.TrimSpace(sessionID)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		for _, sess := range payload.Sessions {
+			if sess.ID == trimmed && strings.TrimSpace(sess.Den) == key {
+				seen[trimmed] = struct{}{}
+				filtered = append(filtered, trimmed)
+				break
+			}
+		}
+	}
+
+	for _, sess := range payload.Sessions {
+		if strings.TrimSpace(sess.Den) != key {
+			continue
+		}
+		if _, ok := seen[sess.ID]; ok {
+			continue
+		}
+		seen[sess.ID] = struct{}{}
+		filtered = append(filtered, sess.ID)
+	}
+
+	if len(filtered) == 0 {
+		delete(payload.DenOrders, key)
+	} else {
+		payload.DenOrders[key] = filtered
+	}
+
+	return s.saveData(payload)
+}
+
+func normalizeStoreData(payload *storeData) {
+	if payload.Sessions == nil {
+		payload.Sessions = []Session{}
+	}
+	if payload.DenOrders == nil {
+		payload.DenOrders = map[string][]string{}
+	}
+
+	sessionByID := make(map[string]Session, len(payload.Sessions))
+	for i := range payload.Sessions {
+		payload.Sessions[i].NormalizeRuntimeMetadata()
+		sessionByID[payload.Sessions[i].ID] = payload.Sessions[i]
+	}
+
+	for den, order := range payload.DenOrders {
+		key := strings.TrimSpace(den)
+		if key == "" {
+			delete(payload.DenOrders, den)
+			continue
+		}
+
+		seen := map[string]struct{}{}
+		filtered := make([]string, 0, len(order))
+		for _, sessionID := range order {
+			trimmed := strings.TrimSpace(sessionID)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			sess, ok := sessionByID[trimmed]
+			if !ok || strings.TrimSpace(sess.Den) != key {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filtered = append(filtered, trimmed)
+		}
+
+		if len(filtered) == 0 {
+			delete(payload.DenOrders, den)
+			continue
+		}
+		payload.DenOrders[key] = filtered
+		if key != den {
+			delete(payload.DenOrders, den)
+		}
+	}
 }

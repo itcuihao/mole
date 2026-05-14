@@ -3,10 +3,12 @@ import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { cn } from '@/lib/utils'
 import { useTranslation } from "@/i18n/context"
-import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft } from "lucide-react"
+import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft, Search } from "lucide-react"
+import { PROFILE_TEMPLATES, type ProfileTemplate } from '@/lib/profile-templates'
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -56,6 +58,7 @@ function Profiles({
   const [viewingProfile, setViewingProfile] = useState<profile.Profile | null>(null)
   const [isNew, setIsNew] = useState(false)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -122,50 +125,100 @@ function Profiles({
     [...profiles].sort((a, b) => compareByLabel(a.name || '', b.name || ''))
   ), [profiles])
 
+  const filteredProfiles = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) return sortedProfiles
+
+    return sortedProfiles.filter((item) => {
+      const keys = Object.keys(item.env_vars || {})
+      return (item.name || '').toLowerCase().includes(query)
+        || (item.description || '').toLowerCase().includes(query)
+        || keys.some(key => key.toLowerCase().includes(query))
+    })
+  }, [search, sortedProfiles])
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          )}
-          <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="surface-panel rounded-2xl border border-border px-5 py-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
+              <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
+            </div>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Keep provider keys, launch variables, and secret flags tidy enough to reuse without second-guessing the setup.
+            </p>
+          </div>
+          <Button onClick={handleNew} size="sm" className="shadow-sm">
+            <Plus className="w-4 h-4" />
+            {t('profiles.addProfile')}
+          </Button>
         </div>
-        <Button onClick={handleNew} size="sm">
-          <Plus className="w-4 h-4" />
-          {t('profiles.addProfile')}
-        </Button>
+
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative w-full max-w-xl">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('profiles.searchPlaceholder')}
+              className="h-10 rounded-xl border-border bg-background/80 pl-10 pr-10"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={t('common.clear')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {t('profiles.summary', { filtered: filteredProfiles.length, total: profiles.length })}
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
+        <div className="surface-panel flex items-start justify-between gap-2 rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <span className="flex-1">{error}</span>
-          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
+          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0 hover:bg-destructive/20">
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       )}
 
-      {profiles.length === 0 ? (
-        <div className="text-center text-muted-foreground py-12">
-          {t('profiles.empty')}
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {sortedProfiles.map(p => (
-            <ProfileCard
-              key={p.id}
-              profile={p}
-              onView={handleView}
-              onDuplicate={handleDuplicate}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+      <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
+        {profiles.length === 0 ? (
+          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
+            {t('profiles.empty')}
+          </div>
+        ) : filteredProfiles.length === 0 ? (
+          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
+            {t('profiles.noFilterMatch')}
+          </div>
+        ) : (
+          <div className="grid gap-3 pb-2">
+            {filteredProfiles.map(p => (
+              <ProfileCard
+                key={p.id}
+                profile={p}
+                onView={handleView}
+                onDuplicate={handleDuplicate}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {editingProfile && (
         <ProfileForm
@@ -204,23 +257,33 @@ function ProfileCard({
   const secretCount = (p.secret_keys || []).length
 
   return (
-    <div className="flex items-center justify-between p-4 bg-card rounded-lg border border-border hover:border-primary/30 transition-all">
-      <div className="flex items-center gap-3">
-        <div
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: p.color || '#6B7280' }}
-        />
-        <div>
-          <div className="font-medium text-foreground">{p.name}</div>
-          <div className="text-sm text-muted-foreground">
-            {p.description && <span>{p.description} | </span>}
-            {t('profiles.card.varCount', { count: envCount })}
-            {secretCount > 0 && `, ${t('profiles.card.secretCount', { count: secretCount })}`}
+    <div className="breathing-card surface-panel flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all xl:flex-row xl:items-center xl:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start gap-3">
+          <div
+            className="mt-1 h-3 w-3 rounded-full shrink-0"
+            style={{ backgroundColor: p.color || '#6B7280' }}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="truncate font-medium text-foreground">{p.name}</div>
+              <span className="rounded-full border border-border/80 bg-muted/30 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                {t('profiles.card.varCount', { count: envCount })}
+              </span>
+              {secretCount > 0 && (
+                <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  {t('profiles.card.secretCount', { count: secretCount })}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 text-sm leading-6 text-muted-foreground">
+              {p.description || t('profiles.card.noDescription')}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 xl:justify-end">
         <Button onClick={() => onDuplicate(p)} variant="outline" size="sm" title={t('common.duplicate')}>
           <Copy className="w-3.5 h-3.5" />
           {t('common.duplicate')}
@@ -280,6 +343,7 @@ function ProfileForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showBulkImport, setShowBulkImport] = useState(false)
+  const [selectedTemplateID, setSelectedTemplateID] = useState('custom')
   const envEntryIssues = useMemo(() => {
     const issues = new Map<number, string[]>()
     const indexesByKey = new Map<string, number[]>()
@@ -308,6 +372,31 @@ function ProfileForm({
 
     return issues
   }, [envEntries])
+
+  const selectedTemplate = useMemo(() => (
+    PROFILE_TEMPLATES.find(template => template.id === selectedTemplateID) || PROFILE_TEMPLATES[PROFILE_TEMPLATES.length - 1]
+  ), [selectedTemplateID])
+
+  const hasMeaningfulContent = name.trim() || description.trim() || envEntries.some(entry => normalizeEnvKey(entry.key) || entry.value)
+
+  const applyTemplate = (template: ProfileTemplate) => {
+    if (template.id !== selectedTemplateID && hasMeaningfulContent) {
+      const confirmed = window.confirm(t('profiles.form.templateReplaceConfirm', { name: template.name }))
+      if (!confirmed) return
+    }
+
+    setSelectedTemplateID(template.id)
+    setError('')
+    setEnvEntries(template.entries.map(entry => ({
+      key: entry.key,
+      value: entry.value,
+      isSecret: entry.isSecret,
+    })))
+
+    if (isNew && !description.trim()) {
+      setDescription(template.id === 'custom' ? '' : template.description)
+    }
+  }
 
   const addEntry = () => {
     setError('')
@@ -471,6 +560,39 @@ function ProfileForm({
         )}
 
         <div className="space-y-5">
+          <div className="rounded-xl border border-border bg-muted/10 p-4">
+            <div className="mb-3">
+              <label className="text-sm font-medium text-foreground">{t('profiles.form.template')}</label>
+              <p className="mt-1 text-xs text-muted-foreground">{t('profiles.form.templateDesc')}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {PROFILE_TEMPLATES.map(template => {
+                const active = selectedTemplateID === template.id
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => applyTemplate(template)}
+                    className={cn(
+                      'interactive-chip rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                      active
+                        ? 'border-primary bg-[hsl(var(--selected))] text-[hsl(var(--selected-foreground))]'
+                        : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                    )}
+                  >
+                    {template.name}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedTemplate && selectedTemplate.id !== 'custom' && (
+              <div className="mt-3 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">{selectedTemplate.family}</div>
+                <div className="mt-1">{selectedTemplate.description}</div>
+              </div>
+            )}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
@@ -751,7 +873,7 @@ function ViewProfileModal({
           </Button>
         </div>
 
-        <div className="max-h-[26rem] space-y-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-3 font-mono text-xs text-foreground">
+        <div className="app-scroll max-h-[26rem] space-y-1 overflow-y-auto rounded-xl border border-border bg-muted/20 p-3 font-mono text-xs text-foreground">
           <div className="text-muted-foreground"># Profile: {p.name}</div>
           {p.description && <div className="text-muted-foreground"># {p.description}</div>}
           <div></div>

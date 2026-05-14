@@ -108,3 +108,15 @@ type SessionUpdateRequest struct {
 	PluginData     map[string]string `json:"plugin_data,omitempty"`
 	Den            string            `json:"den,omitempty"`
 }
+
+type OpenDenFailure struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name"`
+	Error     string `json:"error"`
+}
+
+type OpenDenResult struct {
+	Opened  []string         `json:"opened"`
+	Skipped []string         `json:"skipped"`
+	Failed  []OpenDenFailure `json:"failed"`
+}

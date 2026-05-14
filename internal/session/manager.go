@@ -240,6 +240,70 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 	return result, nil
 }
 
+func (m *Manager) GetDenOrder(den string) ([]string, error) {
+	return m.store.GetDenOrder(strings.TrimSpace(den))
+}
+
+func (m *Manager) SaveDenOrder(den string, sessionIDs []string) error {
+	return m.store.SaveDenOrder(strings.TrimSpace(den), sessionIDs)
+}
+
+func (m *Manager) OpenDen(den string) (OpenDenResult, error) {
+	group := strings.TrimSpace(den)
+	if group == "" {
+		return OpenDenResult{}, fmt.Errorf("den is required")
+	}
+
+	statuses, err := m.ListWithStatus()
+	if err != nil {
+		return OpenDenResult{}, err
+	}
+
+	denSessions := make([]SessionStatus, 0)
+	for _, status := range statuses {
+		if strings.TrimSpace(status.Den) == group {
+			denSessions = append(denSessions, status)
+		}
+	}
+	if len(denSessions) == 0 {
+		return OpenDenResult{Opened: []string{}, Skipped: []string{}, Failed: []OpenDenFailure{}}, nil
+	}
+
+	orderedSessions, err := m.orderDenSessions(group, denSessions)
+	if err != nil {
+		return OpenDenResult{}, err
+	}
+
+	terminalID, err := m.defaultTerminalID()
+	if err != nil {
+		return OpenDenResult{}, err
+	}
+
+	result := OpenDenResult{
+		Opened:  []string{},
+		Skipped: []string{},
+		Failed:  []OpenDenFailure{},
+	}
+
+	for _, status := range orderedSessions {
+		if status.Attached {
+			result.Skipped = append(result.Skipped, status.ID)
+			continue
+		}
+		if _, attachErr := m.AttachWithTerminal(status.ID, terminalID); attachErr != nil {
+			result.Failed = append(result.Failed, OpenDenFailure{
+				SessionID: status.ID,
+				Name:      status.Name,
+				Error:     attachErr.Error(),
+			})
+			continue
+		}
+		result.Opened = append(result.Opened, status.ID)
+	}
+
+	return result, nil
+}
+
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
 func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
@@ -411,18 +475,9 @@ func (m *Manager) Detach(sessionID string) error {
 		return nil
 	}
 
-	settings, err := config.LoadSettings()
+	terminalID, err := m.defaultTerminalID()
 	if err != nil {
-		settings = &config.Settings{}
-	}
-
-	terminalID := settings.DefaultTerminal
-	if terminalID == "" {
-		if bestTerminal := terminal.GetDefaultTerminal(); bestTerminal != nil {
-			terminalID = bestTerminal.ID
-		} else {
-			terminalID = terminal.DefaultTerminalID()
-		}
+		return err
 	}
 
 	if err := terminal.CloseGroupedWindow(terminalID, group); err != nil && !errors.Is(err, terminal.ErrCloseGroupedWindowUnsupported) {
@@ -485,21 +540,9 @@ func (m *Manager) Restart(sessionID string) error {
 // Returns (profileChanged, error) where profileChanged indicates the profile was
 // modified since the session was last started.
 func (m *Manager) Attach(sessionID string) (bool, error) {
-	// Load user's preferred terminal
-	settings, err := config.LoadSettings()
+	terminalID, err := m.defaultTerminalID()
 	if err != nil {
-		settings = &config.Settings{}
-	}
-
-	// Use configured terminal or auto-detect best one
-	terminalID := settings.DefaultTerminal
-	if terminalID == "" {
-		bestTerminal := terminal.GetDefaultTerminal()
-		if bestTerminal != nil {
-			terminalID = bestTerminal.ID
-		} else {
-			terminalID = terminal.DefaultTerminalID()
-		}
+		return false, err
 	}
 
 	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
@@ -929,6 +972,56 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 	}
 
 	return prepared, nil
+}
+
+func (m *Manager) orderDenSessions(den string, sessions []SessionStatus) ([]SessionStatus, error) {
+	order, err := m.store.GetDenOrder(den)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionByID := make(map[string]SessionStatus, len(sessions))
+	for _, status := range sessions {
+		sessionByID[status.ID] = status
+	}
+
+	ordered := make([]SessionStatus, 0, len(sessions))
+	seen := make(map[string]struct{}, len(sessions))
+	for _, sessionID := range order {
+		status, ok := sessionByID[sessionID]
+		if !ok {
+			continue
+		}
+		ordered = append(ordered, status)
+		seen[sessionID] = struct{}{}
+	}
+
+	for _, status := range sessions {
+		if _, ok := seen[status.ID]; ok {
+			continue
+		}
+		ordered = append(ordered, status)
+	}
+
+	return ordered, nil
+}
+
+func (m *Manager) defaultTerminalID() (string, error) {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		settings = &config.Settings{}
+	}
+
+	terminalID := settings.DefaultTerminal
+	if terminalID == "" {
+		if bestTerminal := terminal.GetDefaultTerminal(); bestTerminal != nil {
+			terminalID = bestTerminal.ID
+		} else {
+			terminalID = terminal.DefaultTerminalID()
+		}
+	}
+
+	return terminalID, nil
 }
 
 // StopTrackedSessions terminates all currently tracked runtime sessions before destructive burrow operations.

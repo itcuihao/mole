@@ -11,10 +11,12 @@ type HostDefaults struct {
 type Host struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
+	SourceAlias  string   `json:"source_alias,omitempty"`
 	Host         string   `json:"host"`
 	User         string   `json:"user"`
 	Port         int      `json:"port"`
 	BastionID    string   `json:"bastion_id"`
+	JumpHostIDs  []string `json:"jump_host_ids,omitempty"`
 	IdentityFile string   `json:"identity_file"`
 	Tags         []string `json:"tags"`
 }

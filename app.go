@@ -207,6 +207,21 @@ func (a *App) RestartSession(sessionID string) error {
 	return a.sessionMgr.Restart(sessionID)
 }
 
+// OpenDen opens every burrow in a den using the stored order.
+func (a *App) OpenDen(den string) (session.OpenDenResult, error) {
+	return a.sessionMgr.OpenDen(den)
+}
+
+// GetDenOrder returns the persisted session order for a den.
+func (a *App) GetDenOrder(den string) ([]string, error) {
+	return a.sessionMgr.GetDenOrder(den)
+}
+
+// SaveDenOrder persists the explicit session order for a den.
+func (a *App) SaveDenOrder(den string, sessionIDs []string) error {
+	return a.sessionMgr.SaveDenOrder(den, sessionIDs)
+}
+
 // GetInstalledTerminals returns all installed terminal applications.
 func (a *App) GetInstalledTerminals() []terminal.TerminalApp {
 	return terminal.DetectInstalled()
@@ -265,6 +280,16 @@ func (a *App) SaveHost(h inventory.Host) error {
 // DeleteHost removes a host by ID.
 func (a *App) DeleteHost(id string) error {
 	return a.invMgr.DeleteHost(id)
+}
+
+// PreviewSSHConfigImport parses ~/.ssh/config and returns import candidates.
+func (a *App) PreviewSSHConfigImport(path string) (inventory.SSHConfigImportPreview, error) {
+	return a.invMgr.PreviewSSHConfigImport(path)
+}
+
+// ImportSSHConfig imports selected SSH config aliases into Mole hosts.
+func (a *App) ImportSSHConfig(req inventory.SSHConfigImportRequest) error {
+	return a.invMgr.ImportSSHConfig(req)
 }
 
 // SaveHostGroup creates or updates a host group.

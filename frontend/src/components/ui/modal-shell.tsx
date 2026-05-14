@@ -48,7 +48,7 @@ export function ModalShell({
     >
       <div
         className={cn(
-          'flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border',
+          'surface-panel flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[1.35rem] border',
           SIZE_MAP[size],
           contentClassName
         )}
@@ -88,7 +88,7 @@ export function ModalShell({
           {headerSlot ? <div className="mt-3">{headerSlot}</div> : null}
         </div>
 
-        <div className={cn('min-h-0 flex-1 overflow-y-auto px-6 py-5', bodyClassName)}>
+        <div className={cn('app-scroll min-h-0 flex-1 overflow-y-auto px-6 py-5', bodyClassName)}>
           {children}
         </div>
 

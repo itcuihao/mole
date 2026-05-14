@@ -62,6 +62,10 @@ export function GetDefaultTerminal() {
   return window['go']['main']['App']['GetDefaultTerminal']();
 }
 
+export function GetDenOrder(arg1) {
+  return window['go']['main']['App']['GetDenOrder'](arg1);
+}
+
 export function GetInstalledTerminals() {
   return window['go']['main']['App']['GetInstalledTerminals']();
 }
@@ -72,6 +76,10 @@ export function GetInventory() {
 
 export function ImportBurrow(arg1) {
   return window['go']['main']['App']['ImportBurrow'](arg1);
+}
+
+export function ImportSSHConfig(arg1) {
+  return window['go']['main']['App']['ImportSSHConfig'](arg1);
 }
 
 export function KillSession(arg1) {
@@ -102,12 +110,24 @@ export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
 
+export function OpenDen(arg1) {
+  return window['go']['main']['App']['OpenDen'](arg1);
+}
+
+export function PreviewSSHConfigImport(arg1) {
+  return window['go']['main']['App']['PreviewSSHConfigImport'](arg1);
+}
+
 export function RestartSession(arg1) {
   return window['go']['main']['App']['RestartSession'](arg1);
 }
 
 export function SaveCodexConfig(arg1) {
   return window['go']['main']['App']['SaveCodexConfig'](arg1);
+}
+
+export function SaveDenOrder(arg1, arg2) {
+  return window['go']['main']['App']['SaveDenOrder'](arg1, arg2);
 }
 
 export function SaveDockerConfig(arg1) {

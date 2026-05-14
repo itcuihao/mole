@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -137,7 +137,12 @@ const compareSessionsByProfile = (left: SessionRecord, right: SessionRecord) => 
 }
 
 const profileLabel = (item: profile.Profile) => item.name || ''
-const hostLabel = (host: inventory.Host) => (host.name || host.host || '').trim()
+type HostRecord = inventory.Host & {
+  source_alias?: string
+  jump_host_ids?: string[]
+}
+
+const hostLabel = (host: HostRecord) => (host.name || host.host || '').trim()
 
 const buildDuplicateSessionName = (baseName: string, existingNames: string[]) => {
   const normalizedBase = baseName.trim() || 'session'
@@ -163,42 +168,93 @@ const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   groups: [],
 })
 
+type HostConnection = {
+  target: string
+  user: string
+  port: number
+  identity: string
+}
+
+const hostJumpChain = (host?: HostRecord | null) => (
+  (host?.jump_host_ids || []).filter(Boolean).length > 0
+    ? (host?.jump_host_ids || []).filter(Boolean)
+    : (host?.bastion_id ? [host.bastion_id] : [])
+)
+
+const resolveHostConnection = (host: HostRecord, defaults: inventory.HostDefaults): HostConnection => ({
+  target: host.host || '',
+  user: host.user || defaults.user || '',
+  port: host.port || defaults.port || 22,
+  identity: host.identity_file || defaults.identity_file || '',
+})
+
+const targetSpec = (conn: HostConnection) => (
+  conn.user ? `${conn.user}@${conn.target}` : conn.target
+)
+
+const jumpSpec = (conn: HostConnection) => (
+  conn.port && conn.port !== 22 ? `${targetSpec(conn)}:${conn.port}` : targetSpec(conn)
+)
+
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`
+
+const joinArgs = (args: string[]) => args.filter(Boolean).join(' ')
+
+const buildNestedProxyCommand = (hops: HostConnection[]): string => {
+  const last = hops[hops.length - 1]
+  const args = ['ssh']
+  if (last.identity) args.push('-i', last.identity)
+  if (last.port && last.port !== 22) args.push('-p', String(last.port))
+  if (hops.length > 1) {
+    args.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops.slice(0, -1)))}`)
+  }
+  args.push('-W', '%h:%p', targetSpec(last))
+  return joinArgs(args)
+}
+
 const buildSSHCommand = (
-  host: inventory.Host,
+  host: HostRecord,
   defaults: inventory.HostDefaults,
-  hostMap: Map<string, inventory.Host>
+  hostMap: Map<string, HostRecord>
 ) => {
   if (!host.host) return ''
-  const user = host.user || defaults.user
-  const port = host.port || defaults.port
-  const identity = host.identity_file || defaults.identity_file
-  const bastion = host.bastion_id ? hostMap.get(host.bastion_id) : null
-
+  const targetConn = resolveHostConnection(host, defaults)
   const parts = ['ssh']
-  if (identity) {
-    parts.push('-i', identity)
+  if (targetConn.identity) {
+    parts.push('-i', targetConn.identity)
   }
-  if (port && port !== 22) {
-    parts.push('-p', String(port))
+  if (targetConn.port && targetConn.port !== 22) {
+    parts.push('-p', String(targetConn.port))
   }
-  if (bastion && bastion.host) {
-    const bastionUser = bastion.user || defaults.user
-    const bastionTarget = `${bastionUser ? `${bastionUser}@` : ''}${bastion.host}`
-    parts.push('-J', bastionTarget)
+  const chainIDs = hostJumpChain(host)
+  if (chainIDs.length > 0) {
+    const hops = chainIDs
+      .map(id => hostMap.get(id))
+      .filter((item): item is HostRecord => Boolean(item?.host))
+      .map(item => resolveHostConnection(item, defaults))
+
+    if (hops.length > 0) {
+      const canUseProxyJump = hops.every(hop => !hop.identity)
+      if (canUseProxyJump) {
+        parts.push('-J', hops.map(jumpSpec).join(','))
+      } else {
+        parts.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops))}`)
+      }
+    }
   }
-  parts.push(`${user ? `${user}@` : ''}${host.host}`)
-  return parts.join(' ')
+  parts.push(targetSpec(targetConn))
+  return joinArgs(parts)
 }
 
 const findHostIDForCommand = (
   command: string,
   inv: inventory.Inventory,
-  hostMap: Map<string, inventory.Host>
+  hostMap: Map<string, HostRecord>
 ) => {
   const normalized = command.trim()
   if (!normalized) return ''
 
-  for (const host of inv.hosts) {
+  for (const host of inv.hosts as HostRecord[]) {
     if (buildSSHCommand(host, inv.defaults, hostMap) === normalized) {
       return host.id
     }
@@ -365,12 +421,14 @@ function Sessions({
   onNavigate,
   newSessionSignal,
   burrowRefreshSignal,
+  onBurrowOpenStart,
   onDiscard,
   onNewSessionSignalHandled,
 }: {
   onNavigate: (tab: AppTab, ctx?: NavigateContext) => void
   newSessionSignal?: number
   burrowRefreshSignal?: number
+  onBurrowOpenStart?: () => void
   onDiscard?: () => void
   onNewSessionSignalHandled?: () => void
 }) {
@@ -390,6 +448,9 @@ function Sessions({
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'restart' } | null>(null)
+  const [showDenOrderModal, setShowDenOrderModal] = useState(false)
+  const [denOrderDraft, setDenOrderDraft] = useState<SessionRecord[]>([])
+  const [denActionBusy, setDenActionBusy] = useState<'open' | 'save-order' | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -463,6 +524,7 @@ function Sessions({
 
     setSessionAction({ id: sess.id, kind: 'open' })
     setError('')
+    onBurrowOpenStart?.()
     try {
       if (!sess.alive) {
         await RestartSession(sess.id)
@@ -513,6 +575,104 @@ function Sessions({
       setError(String(err))
     } finally {
       setSessionAction(null)
+    }
+  }
+
+  const openDen = async () => {
+    if (!selectedDenFilter || selectedDenFilter === NO_DEN_FILTER_VALUE) return
+    const method = getAppMethod('OpenDen')
+    if (typeof method !== 'function') {
+      setError('OpenDen is unavailable')
+      return
+    }
+
+    setDenActionBusy('open')
+    setError('')
+    try {
+      const result = await method(selectedDenFilter)
+      refresh()
+
+      const opened = Array.isArray(result?.opened) ? result.opened.length : 0
+      const skipped = Array.isArray(result?.skipped) ? result.skipped.length : 0
+      const failed = Array.isArray(result?.failed) ? result.failed.length : 0
+      const pieces = [
+        t('burrows.den.openSummary', { den: selectedDenFilter, opened, skipped, failed }),
+      ]
+      if (failed > 0) {
+        const failedNames = result.failed.map((item: { name?: string }) => item.name || 'unknown').join(', ')
+        pieces.push(t('burrows.den.openFailedList', { names: failedNames }))
+      }
+      showTimedInfo(pieces.join(' '), 9000)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setDenActionBusy(null)
+    }
+  }
+
+  const openDenOrderEditor = async () => {
+    if (!selectedDenFilter || selectedDenFilter === NO_DEN_FILTER_VALUE) return
+    const method = getAppMethod('GetDenOrder')
+    const denSessions = sessions.filter(s => (s.den || '').trim() === selectedDenFilter)
+    if (denSessions.length === 0) return
+
+    let orderedIDs: string[] = []
+    if (typeof method === 'function') {
+      try {
+        orderedIDs = await method(selectedDenFilter)
+      } catch {
+        orderedIDs = []
+      }
+    }
+
+    const byID = new Map(denSessions.map(item => [item.id, item]))
+    const ordered: SessionRecord[] = []
+    const seen = new Set<string>()
+    orderedIDs.forEach(id => {
+      const match = byID.get(id)
+      if (!match) return
+      ordered.push(match)
+      seen.add(id)
+    })
+    denSessions.forEach(item => {
+      if (seen.has(item.id)) return
+      ordered.push(item)
+    })
+
+    setDenOrderDraft(ordered)
+    setShowDenOrderModal(true)
+  }
+
+  const moveDenSession = (index: number, direction: -1 | 1) => {
+    setDenOrderDraft(prev => {
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev
+      const next = [...prev]
+      const [item] = next.splice(index, 1)
+      next.splice(nextIndex, 0, item)
+      return next
+    })
+  }
+
+  const saveDenOrder = async () => {
+    if (!selectedDenFilter || selectedDenFilter === NO_DEN_FILTER_VALUE) return
+    const method = getAppMethod('SaveDenOrder')
+    if (typeof method !== 'function') {
+      setError('SaveDenOrder is unavailable')
+      return
+    }
+
+    setDenActionBusy('save-order')
+    setError('')
+    try {
+      await method(selectedDenFilter, denOrderDraft.map(item => item.id))
+      setShowDenOrderModal(false)
+      showTimedInfo(t('burrows.den.orderSaved', { den: selectedDenFilter }))
+      refresh()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setDenActionBusy(null)
     }
   }
 
@@ -625,14 +785,19 @@ function Sessions({
   }, [sessions])
 
   return (
-    <div className="min-w-0 h-full flex flex-col">
+    <div className="min-w-0 h-full flex flex-col gap-4">
       <div className="shrink-0">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
+            <p className="text-sm text-muted-foreground">
+              Keep dens, profiles, and launch paths close enough to open without losing the thread.
+            </p>
+          </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             {sessions.length > 0 && (
               <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
-                <SelectTrigger className="h-9 w-full bg-background sm:w-[148px]">
+                <SelectTrigger className="h-9 w-full rounded-xl border-border/80 bg-background/80 sm:w-[148px]">
                   <SelectValue aria-label={t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })} />
                 </SelectTrigger>
                 <SelectContent>
@@ -699,7 +864,8 @@ function Sessions({
                 <button
                   type="button"
                   onClick={() => setSelectedDenFilter('')}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  aria-pressed={!selectedDenFilter}
+                  className={`interactive-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     !selectedDenFilter
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
@@ -715,7 +881,8 @@ function Sessions({
                       key={option.key}
                       type="button"
                       onClick={() => setSelectedDenFilter(isSelected ? '' : option.key)}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      aria-pressed={isSelected}
+                      className={`interactive-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                         isSelected
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
@@ -727,6 +894,18 @@ function Sessions({
                   )
                 })}
               </div>
+              {selectedDenFilter && selectedDenFilter !== NO_DEN_FILTER_VALUE && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button onClick={openDen} size="sm" disabled={denActionBusy === 'open'} className="shadow-sm">
+                    <Play className="w-3.5 h-3.5" />
+                    {denActionBusy === 'open' ? t('burrows.den.opening') : t('burrows.den.open')}
+                  </Button>
+                  <Button onClick={openDenOrderEditor} variant="outline" size="sm">
+                    <ChevronDown className="w-3.5 h-3.5" />
+                    {t('burrows.den.reorder')}
+                  </Button>
+                </div>
+              )}
               {profilesInUse.length > 1 && (
                 <div className="flex items-center gap-1.5">
                   <span className="inline-flex h-8 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
@@ -769,9 +948,9 @@ function Sessions({
           onNavigate={onNavigate}
         />
       ) : (
-        <div className="flex-1 min-h-0 overflow-auto pr-1">
+        <div className="app-scroll flex-1 min-h-0 overflow-auto pr-1">
           {filteredSessions.length === 0 ? (
-            <div className="border border-border bg-muted/20 rounded-lg p-6 text-sm text-muted-foreground">
+            <div className="surface-panel rounded-2xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
               {selectedProfileFilter
                 ? (searchQuery ? t('burrows.noMatchInProfileSearch', { query: searchQuery }) : t('burrows.noMatchInProfile'))
                 : t('burrows.noMatch', { query: searchQuery })}
@@ -795,6 +974,47 @@ function Sessions({
             </div>
           )}
         </div>
+      )}
+
+      {showDenOrderModal && selectedDenFilter && (
+        <ModalShell
+          title={t('burrows.den.reorderTitle', { den: selectedDenFilter })}
+          description={t('burrows.den.reorderDesc')}
+          onClose={() => setShowDenOrderModal(false)}
+          contentClassName="max-w-[620px]"
+          footer={(
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setShowDenOrderModal(false)} variant="ghost">
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={saveDenOrder} disabled={denActionBusy === 'save-order'}>
+                {denActionBusy === 'save-order' ? t('burrows.den.savingOrder') : t('common.save')}
+              </Button>
+            </div>
+          )}
+        >
+          <div className="space-y-2">
+            {denOrderDraft.map((item, index) => (
+              <div key={item.id} className="surface-panel flex items-center gap-3 rounded-2xl border border-border bg-muted/10 px-4 py-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-background text-xs font-semibold text-muted-foreground">
+                  {index + 1}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-foreground">{item.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">{item.profile_name || t('common.none')}</div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button onClick={() => moveDenSession(index, -1)} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0" disabled={index === 0}>
+                    <ChevronUp className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={() => moveDenSession(index, 1)} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0" disabled={index === denOrderDraft.length - 1}>
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ModalShell>
       )}
 
       {showNewModal && (
@@ -892,11 +1112,18 @@ function SessionCard({
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/30 sm:flex-row sm:items-start sm:justify-between">
+    <div className="breathing-card surface-panel flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all sm:flex-row sm:items-start sm:justify-between">
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor}`} />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-foreground">{s.name}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-medium text-foreground">{s.name}</div>
+            {s.den ? (
+              <span className="rounded-full border border-primary/15 bg-[hsl(var(--selected))] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--selected-foreground))]">
+                {s.den}
+              </span>
+            ) : null}
+          </div>
           <div className="text-sm text-muted-foreground">
             {s.profile_name && (
               <span className="inline-flex items-center gap-1">
@@ -932,7 +1159,7 @@ function SessionCard({
             <Button
               onClick={() => onOpen(s)}
               size="sm"
-              className="rounded-r-none pr-2"
+              className="rounded-r-none pr-2 shadow-md"
               disabled={isWorking}
             >
               <Play className="w-3.5 h-3.5" />
@@ -1269,8 +1496,8 @@ function NewSessionModal({
   }, [])
 
   const hostMap = useMemo(() => {
-    const map = new Map<string, inventory.Host>()
-    inv.hosts.forEach(h => map.set(h.id, h))
+    const map = new Map<string, HostRecord>()
+    ;(inv.hosts as HostRecord[]).forEach(h => map.set(h.id, h))
     return map
   }, [inv.hosts])
 
@@ -1279,7 +1506,7 @@ function NewSessionModal({
   ), [profiles])
 
   const sortedHosts = useMemo(() => (
-    [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
+    [...(inv.hosts as HostRecord[])].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
   ), [inv.hosts])
 
   const sortedCodexConfigs = useMemo(() => (
@@ -1892,8 +2119,8 @@ function EditSessionModal({
   }, [])
 
   const hostMap = useMemo(() => {
-    const map = new Map<string, inventory.Host>()
-    inv.hosts.forEach(h => map.set(h.id, h))
+    const map = new Map<string, HostRecord>()
+    ;(inv.hosts as HostRecord[]).forEach(h => map.set(h.id, h))
     return map
   }, [inv.hosts])
 
@@ -1902,7 +2129,7 @@ function EditSessionModal({
   ), [profiles])
 
   const sortedHosts = useMemo(() => (
-    [...inv.hosts].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
+    [...(inv.hosts as HostRecord[])].sort((a, b) => compareAlpha(hostLabel(a), hostLabel(b)))
   ), [inv.hosts])
 
   const sortedCodexConfigs = useMemo(() => (

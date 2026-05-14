@@ -213,33 +213,40 @@ function Settings({
   }
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-xl font-semibold text-foreground mb-4">{t('settings.title')}</h1>
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="surface-panel rounded-2xl border border-border px-5 py-4">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-foreground">{t('settings.title')}</h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+            Tune appearance, terminal defaults, imports, and runtime plugins without losing sight of how the workspace actually opens.
+          </p>
+        </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-1.5">
-        {SETTINGS_TAB_KEYS.map(tab => {
-          const Icon = tab.icon
-          const isActive = activeTab === tab.key
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                isActive
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {t(tab.labelKey)}
-            </button>
-          )
-        })}
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {SETTINGS_TAB_KEYS.map(tab => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`interactive-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'border-primary bg-[hsl(var(--selected))] text-[hsl(var(--selected-foreground))]'
+                    : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {t(tab.labelKey)}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {message && (
-        <div className={`mb-4 p-3 rounded border text-sm ${
+        <div className={`surface-panel rounded-2xl border px-4 py-3 text-sm ${
           message.type === 'success'
             ? 'bg-green-500/10 border-green-500/50 text-green-600 dark:text-green-400'
             : 'bg-destructive/10 border-destructive/50 text-destructive'
@@ -248,8 +255,9 @@ function Settings({
         </div>
       )}
 
+      <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
       {activeTab === 'general' && (
-        <div className="bg-card rounded-lg border border-border p-6">
+        <div className="surface-panel rounded-2xl border border-border p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">{t('settings.general.appearance')}</h2>
           <div className="flex items-center justify-between">
             <div>
@@ -277,7 +285,7 @@ function Settings({
       )}
 
       {activeTab === 'terminal' && (
-        <div className="bg-card rounded-lg border border-border p-6">
+        <div className="surface-panel rounded-2xl border border-border p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">{t('settings.terminal.title')}</h2>
@@ -330,7 +338,7 @@ function Settings({
                   {terminals.map(term => (
                     <div
                       key={term.ID}
-                      className="flex items-center justify-between p-3 rounded bg-muted/30 hover:bg-muted/50 transition-colors"
+                      className="breathing-card flex items-center justify-between rounded-2xl border border-border/70 bg-muted/20 p-3 transition-all"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
@@ -357,7 +365,7 @@ function Settings({
       )}
 
       {activeTab === 'import' && (
-        <div className="bg-card rounded-lg border border-border p-6">
+        <div className="surface-panel rounded-2xl border border-border p-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <h2 className="text-lg font-semibold text-foreground">{t('settings.importExport.title')}</h2>
@@ -400,11 +408,11 @@ function Settings({
       )}
 
       {activeTab === 'plugins' && (
-        <div className="bg-card rounded-lg border border-border p-6">
+        <div className="surface-panel rounded-2xl border border-border p-6">
           <h2 className="text-lg font-semibold text-foreground mb-1">{t('settings.plugins.title')}</h2>
           <p className="text-sm text-muted-foreground mb-6">{t('settings.plugins.desc')}</p>
 
-          <div className="flex gap-0 min-h-[320px]">
+          <div className="flex min-h-[320px] gap-0">
             {/* Left sidebar — plugin list */}
             <div className="w-48 shrink-0 border-r border-border pr-4 space-y-1">
               {plugins.map(p => (
@@ -412,10 +420,10 @@ function Settings({
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedPluginId(p.id)}
-                  className={`w-full rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
                     selectedPluginId === p.id
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground'
+                      ? 'border-primary/30 bg-[hsl(var(--selected))] font-medium text-[hsl(var(--selected-foreground))]'
+                      : 'border-transparent text-muted-foreground hover:border-primary/20 hover:bg-muted/30 hover:text-foreground'
                   }`}
                 >
                   {t(p.label_key)}
@@ -469,7 +477,7 @@ function Settings({
                         ) : (
                           <div className="space-y-2">
                             {codexConfigs.map(cfg => (
-                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div key={cfg.id} className="breathing-card flex flex-col gap-3 rounded-2xl border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-sm font-medium text-foreground">{cfg.name}</span>
@@ -533,7 +541,7 @@ function Settings({
                         ) : (
                           <div className="space-y-2">
                             {dockerConfigs.map(cfg => (
-                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div key={cfg.id} className="breathing-card flex flex-col gap-3 rounded-2xl border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-sm font-medium text-foreground">{cfg.name}</span>
@@ -595,7 +603,7 @@ function Settings({
                         ) : (
                           <div className="space-y-2">
                             {selectedPluginConfigs.map(cfg => (
-                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div key={cfg.id} className="breathing-card flex flex-col gap-3 rounded-2xl border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <span className="text-sm font-medium text-foreground">{cfg.name}</span>
@@ -658,14 +666,14 @@ function Settings({
             </pre>
           </div>
 
-          <div className="bg-card rounded-lg border border-border p-6">
+          <div className="surface-panel rounded-2xl border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-2">{t('settings.about.supportedTerminals')}</h2>
             <p className="text-sm text-muted-foreground">
               {t('settings.about.supportedDesc')}
             </p>
           </div>
 
-          <div className="mt-6 bg-card rounded-lg border border-border p-6">
+          <div className="mt-6 surface-panel rounded-2xl border border-border p-6">
             <h2 className="text-lg font-semibold text-foreground mb-2">{t('settings.about.aboutMole')}</h2>
             <p className="text-sm text-muted-foreground">
               {t('settings.about.aboutDesc')}
@@ -673,6 +681,7 @@ function Settings({
           </div>
         </>
       )}
+      </div>
 
       {showExportModal && (
         <ModalShell

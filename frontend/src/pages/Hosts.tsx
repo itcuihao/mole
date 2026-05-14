@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GetInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGroup, DeleteHostGroup } from '../../wailsjs/go/main/App'
+import { GetInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGroup, DeleteHostGroup, PreviewSSHConfigImport, ImportSSHConfig } from '../../wailsjs/go/main/App'
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { useTranslation } from "@/i18n/context"
-import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react"
+import { Plus, Pencil, Trash2, Copy, X, Server, ChevronDown, ChevronUp, ArrowLeft, Search } from "lucide-react"
 
 const EMPTY_INVENTORY = inventory.Inventory.createFrom({
   version: 1,
@@ -19,12 +19,82 @@ const EMPTY_INVENTORY = inventory.Inventory.createFrom({
 })
 
 type GroupModalSource = 'standalone' | 'host'
+type HostRecord = inventory.Host & {
+  source_alias?: string
+  jump_host_ids?: string[]
+}
+type InventoryState = inventory.Inventory & {
+  hosts: HostRecord[]
+}
+type SSHConfigImportCandidate = {
+  alias: string
+  name: string
+  host: string
+  user?: string
+  port?: number
+  identity_file?: string
+  jump_aliases?: string[]
+  importable: boolean
+  blocked_reason?: string
+  conflict_kind?: string
+  conflict_host_id?: string
+  conflict_host_name?: string
+  warnings?: string[]
+}
+type SSHConfigImportPreviewState = {
+  path: string
+  candidates: SSHConfigImportCandidate[]
+}
 
-const hostSortLabel = (host: inventory.Host) => (host.name || host.host || '').trim()
+const hostSortLabel = (host: HostRecord) => (host.name || host.host || '').trim()
 
-const compareHostLabels = (left: inventory.Host, right: inventory.Host) => (
+const compareHostLabels = (left: HostRecord, right: HostRecord) => (
   hostSortLabel(left).localeCompare(hostSortLabel(right), undefined, { sensitivity: 'base', numeric: true })
 )
+
+const hostJumpChain = (host?: HostRecord | null) => (
+  (host?.jump_host_ids || []).filter(Boolean).length > 0
+    ? (host?.jump_host_ids || []).filter(Boolean)
+    : (host?.bastion_id ? [host.bastion_id] : [])
+)
+
+type HostConnection = {
+  target: string
+  user: string
+  port: number
+  identity: string
+}
+
+const resolveHostConnection = (host: HostRecord, defaults: inventory.HostDefaults): HostConnection => ({
+  target: host.host || '',
+  user: host.user || defaults.user || '',
+  port: host.port || defaults.port || 22,
+  identity: host.identity_file || defaults.identity_file || '',
+})
+
+const targetSpec = (conn: HostConnection) => (
+  conn.user ? `${conn.user}@${conn.target}` : conn.target
+)
+
+const jumpSpec = (conn: HostConnection) => (
+  conn.port && conn.port !== 22 ? `${targetSpec(conn)}:${conn.port}` : targetSpec(conn)
+)
+
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`
+
+const joinArgs = (args: string[]) => args.filter(Boolean).join(' ')
+
+const buildNestedProxyCommand = (hops: HostConnection[]): string => {
+  const last = hops[hops.length - 1]
+  const args = ['ssh']
+  if (last.identity) args.push('-i', last.identity)
+  if (last.port && last.port !== 22) args.push('-p', String(last.port))
+  if (hops.length > 1) {
+    args.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops.slice(0, -1)))}`)
+  }
+  args.push('-W', '%h:%p', targetSpec(last))
+  return joinArgs(args)
+}
 
 function Hosts({
   refreshSignal,
@@ -36,7 +106,7 @@ function Hosts({
   onBack?: () => void
 }) {
   const { t } = useTranslation()
-  const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
+  const [inv, setInv] = useState<InventoryState>(EMPTY_INVENTORY as InventoryState)
   const [defaultsForm, setDefaultsForm] = useState({ user: '', port: '22', identity_file: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -46,7 +116,7 @@ function Hosts({
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   const [showHostModal, setShowHostModal] = useState(false)
-  const [editingHost, setEditingHost] = useState<inventory.Host | null>(null)
+  const [editingHost, setEditingHost] = useState<HostRecord | null>(null)
   const [hostForm, setHostForm] = useState({
     id: '',
     name: '',
@@ -63,6 +133,12 @@ function Hosts({
   const [showGroupListModal, setShowGroupListModal] = useState(false)
   const [editingGroup, setEditingGroup] = useState<inventory.HostGroup | null>(null)
   const [groupModalSource, setGroupModalSource] = useState<GroupModalSource>('standalone')
+  const [showSSHImportModal, setShowSSHImportModal] = useState(false)
+  const [sshImportPath, setSSHImportPath] = useState('~/.ssh/config')
+  const [sshImportBusy, setSSHImportBusy] = useState<'preview' | 'import' | null>(null)
+  const [sshPreview, setSSHPreview] = useState<SSHConfigImportPreviewState | null>(null)
+  const [sshSelectedAliases, setSSHSelectedAliases] = useState<string[]>([])
+  const [sshConflictStrategy, setSSHConflictStrategy] = useState<'skip' | 'overwrite'>('skip')
   const [groupForm, setGroupForm] = useState({
     id: '',
     name: '',
@@ -70,7 +146,7 @@ function Hosts({
   })
 
   const hostMap = useMemo(() => {
-    const map = new Map<string, inventory.Host>()
+    const map = new Map<string, HostRecord>()
     inv.hosts.forEach(h => map.set(h.id, h))
     return map
   }, [inv.hosts])
@@ -114,8 +190,8 @@ function Hosts({
     setLoading(true)
     setError('')
     try {
-      const data = await GetInventory()
-      const next = data || EMPTY_INVENTORY
+      const data = await GetInventory() as InventoryState | null
+      const next = (data || EMPTY_INVENTORY) as InventoryState
       setInv(next)
       setDefaultsForm({
         user: next.defaults?.user || '',
@@ -130,7 +206,7 @@ function Hosts({
   }
 
   const parseTags = (input: string) => input.split(',').map(t => t.trim()).filter(Boolean)
-  const openHostModal = (host?: inventory.Host) => {
+  const openHostModal = (host?: HostRecord) => {
     if (host) {
       setEditingHost(host)
       const groupIds = inv.groups
@@ -217,13 +293,24 @@ function Hosts({
       return
     }
     try {
+      const originalBastionID = editingHost?.bastion_id || ''
+      const originalJumpChain = hostJumpChain(editingHost)
+      const nextJumpChain = (() => {
+        if (editingHost && hostForm.bastion_id === originalBastionID && originalJumpChain.length > 1) {
+          return originalJumpChain
+        }
+        return hostForm.bastion_id ? [hostForm.bastion_id] : []
+      })()
+
       await SaveHost({
         id: hostID,
         name: hostForm.name.trim(),
+        source_alias: editingHost?.source_alias || '',
         host: hostForm.host.trim(),
         user: hostForm.user.trim(),
         port,
         bastion_id: hostForm.bastion_id || '',
+        jump_host_ids: nextJumpChain,
         identity_file: hostForm.identity_file.trim(),
         tags: parseTags(hostForm.tags),
       })
@@ -329,31 +416,40 @@ function Hosts({
     }
   }
 
-  const buildSSHCommand = (host: inventory.Host) => {
+  const buildSSHCommand = (host: HostRecord) => {
     if (!host.host) return ''
     const defaults = inv.defaults || { user: '', port: 22, identity_file: '' }
-    const user = host.user || defaults.user
-    const port = host.port || defaults.port
-    const identity = host.identity_file || defaults.identity_file
-    const bastion = host.bastion_id ? hostMap.get(host.bastion_id) : null
-
+    const targetConn = resolveHostConnection(host, defaults)
     const parts = ['ssh']
-    if (identity) {
-      parts.push('-i', identity)
+    if (targetConn.identity) {
+      parts.push('-i', targetConn.identity)
     }
-    if (port && port !== 22) {
-      parts.push('-p', String(port))
+    if (targetConn.port && targetConn.port !== 22) {
+      parts.push('-p', String(targetConn.port))
     }
-    if (bastion && bastion.host) {
-      const bastionUser = bastion.user || defaults.user
-      const bastionTarget = `${bastionUser ? `${bastionUser}@` : ''}${bastion.host}`
-      parts.push('-J', bastionTarget)
+
+    const chainIDs = hostJumpChain(host)
+    if (chainIDs.length > 0) {
+      const hops = chainIDs
+        .map(id => hostMap.get(id))
+        .filter((item): item is HostRecord => Boolean(item?.host))
+        .map(item => resolveHostConnection(item, defaults))
+
+      if (hops.length > 0) {
+        const canUseProxyJump = hops.every(hop => !hop.identity)
+        if (canUseProxyJump) {
+          parts.push('-J', hops.map(jumpSpec).join(','))
+        } else {
+          parts.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops))}`)
+        }
+      }
     }
-    parts.push(`${user ? `${user}@` : ''}${host.host}`)
-    return parts.join(' ')
+
+    parts.push(targetSpec(targetConn))
+    return joinArgs(parts)
   }
 
-  const copyCommand = async (host: inventory.Host) => {
+  const copyCommand = async (host: HostRecord) => {
     const cmd = buildSSHCommand(host)
     if (!cmd) return
     try {
@@ -365,7 +461,7 @@ function Hosts({
     }
   }
 
-  const handleDuplicateHost = (host: inventory.Host) => {
+  const handleDuplicateHost = (host: HostRecord) => {
     setEditingHost(null)
     setHostForm({
       id: '',
@@ -383,6 +479,53 @@ function Hosts({
         .map(g => g.id)
     )
     setShowHostModal(true)
+  }
+
+  const handlePreviewSSHConfig = async () => {
+    setError('')
+    setMessage('')
+    setSSHImportBusy('preview')
+    try {
+      const preview = await PreviewSSHConfigImport(sshImportPath) as SSHConfigImportPreviewState
+      setSSHPreview(preview)
+      setSSHSelectedAliases(preview.candidates.filter(candidate => candidate.importable).map(candidate => candidate.alias))
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSSHImportBusy(null)
+    }
+  }
+
+  const toggleSSHAlias = (alias: string) => {
+    setSSHSelectedAliases(prev => (
+      prev.includes(alias)
+        ? prev.filter(item => item !== alias)
+        : [...prev, alias]
+    ))
+  }
+
+  const handleImportSSHConfig = async () => {
+    if (!sshPreview) return
+    setError('')
+    setMessage('')
+    setSSHImportBusy('import')
+    try {
+      await ImportSSHConfig({
+        path: sshPreview.path,
+        aliases: sshSelectedAliases,
+        conflict_strategy: sshConflictStrategy,
+      })
+      await loadInventory()
+      setShowSSHImportModal(false)
+      setSSHPreview(null)
+      setSSHSelectedAliases([])
+      setMessage(t('hosts.import.success'))
+      setTimeout(() => setMessage(''), 3000)
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSSHImportBusy(null)
+    }
   }
 
   const toggleTagFilter = (tag: string) => {
@@ -417,81 +560,107 @@ function Hosts({
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <ArrowLeft className="w-4 h-4" />
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="surface-panel rounded-2xl border border-border px-5 py-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              {onBack && (
+                <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              )}
+              <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
+            </div>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+              Keep target machines, jump paths, and reusable connection defaults visible enough that opening a route never feels like guesswork.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
+              {t('hosts.import.button')}
             </Button>
-          )}
-          <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
+            <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
+              {t('hosts.manageGroups')}
+            </Button>
+            <Button onClick={() => openHostModal()} size="sm" className="shadow-sm">
+              <Plus className="w-4 h-4" />
+              {t('hosts.addHost')}
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
-            {t('hosts.manageGroups')}
-          </Button>
-          <Button onClick={() => openHostModal()} size="sm">
-            <Plus className="w-4 h-4" />
-            {t('hosts.addHost')}
-          </Button>
+
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative w-full max-w-xl">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder={t('hosts.searchPlaceholder')}
+                className="h-10 rounded-xl border-border bg-background/80 pl-10 pr-10"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={t('common.clear')}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {t('hosts.summary', { filtered: filteredHosts.length, total: inv.hosts.length })}
+            </div>
+          </div>
+
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {allTags.map(tag => {
+                const active = selectedTags.includes(tag)
+                return (
+                  <Button
+                    key={tag}
+                    onClick={() => toggleTagFilter(tag)}
+                    variant="secondary"
+                    size="sm"
+                    aria-pressed={active}
+                    className={active
+                      ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                      : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+                  >
+                    {tag}
+                  </Button>
+                )
+              })}
+              {(search || selectedTags.length > 0) && (
+                <Button onClick={clearFilters} variant="ghost" size="sm" className="h-8 rounded-full px-3">
+                  {t('common.clear')}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
+        <div className="surface-panel flex items-start justify-between gap-2 rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <span className="flex-1">{error}</span>
-          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
+          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0 hover:bg-destructive/20">
             <X className="w-3.5 h-3.5" />
           </Button>
         </div>
       )}
 
       {message && (
-        <div className="mb-4 p-3 bg-primary/10 border border-primary/30 rounded text-foreground text-sm">
+        <div className="surface-panel rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
           {message}
         </div>
       )}
 
-      {inv.hosts.length > 0 && (
-        <div className="bg-card border border-border rounded-lg p-4 mb-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder={t('hosts.searchPlaceholder')}
-              className="bg-muted/30 focus:bg-background max-w-sm"
-            />
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {allTags.map(tag => {
-                  const active = selectedTags.includes(tag)
-                  return (
-                    <Button
-                      key={tag}
-                      onClick={() => toggleTagFilter(tag)}
-                      variant="secondary"
-                      size="sm"
-                      className={active
-                        ? 'h-7 px-2 bg-primary text-primary-foreground'
-                        : 'h-7 px-2 bg-muted/30'}
-                    >
-                      {tag}
-                    </Button>
-                  )
-                })}
-              </div>
-            )}
-            {(search || selectedTags.length > 0) && (
-              <Button onClick={clearFilters} variant="ghost" size="sm" className="h-7 px-2">
-                {t('common.clear')}
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <Card className="mb-6">
+      <Card>
         <button
           type="button"
           onClick={() => setShowDefaults(prev => !prev)}
@@ -545,29 +714,30 @@ function Hosts({
         )}
       </Card>
 
-      <div className="grid gap-3">
+      <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
         {loading ? (
-          <div className="text-sm text-muted-foreground">{t('hosts.loading')}</div>
+          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-10 text-sm text-muted-foreground">{t('hosts.loading')}</div>
         ) : inv.hosts.length === 0 ? (
-          <div className="text-center text-muted-foreground py-10">
+          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
             {t('hosts.empty')}
           </div>
         ) : filteredHosts.length === 0 ? (
-          <div className="text-center text-muted-foreground py-6">
+          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
             {t('hosts.noFilterMatch')}
           </div>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
             {filteredHosts.map(host => {
               const bastion = host.bastion_id ? hostMap.get(host.bastion_id) : null
+              const jumpChain = hostJumpChain(host)
               const command = buildSSHCommand(host)
               return (
-                <div key={host.id} className="bg-card border border-border rounded-lg p-4">
+                <div key={host.id} className="breathing-card surface-panel flex flex-col rounded-2xl border border-border bg-card p-4 transition-all">
                   <div className="flex flex-col gap-3">
                     <div>
                       <div className="flex items-center gap-2">
                         <Server className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium text-foreground">
+                        <span className="truncate text-sm font-medium text-foreground">
                           {host.name || host.host || t('hosts.untitled')}
                         </span>
                       </div>
@@ -581,6 +751,20 @@ function Hosts({
                           {t('hosts.bastion', { name: bastion.name || bastion.host })}
                         </div>
                       )}
+                      {host.source_alias && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {t('hosts.sourceAlias', { alias: host.source_alias })}
+                        </div>
+                      )}
+                      {jumpChain.length > 1 && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {t('hosts.jumpChain', {
+                            chain: jumpChain
+                              .map(id => hostMap.get(id)?.name || hostMap.get(id)?.host || id)
+                              .join(' -> '),
+                          })}
+                        </div>
+                      )}
                       {(host.identity_file || inv.defaults.identity_file) && (
                         <div className="text-xs text-muted-foreground mt-1 font-mono">
                           {t('hosts.key', { path: host.identity_file || inv.defaults.identity_file })}
@@ -589,14 +773,14 @@ function Hosts({
                   {host.tags && host.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {host.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>
+                        <Badge key={tag} variant="secondary" className="rounded-full border border-border/80 bg-muted/30 text-[10px] text-muted-foreground">{tag}</Badge>
                       ))}
                     </div>
                   )}
                   {groupsForHost(host.id).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {groupsForHost(host.id).map(group => (
-                        <Badge key={group.id} variant="secondary" className="text-[10px]">
+                        <Badge key={group.id} variant="secondary" className="rounded-full border border-primary/20 bg-primary/10 text-[10px] text-primary">
                           {group.name || 'Group'}
                         </Badge>
                       ))}
@@ -608,6 +792,7 @@ function Hosts({
                         onClick={() => copyCommand(host)}
                         variant="secondary"
                         size="sm"
+                        className="shadow-sm"
                         disabled={!command}
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -633,6 +818,141 @@ function Hosts({
           </div>
         )}
       </div>
+
+      {showSSHImportModal && (
+        <ModalShell
+          title={t('hosts.import.title')}
+          description={t('hosts.import.desc')}
+          onClose={() => setShowSSHImportModal(false)}
+          contentStyle={{ maxWidth: '780px' }}
+          footer={(
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-xs text-muted-foreground">
+                {t('hosts.import.selectedCount', { count: sshSelectedAliases.length })}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setShowSSHImportModal(false)} variant="ghost">
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  onClick={handleImportSSHConfig}
+                  disabled={sshImportBusy === 'import' || sshSelectedAliases.length === 0 || !sshPreview}
+                >
+                  {sshImportBusy === 'import' ? t('hosts.import.importing') : t('hosts.import.confirm')}
+                </Button>
+              </div>
+            </div>
+          )}
+        >
+          <div className="grid gap-4">
+            <div className="grid gap-3 rounded-xl border border-border bg-muted/10 p-4">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">{t('hosts.import.path')}</label>
+                <Input
+                  value={sshImportPath}
+                  onChange={e => setSSHImportPath(e.target.value)}
+                  placeholder="~/.ssh/config"
+                  className="bg-background/80"
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t('hosts.import.conflictStrategy')}</label>
+                  <Select value={sshConflictStrategy} onValueChange={value => setSSHConflictStrategy(value as 'skip' | 'overwrite')}>
+                    <SelectTrigger className="w-44 bg-background/80">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skip">{t('hosts.import.skip')}</SelectItem>
+                      <SelectItem value="overwrite">{t('hosts.import.overwrite')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handlePreviewSSHConfig} variant="secondary" disabled={sshImportBusy === 'preview'}>
+                  {sshImportBusy === 'preview' ? t('hosts.import.previewing') : t('hosts.import.preview')}
+                </Button>
+              </div>
+            </div>
+
+            {!sshPreview ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+                {t('hosts.import.empty')}
+              </div>
+            ) : (
+              <div className="app-scroll max-h-[26rem] space-y-3 overflow-y-auto pr-1">
+                {sshPreview.candidates.map(candidate => {
+                  const selected = sshSelectedAliases.includes(candidate.alias)
+                  const conflictTone = candidate.conflict_kind === 'alias'
+                    ? 'border-primary/25 bg-primary/5'
+                    : candidate.conflict_kind === 'name'
+                      ? 'border-warning/30 bg-warning/10'
+                      : 'border-border bg-card/70'
+                  return (
+                    <label
+                      key={candidate.alias}
+                      className={`flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors ${candidate.importable ? conflictTone : 'border-destructive/30 bg-destructive/5'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        disabled={!candidate.importable}
+                        onChange={() => toggleSSHAlias(candidate.alias)}
+                        className="mt-1 h-4 w-4 rounded accent-primary"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-foreground">{candidate.alias}</span>
+                          {candidate.conflict_kind === 'alias' && (
+                            <Badge variant="secondary" className="rounded-full border border-primary/20 bg-primary/10 text-[10px] text-primary">
+                              {t('hosts.import.aliasConflict')}
+                            </Badge>
+                          )}
+                          {candidate.conflict_kind === 'name' && (
+                            <Badge variant="secondary" className="rounded-full border border-warning/30 bg-warning/10 text-[10px] text-warning-foreground">
+                              {t('hosts.import.nameConflict')}
+                            </Badge>
+                          )}
+                          {!candidate.importable && (
+                            <Badge variant="secondary" className="rounded-full border border-destructive/30 bg-destructive/10 text-[10px] text-destructive">
+                              {t('hosts.import.blocked')}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="mt-1 text-xs font-mono text-muted-foreground">
+                          {(candidate.user ? `${candidate.user}@` : '')}
+                          {candidate.host}
+                          {candidate.port && candidate.port !== 22 ? `:${candidate.port}` : ''}
+                        </div>
+                        {candidate.identity_file && (
+                          <div className="mt-1 text-xs text-muted-foreground">{t('hosts.key', { path: candidate.identity_file })}</div>
+                        )}
+                        {candidate.jump_aliases && candidate.jump_aliases.length > 0 && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {t('hosts.jumpChain', { chain: candidate.jump_aliases.join(' -> ') })}
+                          </div>
+                        )}
+                        {candidate.conflict_host_name && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {t('hosts.import.conflictWith', { name: candidate.conflict_host_name })}
+                          </div>
+                        )}
+                        {candidate.blocked_reason && (
+                          <div className="mt-1 text-xs text-destructive">{candidate.blocked_reason}</div>
+                        )}
+                        {(candidate.warnings || []).map((warning, index) => (
+                          <div key={`${candidate.alias}-warning-${index}`} className="mt-1 text-xs text-muted-foreground">
+                            {warning}
+                          </div>
+                        ))}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </ModalShell>
+      )}
 
       {showHostModal && (
         <ModalShell
@@ -790,6 +1110,15 @@ function Hosts({
                         ))}
                     </SelectContent>
                   </Select>
+                  {editingHost && hostJumpChain(editingHost).length > 1 && (
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                      {t('hosts.form.multiJumpHint', {
+                        chain: hostJumpChain(editingHost)
+                          .map(id => hostMap.get(id)?.name || hostMap.get(id)?.host || id)
+                          .join(' -> '),
+                      })}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs text-muted-foreground mb-1">{t('hosts.form.tags')}</label>

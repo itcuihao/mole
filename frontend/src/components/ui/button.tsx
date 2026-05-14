@@ -5,19 +5,19 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/80 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "border border-primary/20 bg-primary text-primary-foreground shadow hover:bg-primary/90 hover:border-primary/30",
+          "border border-primary/30 bg-primary text-primary-foreground shadow-sm hover:bg-primary/92 hover:border-primary/40 hover:shadow-md",
         destructive:
-          "border border-destructive/20 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:border-destructive/30",
+          "border border-destructive/30 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/92 hover:border-destructive/40 hover:shadow-md",
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
+          "border border-input bg-background/90 shadow-sm hover:border-primary/35 hover:bg-accent hover:text-accent-foreground",
         secondary:
-          "border border-border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:border-border",
-        ghost: "border border-transparent hover:bg-accent hover:text-accent-foreground hover:border-border",
+          "border border-border bg-secondary text-secondary-foreground shadow-sm hover:border-primary/25 hover:bg-secondary/88",
+        ghost: "border border-transparent hover:border-border hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
