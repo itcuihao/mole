@@ -193,6 +193,7 @@ export const zh: Record<string, string> = {
   'profiles.card.secretCount.other': '{{count}} 个密钥',
   'profiles.card.viewCopy': '查看并复制环境变量',
   'profiles.card.copy': '复制',
+  'profiles.card.view': '变量',
 
   // Profile form
   'profiles.form.newTitle': '新建配置',
@@ -437,7 +438,7 @@ export const zh: Record<string, string> = {
   'settings.about.supportedTerminals': '支持的终端',
   'settings.about.supportedDesc': 'Mole 支持 iTerm2、Ghostty、Rio、Alacritty、Warp、Kitty 和 macOS 终端。安装你喜欢的终端即可自动检测。',
   'settings.about.aboutMole': '关于 Mole',
-  'settings.about.aboutDesc': '一个用于管理主机、配置和命令的终端窟管理器。',
+  'settings.about.aboutDesc': 'Mole 是一个基于 tmux 的桌面工具，用于组织和管理终端、主机配置与启动命令，灵感来自鼹鼠“一巢多窟”的工作方式。',
 
   // Theme toggle
   'theme.toggle': '切换主题',

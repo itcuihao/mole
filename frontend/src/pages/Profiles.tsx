@@ -24,6 +24,23 @@ const compareByLabel = (left: string, right: string) => (
   left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true })
 )
 
+const buildDuplicateProfileName = (baseName: string, existingNames: string[]) => {
+  const normalizedBase = baseName.trim() || 'profile'
+  const candidateBase = `${normalizedBase}-copy`
+  const usedNames = new Set(existingNames.map(name => name.trim().toLowerCase()).filter(Boolean))
+
+  if (!usedNames.has(candidateBase.toLowerCase())) {
+    return candidateBase
+  }
+
+  let index = 2
+  while (usedNames.has(`${candidateBase}-${index}`.toLowerCase())) {
+    index += 1
+  }
+
+  return `${candidateBase}-${index}`
+}
+
 function Profiles({
   refreshSignal,
   onCreated,
@@ -69,6 +86,21 @@ function Profiles({
 
   const handleView = (p: profile.Profile) => {
     setViewingProfile(p)
+  }
+
+  const handleDuplicate = (p: profile.Profile) => {
+    setEditingProfile(new profile.Profile({
+      id: '',
+      name: buildDuplicateProfileName(
+        p.name || '',
+        profiles.map(item => item.name || '')
+      ),
+      description: p.description || '',
+      color: p.color || PRESET_COLORS[0],
+      env_vars: { ...(p.env_vars || {}) },
+      secret_keys: [...(p.secret_keys || [])],
+    }))
+    setIsNew(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -127,6 +159,7 @@ function Profiles({
               key={p.id}
               profile={p}
               onView={handleView}
+              onDuplicate={handleDuplicate}
               onEdit={handleEdit}
               onDelete={handleDelete}
             />
@@ -156,11 +189,13 @@ function Profiles({
 function ProfileCard({
   profile: p,
   onView,
+  onDuplicate,
   onEdit,
   onDelete,
 }: {
   profile: profile.Profile
   onView: (p: profile.Profile) => void
+  onDuplicate: (p: profile.Profile) => void
   onEdit: (p: profile.Profile) => void
   onDelete: (id: string) => void
 }) {
@@ -186,9 +221,12 @@ function ProfileCard({
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={() => onView(p)} variant="outline" size="sm" title={t('profiles.card.viewCopy')}>
+        <Button onClick={() => onDuplicate(p)} variant="outline" size="sm" title={t('common.duplicate')}>
           <Copy className="w-3.5 h-3.5" />
-          {t('profiles.card.copy')}
+          {t('common.duplicate')}
+        </Button>
+        <Button onClick={() => onView(p)} variant="ghost" size="sm" title={t('profiles.card.viewCopy')}>
+          {t('profiles.card.view')}
         </Button>
         <Button onClick={() => onEdit(p)} variant="secondary" size="sm">
           <Pencil className="w-3.5 h-3.5" />

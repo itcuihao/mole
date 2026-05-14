@@ -193,6 +193,7 @@ export const en: Record<string, string> = {
   'profiles.card.secretCount.other': '{{count}} secrets',
   'profiles.card.viewCopy': 'View and copy environment variables',
   'profiles.card.copy': 'Copy',
+  'profiles.card.view': 'Vars',
 
   // Profile form
   'profiles.form.newTitle': 'New Profile',
@@ -437,7 +438,7 @@ export const en: Record<string, string> = {
   'settings.about.supportedTerminals': 'Supported Terminals',
   'settings.about.supportedDesc': 'Mole supports iTerm2, Ghostty, Rio, Alacritty, Warp, Kitty, and macOS Terminal. Install your preferred terminal and it will be automatically detected.',
   'settings.about.aboutMole': 'About Mole',
-  'settings.about.aboutDesc': 'A terminal burrow manager for hosts, profiles, and commands.',
+  'settings.about.aboutDesc': 'Mole is a tmux-based desktop tool for organizing terminals, host configurations, and launch commands, inspired by a mole\'s “one nest, many burrows” way of working.',
 
   // Theme toggle
   'theme.toggle': 'Toggle theme',
