@@ -549,35 +549,26 @@ function ProfileForm({
         )}
 
         <div className="space-y-5">
-          <div className="rounded-xl border border-border bg-muted/10 p-4">
-            <div className="mb-3">
-              <label className="text-sm font-medium text-foreground">{t('profiles.form.template')}</label>
-              <p className="mt-1 text-xs text-muted-foreground">{t('profiles.form.templateDesc')}</p>
+          <div className="grid gap-4 sm:grid-cols-[1fr_2fr]">
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('profiles.form.template')}</label>
+              <Select
+                value={selectedTemplateID}
+                onValueChange={value => {
+                  const preset = PROVIDER_PRESETS.find(p => p.id === value)
+                  if (preset) applyPreset(preset)
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t('profiles.form.template')} />
+                </SelectTrigger>
+                <SelectContent className="z-[110]">
+                  {PROVIDER_PRESETS.map(preset => (
+                    <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={selectedTemplateID}
-              onValueChange={value => {
-                const preset = PROVIDER_PRESETS.find(p => p.id === value)
-                if (preset) applyPreset(preset)
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t('profiles.form.template')} />
-              </SelectTrigger>
-              <SelectContent className="z-[110]">
-                {PROVIDER_PRESETS.map(preset => (
-                  <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedPreset && selectedPreset.id !== 'custom' && (
-              <div className="mt-3 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-                {selectedPreset.description}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
               <input
@@ -588,16 +579,17 @@ function ProfileForm({
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">{t('common.description')}</label>
-              <input
-                type="text"
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder={t('common.description')}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('common.description')}</label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder={t('common.description')}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
           </div>
 
           <div>
