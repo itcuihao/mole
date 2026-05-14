@@ -194,7 +194,7 @@ export const en: Record<string, string> = {
 
   // Profiles
   'profiles.title': 'Profiles',
-  'profiles.addProfile': 'Add Profile',
+  'profiles.addProfile': 'Add',
   'profiles.searchPlaceholder': 'Search names, descriptions, or variable keys...',
   'profiles.summary': 'Showing {{filtered}} / {{total}} profiles',
   'profiles.empty': 'No profiles yet. Create one to configure environment variables.',

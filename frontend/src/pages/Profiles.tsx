@@ -139,32 +139,24 @@ function Profiles({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <div className="surface-panel rounded-2xl border border-border px-5 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              {onBack && (
-                <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
-            </div>
-          </div>
-          <Button onClick={handleNew} size="sm" className="shadow-sm">
-            <Plus className="w-4 h-4" />
-            {t('profiles.addProfile')}
-          </Button>
+      <div className="surface-panel flex flex-col gap-3 rounded-2xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
         </div>
 
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative w-full max-w-xl">
+        <div className="flex items-center gap-3">
+          <div className="relative w-full max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder={t('profiles.searchPlaceholder')}
-              className="h-10 rounded-xl border-border bg-background/80 pl-10 pr-10"
+              className="h-9 rounded-xl border-border bg-background/80 pl-10 pr-10"
             />
             {search && (
               <button
@@ -177,9 +169,13 @@ function Profiles({
               </button>
             )}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <span className="hidden whitespace-nowrap text-xs text-muted-foreground sm:inline">
             {t('profiles.summary', { filtered: filteredProfiles.length, total: profiles.length })}
-          </div>
+          </span>
+          <Button onClick={handleNew} size="sm" className="shadow-sm">
+            <Plus className="w-4 h-4" />
+            {t('profiles.addProfile')}
+          </Button>
         </div>
       </div>
 
@@ -254,7 +250,7 @@ function ProfileCard({
   const secretCount = (p.secret_keys || []).length
 
   return (
-    <div className="breathing-card surface-panel flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all xl:flex-row xl:items-center xl:justify-between">
+    <div className="breathing-card surface-panel flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all md:flex-row md:items-center md:justify-between">
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-3">
           <div
@@ -280,7 +276,7 @@ function ProfileCard({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 xl:justify-end">
+      <div className="flex flex-wrap gap-2 md:shrink-0 md:justify-end">
         <Button onClick={() => onDuplicate(p)} variant="outline" size="sm" title={t('common.duplicate')}>
           <Copy className="w-3.5 h-3.5" />
           {t('common.duplicate')}

@@ -194,7 +194,7 @@ export const zh: Record<string, string> = {
 
   // Profiles
   'profiles.title': '配置',
-  'profiles.addProfile': '添加配置',
+  'profiles.addProfile': '添加',
   'profiles.searchPlaceholder': '搜索名称、描述或变量名...',
   'profiles.summary': '显示 {{filtered}} / {{total}} 个配置',
   'profiles.empty': '还没有配置。创建一个来配置环境变量。',
