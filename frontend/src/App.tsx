@@ -29,7 +29,6 @@ function App() {
   const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
   const [navigateContext, setNavigateContext] = useState<NavigateContext | null>(null)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
-  const [mascotActionToken, setMascotActionToken] = useState(0)
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof (window as any)?.runtime?.Environment !== 'function') {
@@ -120,8 +119,7 @@ function App() {
               </>
             ) : null}
             <div className="flex shrink-0 items-center gap-2">
-              <MoleMascot actionToken={mascotActionToken} />
-              <div className="hidden min-[980px]:block" role="img" aria-label="Mole">
+              <div role="img" aria-label="Mole">
                 <pre className="font-mono text-[7px] leading-[0.88] text-primary/85 select-none" aria-hidden="true">
 {`┌┬┐┌─┐╷  ┌─╴
 ││││ ││  ├╴
@@ -143,6 +141,9 @@ function App() {
                 </span>
               </TabsTrigger>
             </TabsList>
+            <div className="no-drag flex-1 min-w-4" />
+            <MoleMascot />
+            <div className="flex-1 min-w-2" />
           </div>
           <div className="no-drag flex shrink-0 items-center gap-1">
             <button
@@ -180,7 +181,6 @@ function App() {
             onNavigate={handleNavigate}
             newSessionSignal={newSessionSignal}
             burrowRefreshSignal={burrowRefreshSignal}
-            onBurrowOpenStart={() => setMascotActionToken(prev => prev + 1)}
             onNewSessionSignalHandled={() => setNewSessionSignal(0)}
             onDiscard={() => {
               setNavigateContext(null)

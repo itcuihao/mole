@@ -217,9 +217,6 @@ function Settings({
       <div className="surface-panel rounded-2xl border border-border px-5 py-4">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold text-foreground">{t('settings.title')}</h1>
-          <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-            Tune appearance, terminal defaults, imports, and runtime plugins without losing sight of how the workspace actually opens.
-          </p>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">

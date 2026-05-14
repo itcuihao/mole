@@ -150,9 +150,6 @@ function Profiles({
               )}
               <h1 className="text-xl font-semibold text-foreground">{t('profiles.title')}</h1>
             </div>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Keep provider keys, launch variables, and secret flags tidy enough to reuse without second-guessing the setup.
-            </p>
           </div>
           <Button onClick={handleNew} size="sm" className="shadow-sm">
             <Plus className="w-4 h-4" />

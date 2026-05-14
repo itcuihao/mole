@@ -572,9 +572,6 @@ function Hosts({
               )}
               <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
             </div>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              Keep target machines, jump paths, and reusable connection defaults visible enough that opening a route never feels like guesswork.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
