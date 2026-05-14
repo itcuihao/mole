@@ -630,13 +630,16 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 	}
 
 	runtimeName := sess.RuntimeName()
-	if backend.IsAlive(runtimeName) {
+	if IsTmuxSessionHealthy(runtimeName) {
 		if err := backend.SyncEnv(runtimeName, env); err != nil {
 			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
 		}
 	} else {
-		// Session is dead (UI may be stale) — restart it before attaching so the
-		// terminal doesn't open only to fail with "can't find session".
+		// Session is dead or all panes exited — kill stale session and restart
+		// before attaching so the terminal doesn't open only to show "exited".
+		if IsTmuxSessionAlive(runtimeName) {
+			_ = backend.Kill(runtimeName)
+		}
 		command, cmdErr := m.commandForSession(sess)
 		if cmdErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)

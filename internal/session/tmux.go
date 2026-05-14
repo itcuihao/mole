@@ -356,3 +356,33 @@ func IsTmuxSessionAlive(name string) bool {
 	cmd := exec.CommandContext(ctx, tmuxPath, "has-session", "-t", name)
 	return cmd.Run() == nil
 }
+
+// IsTmuxSessionHealthy checks if a tmux session exists and has at least one
+// pane with a running process (i.e. the shell hasn't exited).
+func IsTmuxSessionHealthy(name string) bool {
+	if !IsTmuxSessionAlive(name) {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
+	defer cancel()
+
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return false
+	}
+
+	cmd := exec.CommandContext(ctx, tmuxPath, "list-panes", "-t", name, "-F", "#{pane_dead}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	// If all panes report pane_dead=1, the session is unhealthy.
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if strings.TrimSpace(line) != "1" {
+			return true
+		}
+	}
+	return false
+}
