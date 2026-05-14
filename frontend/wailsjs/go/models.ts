@@ -141,6 +141,7 @@ export namespace inventory {
 	export class HostGroup {
 	    id: string;
 	    name: string;
+	    bastion_id?: string;
 	    host_ids: string[];
 	    tags: string[];
 	
@@ -152,6 +153,7 @@ export namespace inventory {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.bastion_id = source["bastion_id"];
 	        this.host_ids = source["host_ids"];
 	        this.tags = source["tags"];
 	    }

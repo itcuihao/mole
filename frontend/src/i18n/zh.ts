@@ -247,6 +247,7 @@ export const zh: Record<string, string> = {
 
   // Hosts
   'hosts.title': '主机',
+  'hosts.allHosts': '全部',
   'hosts.manageGroups': '管理分组',
   'hosts.addHost': '添加主机',
   'hosts.import.button': '导入 SSH Config',
@@ -323,6 +324,11 @@ export const zh: Record<string, string> = {
   'hosts.group.noHosts': '没有可用主机。请先创建主机，再添加到此分组。',
   'hosts.group.nameRequired': '分组名称为必填项',
   'hosts.group.hostDraftHint': '保存此分组后，正在编辑的主机将保持打开状态，此分组将自动选中。',
+  'hosts.group.bastion': '默认跳板机',
+  'hosts.group.bastionPlaceholder': '无跳板机（直连）',
+  'hosts.group.noBastion': '无（直连）',
+  'hosts.group.bastionHint': '此分组中的主机将默认使用此跳板机，除非单独覆盖。',
+  'hosts.group.bastionLabel': '跳板机',
 
   // Group list modal
   'hosts.groupList.title': '分组',

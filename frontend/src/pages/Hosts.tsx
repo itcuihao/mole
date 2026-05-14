@@ -139,9 +139,11 @@ function Hosts({
   const [sshPreview, setSSHPreview] = useState<SSHConfigImportPreviewState | null>(null)
   const [sshSelectedAliases, setSSHSelectedAliases] = useState<string[]>([])
   const [sshConflictStrategy, setSSHConflictStrategy] = useState<'skip' | 'overwrite'>('skip')
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
   const [groupForm, setGroupForm] = useState({
     id: '',
     name: '',
+    bastion_id: '',
     host_ids: [] as string[],
   })
 
@@ -150,6 +152,33 @@ function Hosts({
     inv.hosts.forEach(h => map.set(h.id, h))
     return map
   }, [inv.hosts])
+
+  const groupsForHost = useMemo(() => {
+    const map = new Map<string, inventory.HostGroup[]>()
+    inv.groups.forEach(group => {
+      (group.host_ids || []).forEach(id => {
+        const list = map.get(id) || []
+        list.push(group)
+        map.set(id, list)
+      })
+    })
+    return map
+  }, [inv.groups])
+
+  const effectiveBastion = (host: HostRecord): { id: string; name: string } | null => {
+    if (host.bastion_id) {
+      const b = hostMap.get(host.bastion_id)
+      return { id: host.bastion_id, name: b?.name || b?.host || host.bastion_id }
+    }
+    const groups = groupsForHost.get(host.id) || []
+    for (const g of groups) {
+      if (g.bastion_id) {
+        const b = hostMap.get(g.bastion_id)
+        return { id: g.bastion_id, name: b?.name || b?.host || g.bastion_id }
+      }
+    }
+    return null
+  }
 
   const sortedHosts = useMemo(() => (
     [...inv.hosts].sort(compareHostLabels)
@@ -173,9 +202,11 @@ function Hosts({
         || tags.some(tag => tag.toLowerCase().includes(query))
       const matchesTags = selectedTags.length === 0
         || tags.some(tag => selectedTags.includes(tag))
-      return matchesQuery && matchesTags
+      const matchesGroup = !selectedGroupId
+        || (inv.groups.find(g => g.id === selectedGroupId)?.host_ids || []).includes(host.id)
+      return matchesQuery && matchesTags && matchesGroup
     })
-  }, [search, selectedTags, sortedHosts])
+  }, [search, selectedTags, selectedGroupId, sortedHosts, inv.groups])
 
   useEffect(() => {
     loadInventory()
@@ -247,6 +278,7 @@ function Hosts({
       setGroupForm({
         id: group.id,
         name: group.name || '',
+        bastion_id: group.bastion_id || '',
         host_ids: group.host_ids || [],
       })
     } else {
@@ -254,6 +286,7 @@ function Hosts({
       setGroupForm({
         id: '',
         name: '',
+        bastion_id: '',
         host_ids: [],
       })
     }
@@ -365,6 +398,7 @@ function Hosts({
       await SaveHostGroup({
         id: groupID,
         name: groupForm.name.trim(),
+        bastion_id: groupForm.bastion_id || undefined,
         host_ids: groupForm.host_ids,
         tags: [],
       })
@@ -400,10 +434,6 @@ function Hosts({
         : [...prev, groupID]
     ))
   }
-
-  const groupsForHost = (hostID: string) => (
-    inv.groups.filter(group => (group.host_ids || []).includes(hostID))
-  )
 
   const handleDeleteGroup = async (id: string) => {
     try {
@@ -613,6 +643,34 @@ function Hosts({
             </div>
           </div>
 
+          {inv.groups.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setSelectedGroupId(null)}
+                variant="secondary"
+                size="sm"
+                className={selectedGroupId === null
+                  ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                  : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+              >
+                {t('hosts.allHosts')}
+              </Button>
+              {inv.groups.map(group => (
+                <Button
+                  key={group.id}
+                  onClick={() => setSelectedGroupId(group.id)}
+                  variant="secondary"
+                  size="sm"
+                  className={selectedGroupId === group.id
+                    ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                    : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+                >
+                  {group.name}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {allTags.map(tag => {
@@ -725,7 +783,7 @@ function Hosts({
         ) : (
           <div className="grid gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
             {filteredHosts.map(host => {
-              const bastion = host.bastion_id ? hostMap.get(host.bastion_id) : null
+              const bastion = effectiveBastion(host)
               const jumpChain = hostJumpChain(host)
               const command = buildSSHCommand(host)
               return (
@@ -745,7 +803,7 @@ function Hosts({
                       </div>
                       {bastion && (
                         <div className="text-xs text-muted-foreground mt-1">
-                          {t('hosts.bastion', { name: bastion.name || bastion.host })}
+                          {t('hosts.bastion', { name: bastion.name })}
                         </div>
                       )}
                       {host.source_alias && (
@@ -774,9 +832,9 @@ function Hosts({
                       ))}
                     </div>
                   )}
-                  {groupsForHost(host.id).length > 0 && (
+                  {(groupsForHost.get(host.id) || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
-                      {groupsForHost(host.id).map(group => (
+                      {(groupsForHost.get(host.id) || []).map(group => (
                         <Badge key={group.id} variant="secondary" className="rounded-full border border-primary/20 bg-primary/10 text-[10px] text-primary">
                           {group.name || 'Group'}
                         </Badge>
@@ -1164,6 +1222,26 @@ function Hosts({
                 />
               </div>
               <div>
+                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.group.bastion')}</label>
+                <Select
+                  value={groupForm.bastion_id || '__none__'}
+                  onValueChange={value => setGroupForm({ ...groupForm, bastion_id: value === '__none__' ? '' : value })}
+                >
+                  <SelectTrigger className="bg-muted/30 focus:bg-background">
+                    <SelectValue placeholder={t('hosts.group.bastionPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent className="z-[110]">
+                    <SelectItem value="__none__">{t('hosts.group.noBastion')}</SelectItem>
+                    {sortedHosts.map(host => (
+                      <SelectItem key={host.id} value={host.id}>
+                        {host.name || host.host}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-[11px] text-muted-foreground">{t('hosts.group.bastionHint')}</p>
+              </div>
+              <div>
                 <label className="block text-xs text-muted-foreground mb-1">{t('hosts.group.hosts')}</label>
                 {allTags.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
@@ -1247,6 +1325,11 @@ function Hosts({
                           <div className="text-xs text-muted-foreground mt-1">
                             {t('hosts.form.hostCount', { count: group.host_ids.length })}
                           </div>
+                          {group.bastion_id && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {t('hosts.group.bastionLabel')}: {hostMap.get(group.bastion_id)?.name || hostMap.get(group.bastion_id)?.host || group.bastion_id}
+                            </div>
+                          )}
                           {group.host_ids.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                               {group.host_ids.map(id => (

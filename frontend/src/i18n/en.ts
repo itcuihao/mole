@@ -247,6 +247,7 @@ export const en: Record<string, string> = {
 
   // Hosts
   'hosts.title': 'Hosts',
+  'hosts.allHosts': 'All',
   'hosts.manageGroups': 'Manage Groups',
   'hosts.addHost': 'Add Host',
   'hosts.import.button': 'Import SSH Config',
@@ -323,6 +324,11 @@ export const en: Record<string, string> = {
   'hosts.group.noHosts': 'No hosts available. Create hosts first, then add them to this group.',
   'hosts.group.nameRequired': 'Group name is required',
   'hosts.group.hostDraftHint': 'When you save this group, the host you are editing will stay open and this group will be selected automatically.',
+  'hosts.group.bastion': 'Default Bastion',
+  'hosts.group.bastionPlaceholder': 'No bastion (direct)',
+  'hosts.group.noBastion': 'None (direct connection)',
+  'hosts.group.bastionHint': 'Hosts in this group will use this bastion by default unless overridden.',
+  'hosts.group.bastionLabel': 'Bastion',
 
   // Group list modal
   'hosts.groupList.title': 'Groups',
