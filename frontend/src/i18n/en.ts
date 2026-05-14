@@ -251,6 +251,7 @@ export const en: Record<string, string> = {
   'hosts.manageGroups': 'Manage Groups',
   'hosts.addHost': 'Add Host',
   'hosts.import.button': 'Import SSH Config',
+  'hosts.import.shortButton': 'SSH Config',
   'hosts.import.title': 'Import SSH Config',
   'hosts.import.desc': 'Parse ~/.ssh/config, preview importable aliases, and choose which hosts Mole should bring in.',
   'hosts.import.path': 'Config Path',
@@ -278,6 +279,7 @@ export const en: Record<string, string> = {
   'hosts.sourceAlias': 'Source alias: {{alias}}',
   'hosts.jumpChain': 'Jump chain: {{chain}}',
   'hosts.key': 'Key: {{path}}',
+  'hosts.inheritedFromDefault': 'Using Defaults: {{fields}}',
   'hosts.copySSH': 'Copy SSH',
 
   // Host defaults

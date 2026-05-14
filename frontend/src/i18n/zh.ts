@@ -251,6 +251,7 @@ export const zh: Record<string, string> = {
   'hosts.manageGroups': '管理分组',
   'hosts.addHost': '添加主机',
   'hosts.import.button': '导入 SSH Config',
+  'hosts.import.shortButton': 'SSH Config',
   'hosts.import.title': '导入 SSH Config',
   'hosts.import.desc': '解析 ~/.ssh/config，预览可导入的别名，再选择要带入 Mole 的主机。',
   'hosts.import.path': '配置路径',
@@ -278,6 +279,7 @@ export const zh: Record<string, string> = {
   'hosts.sourceAlias': '来源别名: {{alias}}',
   'hosts.jumpChain': '跳转链路: {{chain}}',
   'hosts.key': '密钥: {{path}}',
+  'hosts.inheritedFromDefault': '继承默认值: {{fields}}',
   'hosts.copySSH': '复制 SSH',
 
   // Host defaults

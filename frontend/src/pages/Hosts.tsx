@@ -3,7 +3,7 @@ import { GetInventory, SaveInventoryDefaults, SaveHost, DeleteHost, SaveHostGrou
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CardDescription, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -592,34 +592,17 @@ function Hosts({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="surface-panel rounded-2xl border border-border px-5 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              {onBack && (
-                <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
-            </div>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            )}
+            <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
-              {t('hosts.import.button')}
-            </Button>
-            <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
-              {t('hosts.manageGroups')}
-            </Button>
-            <Button onClick={() => openHostModal()} size="sm" className="shadow-sm">
-              <Plus className="w-4 h-4" />
-              {t('hosts.addHost')}
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="relative w-full max-w-xl">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -638,9 +621,21 @@ function Hosts({
                 </button>
               )}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {t('hosts.summary', { filtered: filteredHosts.length, total: inv.hosts.length })}
+            <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+              <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
+                {t('hosts.import.shortButton')}
+              </Button>
+              <Button onClick={() => setShowGroupListModal(true)} variant="secondary" size="sm">
+                {t('hosts.groupList.title')}
+              </Button>
+              <Button onClick={() => openHostModal()} size="sm" className="shadow-sm">
+                <Plus className="w-4 h-4" />
+                {t('common.add')}
+              </Button>
             </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {t('hosts.summary', { filtered: filteredHosts.length, total: inv.hosts.length })}
           </div>
 
           {inv.groups.length > 0 && (
@@ -715,77 +710,89 @@ function Hosts({
         </div>
       )}
 
-      <Card>
-        <button
-          type="button"
-          onClick={() => setShowDefaults(prev => !prev)}
-          className="w-full text-left"
-        >
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-base">{t('hosts.defaults.title')}</CardTitle>
-              <CardDescription>{t('hosts.defaults.desc')}</CardDescription>
-            </div>
-            <span className="text-muted-foreground">
-              {showDefaults ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </span>
-          </CardHeader>
-        </button>
-        {showDefaults && (
-          <CardContent>
-            <div className="grid gap-3 md:grid-cols-3">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.user')}</label>
-                <Input
-                  value={defaultsForm.user}
-                  onChange={e => setDefaultsForm({ ...defaultsForm, user: e.target.value })}
-                  placeholder="deploy"
-                  className="bg-muted/30 focus:bg-background"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.port')}</label>
-                <Input
-                  value={defaultsForm.port}
-                  onChange={e => setDefaultsForm({ ...defaultsForm, port: e.target.value })}
-                  placeholder="22"
-                  className="bg-muted/30 focus:bg-background"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">{t('hosts.defaults.identityFile')}</label>
-                <Input
-                  value={defaultsForm.identity_file}
-                  onChange={e => setDefaultsForm({ ...defaultsForm, identity_file: e.target.value })}
-                  placeholder="~/.ssh/id_ed25519"
-                  className="bg-muted/30 focus:bg-background"
-                />
-              </div>
-            </div>
-            <div className="mt-4">
-              <Button onClick={saveDefaults} size="sm">{t('hosts.defaults.save')}</Button>
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
       <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
-        {loading ? (
-          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-10 text-sm text-muted-foreground">{t('hosts.loading')}</div>
-        ) : inv.hosts.length === 0 ? (
-          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
-            {t('hosts.empty')}
+        <div className="grid gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="surface-panel flex flex-col rounded-2xl border border-border/70 bg-muted/10 p-4 transition-all">
+            <button
+              type="button"
+              onClick={() => setShowDefaults(prev => !prev)}
+              className="w-full text-left"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{t('hosts.defaults.title')}</CardTitle>
+                  <CardDescription>{t('hosts.defaults.desc')}</CardDescription>
+                </div>
+                <span className="text-muted-foreground">
+                  {showDefaults ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </span>
+              </div>
+            </button>
+            {!showDefaults && (
+              <div className="mt-3 text-xs text-muted-foreground font-mono">
+                {(defaultsForm.user || '-') + ' · '}
+                {t('hosts.defaults.port')}: {defaultsForm.port || '22'} ·{' '}
+                {(defaultsForm.identity_file || '-')}
+              </div>
+            )}
+            {showDefaults && (
+              <div className="mt-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">{t('hosts.defaults.user')}</label>
+                    <Input
+                      value={defaultsForm.user}
+                      onChange={e => setDefaultsForm({ ...defaultsForm, user: e.target.value })}
+                      placeholder="deploy"
+                      className="bg-muted/30 focus:bg-background"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">{t('hosts.defaults.port')}</label>
+                    <Input
+                      value={defaultsForm.port}
+                      onChange={e => setDefaultsForm({ ...defaultsForm, port: e.target.value })}
+                      placeholder="22"
+                      className="bg-muted/30 focus:bg-background"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">{t('hosts.defaults.identityFile')}</label>
+                    <Input
+                      value={defaultsForm.identity_file}
+                      onChange={e => setDefaultsForm({ ...defaultsForm, identity_file: e.target.value })}
+                      placeholder="~/.ssh/id_ed25519"
+                      className="bg-muted/30 focus:bg-background"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <Button onClick={saveDefaults} size="sm">{t('hosts.defaults.save')}</Button>
+                </div>
+              </div>
+            )}
           </div>
-        ) : filteredHosts.length === 0 ? (
-          <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground">
-            {t('hosts.noFilterMatch')}
-          </div>
-        ) : (
-          <div className="grid gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
-            {filteredHosts.map(host => {
+
+          {loading ? (
+            <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-10 text-sm text-muted-foreground sm:col-span-2 xl:col-span-3">{t('hosts.loading')}</div>
+          ) : inv.hosts.length === 0 ? (
+            <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground sm:col-span-2 xl:col-span-3">
+              {t('hosts.empty')}
+            </div>
+          ) : filteredHosts.length === 0 ? (
+            <div className="surface-panel rounded-2xl border border-border bg-muted/15 px-6 py-12 text-center text-muted-foreground sm:col-span-2 xl:col-span-3">
+              {t('hosts.noFilterMatch')}
+            </div>
+          ) : (
+            filteredHosts.map(host => {
               const bastion = effectiveBastion(host)
               const jumpChain = hostJumpChain(host)
               const command = buildSSHCommand(host)
+              const inheritedFields = [
+                (!host.user && inv.defaults.user) ? t('hosts.defaults.user') : '',
+                (!host.port && inv.defaults.port) ? t('hosts.defaults.port') : '',
+                (!host.identity_file && inv.defaults.identity_file) ? t('hosts.defaults.identityFile') : '',
+              ].filter(Boolean)
               return (
                 <div key={host.id} className="breathing-card surface-panel flex flex-col rounded-2xl border border-border bg-card p-4 transition-all">
                   <div className="flex flex-col gap-3">
@@ -823,6 +830,11 @@ function Hosts({
                       {(host.identity_file || inv.defaults.identity_file) && (
                         <div className="text-xs text-muted-foreground mt-1 font-mono">
                           {t('hosts.key', { path: host.identity_file || inv.defaults.identity_file })}
+                        </div>
+                      )}
+                      {inheritedFields.length > 0 && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {t('hosts.inheritedFromDefault', { fields: inheritedFields.join(', ') })}
                         </div>
                       )}
                   {host.tags && host.tags.length > 0 && (
@@ -869,9 +881,9 @@ function Hosts({
                   </div>
                 </div>
               )
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </div>
 
       {showSSHImportModal && (
