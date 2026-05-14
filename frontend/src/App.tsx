@@ -6,7 +6,7 @@ import Settings from './pages/Settings'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 import { useTranslation } from './i18n/context'
-import { Users, Server, Settings as SettingsIcon } from "lucide-react"
+import { Users, Server, Settings as SettingsIcon, Mountain } from "lucide-react"
 
 export type AppTab = 'sessions' | 'profiles' | 'hosts' | 'settings'
 
@@ -126,8 +126,16 @@ function App() {
             </div>
             <div aria-hidden="true" className="h-5 w-px shrink-0 bg-border/70" />
             <TabsList className="no-drag h-9 shrink-0 border-0 bg-transparent p-0">
-              <TabsTrigger value="sessions" className="font-mono text-xs px-3.5 data-[state=active]:bg-muted">
-                {t('nav.burrows')}
+              <TabsTrigger
+                value="sessions"
+                className="px-3 data-[state=active]:bg-muted"
+                aria-label={t('nav.burrows')}
+                title={t('nav.burrows')}
+              >
+                <span className="relative flex h-4 w-4 items-center justify-center" aria-hidden="true">
+                  <Mountain className="h-4 w-4" />
+                  <span className="absolute bottom-[1px] h-1 w-1 rounded-full bg-current opacity-80" />
+                </span>
               </TabsTrigger>
             </TabsList>
           </div>
