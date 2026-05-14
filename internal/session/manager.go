@@ -11,6 +11,7 @@ import (
 	"mole/internal/config"
 	"mole/internal/docker"
 	"mole/internal/inventory"
+	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/terminal"
 
@@ -25,6 +26,7 @@ type Manager struct {
 	profileMgr       *profile.Manager
 	invMgr           *inventory.Manager
 	codexMgr         *codex.Manager
+	pluginConfigMgr  *pluginconfig.Manager
 	backends         map[string]SessionBackend
 	defaultBackendID string
 	plugins          *pluginRegistry
@@ -77,8 +79,29 @@ func (m *Manager) SetDockerManager(dockerMgr *docker.Manager) {
 	m.plugins.register(NewDockerPlugin(dockerMgr))
 }
 
+// SetPluginConfigManager wires reusable presets for external launch plugins.
+func (m *Manager) SetPluginConfigManager(pluginConfigMgr *pluginconfig.Manager) {
+	m.pluginConfigMgr = pluginConfigMgr
+	m.registerPresetPlugins(pluginConfigMgr)
+}
+
 // Create creates a new runtime session with the environment from a profile.
 func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID, den string) error {
+	return m.CreateWithRequest(SessionLaunchRequest{
+		ProfileID:     profileID,
+		Name:          sessionName,
+		Command:       command,
+		RunMode:       runMode,
+		HostID:        hostID,
+		CodexConfigID: codexConfigID,
+		Den:           den,
+	})
+}
+
+// CreateWithRequest creates a new runtime session from a V2 launch payload.
+func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
+	profileID := strings.TrimSpace(req.ProfileID)
+	sessionName := strings.TrimSpace(req.Name)
 	if !validName.MatchString(sessionName) {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
@@ -97,7 +120,14 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codex
 		return fmt.Errorf("%s session %q already exists", backend.ID(), tmuxName)
 	}
 
-	resolvedCommand, normalizedRunMode, normalizedHostID, normalizedCodexConfigID, err := m.resolveLaunchConfig(command, runMode, hostID, codexConfigID)
+	launchCfg, normalizedRunMode, err := m.resolveLaunchConfig(LaunchRequest{
+		Command:        req.Command,
+		RunMode:        req.RunMode,
+		HostID:         req.HostID,
+		CodexConfigID:  req.CodexConfigID,
+		PluginConfigID: req.PluginConfigID,
+		PluginData:     req.PluginData,
+	})
 	if err != nil {
 		return err
 	}
@@ -108,27 +138,29 @@ func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codex
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
-	env, resolvedCommand, err = m.prepareLaunchEnv(normalizedRunMode, normalizedCodexConfigID, env, resolvedCommand)
-	if err != nil {
-		return err
-	}
-
-	if err := backend.Create(tmuxName, env, resolvedCommand); err != nil {
-		return err
-	}
-
-	// Save session metadata
 	sess := Session{
 		Name:            sessionName,
 		ProfileID:       profileID,
 		BackendID:       backend.ID(),
 		TmuxSessionName: tmuxName,
-		Command:         resolvedCommand,
+		Command:         launchCfg.Command,
 		RunMode:         normalizedRunMode,
-		HostID:          normalizedHostID,
-		CodexConfigID:   normalizedCodexConfigID,
-		Den:             strings.TrimSpace(den),
+		HostID:          launchCfg.HostID,
+		CodexConfigID:   launchCfg.CodexConfigID,
+		PluginConfigID:  launchCfg.PluginConfigID,
+		PluginData:      launchCfg.PluginData,
+		Den:             strings.TrimSpace(req.Den),
 	}
+
+	env, sess.Command, err = m.prepareLaunchEnv(sess, env, sess.Command)
+	if err != nil {
+		return err
+	}
+
+	if err := backend.Create(tmuxName, env, sess.Command); err != nil {
+		return err
+	}
+
 	return m.store.Save(sess)
 }
 
@@ -203,8 +235,21 @@ func (m *Manager) ListWithStatus() ([]SessionStatus, error) {
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
 func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
+	return m.UpdateWithRequest(SessionUpdateRequest{
+		SessionID:     sessionID,
+		ProfileID:     profileID,
+		Command:       command,
+		RunMode:       runMode,
+		HostID:        hostID,
+		CodexConfigID: codexConfigID,
+		Den:           den,
+	})
+}
+
+// UpdateWithRequest updates a session from a V2 launch payload.
+func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	// Get current session
-	sess, err := m.store.Get(sessionID)
+	sess, err := m.store.Get(req.SessionID)
 	if err != nil {
 		return err
 	}
@@ -218,18 +263,37 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexCo
 	oldCommand := sess.Command
 	oldSession := sess
 
-	resolvedCommand, normalizedRunMode, normalizedHostID, normalizedCodexConfigID, err := m.resolveLaunchConfig(command, runMode, hostID, codexConfigID)
+	launchCfg, normalizedRunMode, err := m.resolveLaunchConfig(LaunchRequest{
+		Command:        req.Command,
+		RunMode:        req.RunMode,
+		HostID:         req.HostID,
+		CodexConfigID:  req.CodexConfigID,
+		PluginConfigID: req.PluginConfigID,
+		PluginData:     req.PluginData,
+	})
 	if err != nil {
 		return err
 	}
 
 	// Resolve the replacement environment before touching the live session.
+	profileID := strings.TrimSpace(req.ProfileID)
 	newEnv, err := m.profileMgr.GetFullEnv(profileID)
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
 
-	newEnv, resolvedCommand, err = m.prepareLaunchEnv(normalizedRunMode, normalizedCodexConfigID, newEnv, resolvedCommand)
+	nextSession := sess
+	nextSession.ProfileID = profileID
+	nextSession.BackendID = backend.ID()
+	nextSession.Command = launchCfg.Command
+	nextSession.RunMode = normalizedRunMode
+	nextSession.HostID = launchCfg.HostID
+	nextSession.CodexConfigID = launchCfg.CodexConfigID
+	nextSession.PluginConfigID = launchCfg.PluginConfigID
+	nextSession.PluginData = launchCfg.PluginData
+	nextSession.Den = strings.TrimSpace(req.Den)
+
+	newEnv, nextSession.Command, err = m.prepareLaunchEnv(nextSession, newEnv, nextSession.Command)
 	if err != nil {
 		return err
 	}
@@ -256,15 +320,9 @@ func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexCo
 	}
 
 	// Update session metadata
-	sess.ProfileID = profileID
-	sess.BackendID = backend.ID()
-	sess.Command = resolvedCommand
-	sess.RunMode = normalizedRunMode
-	sess.HostID = normalizedHostID
-	sess.CodexConfigID = normalizedCodexConfigID
-	sess.Den = strings.TrimSpace(den)
+	sess = nextSession
 
-	if err := backend.Create(sess.RuntimeName(), newEnv, resolvedCommand); err != nil {
+	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command); err != nil {
 		if isAlive && canRollback {
 			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
@@ -602,27 +660,30 @@ func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
 	return nil, fmt.Errorf("session backend %q is not registered", backendID)
 }
 
-func (m *Manager) resolveLaunchConfig(command, runMode, hostID, codexConfigID string) (string, string, string, string, error) {
-	normalizedRunMode := strings.TrimSpace(runMode)
-	trimmedCommand := strings.TrimSpace(command)
-	trimmedHostID := strings.TrimSpace(hostID)
-	trimmedCodexConfigID := strings.TrimSpace(codexConfigID)
+func (m *Manager) resolveLaunchConfig(req LaunchRequest) (LaunchConfig, string, error) {
+	normalizedRunMode := strings.TrimSpace(req.RunMode)
+	req.Command = strings.TrimSpace(req.Command)
+	req.HostID = strings.TrimSpace(req.HostID)
+	req.CodexConfigID = strings.TrimSpace(req.CodexConfigID)
+	req.PluginConfigID = strings.TrimSpace(req.PluginConfigID)
+	req.PluginData = trimStringMap(req.PluginData)
 
 	if normalizedRunMode == "" {
-		normalizedRunMode = m.inferRunMode(trimmedCommand, trimmedHostID, trimmedCodexConfigID)
+		normalizedRunMode = m.inferRunMode(req.Command, req.HostID, req.CodexConfigID)
 	}
 
 	plugin, ok := m.plugins.get(normalizedRunMode)
 	if !ok {
-		return "", "", "", "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
+		return LaunchConfig{}, "", fmt.Errorf("unsupported run mode %q", normalizedRunMode)
 	}
 
-	cfg, err := plugin.Resolve(trimmedCommand, trimmedHostID, trimmedCodexConfigID)
+	cfg, err := plugin.Resolve(req)
 	if err != nil {
-		return "", "", "", "", err
+		return LaunchConfig{}, "", err
 	}
+	cfg.PluginData = trimStringMap(cfg.PluginData)
 
-	return cfg.Command, normalizedRunMode, cfg.HostID, cfg.CodexConfigID, nil
+	return cfg, normalizedRunMode, nil
 }
 
 func (m *Manager) commandForSession(sess Session) (string, error) {
@@ -633,7 +694,7 @@ func (m *Manager) commandForSession(sess Session) (string, error) {
 	if !ok {
 		return strings.TrimSpace(sess.Command), nil
 	}
-	return plugin.Command(sess.Command, sess.HostID)
+	return plugin.Command(sess)
 }
 
 func (m *Manager) environmentForSession(sess Session) (map[string]string, error) {
@@ -647,19 +708,37 @@ func (m *Manager) environmentForSession(sess Session) (map[string]string, error)
 		return nil, err
 	}
 
-	env, _, err = m.prepareLaunchEnv(sess.RunMode, sess.CodexConfigID, env, command)
+	env, _, err = m.prepareLaunchEnv(sess, env, command)
 	if err != nil {
 		return nil, err
 	}
 	return env, nil
 }
 
-func (m *Manager) prepareLaunchEnv(runMode, codexConfigID string, env map[string]string, command string) (map[string]string, string, error) {
-	plugin, ok := m.plugins.get(runMode)
+func (m *Manager) prepareLaunchEnv(sess Session, env map[string]string, command string) (map[string]string, string, error) {
+	plugin, ok := m.plugins.get(sess.RunMode)
 	if !ok {
 		return env, command, nil
 	}
-	return plugin.PrepareEnv(codexConfigID, env, command)
+	return plugin.PrepareEnv(sess, env, command)
+}
+
+func trimStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	next := make(map[string]string, len(values))
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		next[key] = strings.TrimSpace(value)
+	}
+	if len(next) == 0 {
+		return nil
+	}
+	return next
 }
 
 // ExportBurrowSessions returns the portable static session configuration set.
@@ -678,7 +757,7 @@ func (m *Manager) ExportBurrowSessions() ([]WorkspaceSession, error) {
 }
 
 // PrepareBurrowImport validates and normalizes imported session configs without persisting them.
-func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map[string]struct{}, hostIDs map[string]struct{}) ([]Session, error) {
+func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map[string]struct{}, hostIDs map[string]struct{}, pluginConfigIDs map[string]struct{}) ([]Session, error) {
 	defaultBackend, err := m.defaultBackend()
 	if err != nil {
 		return nil, err
@@ -731,6 +810,8 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		runMode := strings.TrimSpace(cfg.RunMode)
 		hostID := strings.TrimSpace(cfg.HostID)
 		codexConfigID := strings.TrimSpace(cfg.CodexConfigID)
+		pluginConfigID := strings.TrimSpace(cfg.PluginConfigID)
+		pluginData := trimStringMap(cfg.PluginData)
 
 		if runMode == "" {
 			runMode = m.inferRunMode(command, hostID, codexConfigID)
@@ -741,13 +822,31 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			return nil, fmt.Errorf("session %q uses unsupported run mode %q", name, runMode)
 		}
 
-		launchCfg, err := plugin.Validate(command, hostID, codexConfigID)
-		if err != nil {
-			return nil, fmt.Errorf("session %q: %w", name, err)
+		if plugin.RequiresPluginConfig() {
+			if pluginConfigID == "" {
+				return nil, fmt.Errorf("session %q uses %q without a plugin config", name, runMode)
+			}
+			if _, exists := pluginConfigIDs[pluginConfigID]; !exists {
+				return nil, fmt.Errorf("session %q references unknown plugin config %q", name, pluginConfigID)
+			}
+		} else {
+			launchCfg, err := plugin.Validate(LaunchRequest{
+				Command:        command,
+				RunMode:        runMode,
+				HostID:         hostID,
+				CodexConfigID:  codexConfigID,
+				PluginConfigID: pluginConfigID,
+				PluginData:     pluginData,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("session %q: %w", name, err)
+			}
+			command = launchCfg.Command
+			hostID = launchCfg.HostID
+			codexConfigID = launchCfg.CodexConfigID
+			pluginConfigID = launchCfg.PluginConfigID
+			pluginData = launchCfg.PluginData
 		}
-		command = launchCfg.Command
-		hostID = launchCfg.HostID
-		codexConfigID = launchCfg.CodexConfigID
 
 		if runMode == RunModeHost && hostID != "" {
 			if _, exists := hostIDs[hostID]; !exists {
@@ -775,6 +874,8 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			RunMode:         runMode,
 			HostID:          hostID,
 			CodexConfigID:   codexConfigID,
+			PluginConfigID:  pluginConfigID,
+			PluginData:      pluginData,
 			Den:             strings.TrimSpace(cfg.Den),
 			CreatedAt:       createdAt,
 		})
@@ -832,6 +933,14 @@ func (m *Manager) registerBuiltinPlugins(invMgr *inventory.Manager) {
 	m.plugins.register(NewCustomPlugin())
 	m.plugins.register(NewHostPlugin(invMgr))
 	m.plugins.register(NewCodexPlugin(m.codexMgr))
+}
+
+func (m *Manager) registerPresetPlugins(resolver pluginConfigResolver) {
+	m.plugins.register(NewK8sPodPlugin(resolver))
+	m.plugins.register(NewCondaPlugin(resolver))
+	m.plugins.register(NewSSHConfigPlugin(resolver))
+	m.plugins.register(NewTmuxAttachPlugin(resolver))
+	m.plugins.register(NewRemoteTmuxPlugin(resolver))
 }
 
 func (m *Manager) inferRunMode(command, hostID, codexConfigID string) string {

@@ -5,27 +5,34 @@ import (
 )
 
 const (
-	RunModeShell  = "shell"
-	RunModeHost   = "host"
-	RunModeCustom = "custom"
-	RunModeCodex  = "codex"
+	RunModeShell      = "shell"
+	RunModeHost       = "host"
+	RunModeCustom     = "custom"
+	RunModeCodex      = "codex"
+	RunModeK8sPod     = "k8s_pod"
+	RunModeConda      = "conda"
+	RunModeSSHConfig  = "ssh_config"
+	RunModeTmuxAttach = "tmux_attach"
+	RunModeRemoteTmux = "remote_tmux"
 )
 
 // Session represents stored metadata for a runtime session.
 type Session struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	ProfileID       string `json:"profile_id"`
-	BackendID       string `json:"backend_id,omitempty"`
-	TmuxSessionName string `json:"tmux_session_name"`
-	Command         string `json:"command"` // Optional command to run (e.g., "claude")
-	RunMode         string `json:"run_mode,omitempty"`
-	HostID          string `json:"host_id,omitempty"`
-	CodexConfigID   string `json:"codex_config_id,omitempty"`
-	Den             string `json:"den,omitempty"`
-	CreatedAt       string `json:"created_at"`
-	OpenCount       int    `json:"open_count,omitempty"`
-	LastOpenedAt    string `json:"last_opened_at,omitempty"`
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	ProfileID       string            `json:"profile_id"`
+	BackendID       string            `json:"backend_id,omitempty"`
+	TmuxSessionName string            `json:"tmux_session_name"`
+	Command         string            `json:"command"` // Optional command to run (e.g., "claude")
+	RunMode         string            `json:"run_mode,omitempty"`
+	HostID          string            `json:"host_id,omitempty"`
+	CodexConfigID   string            `json:"codex_config_id,omitempty"`
+	PluginConfigID  string            `json:"plugin_config_id,omitempty"`
+	PluginData      map[string]string `json:"plugin_data,omitempty"`
+	Den             string            `json:"den,omitempty"`
+	CreatedAt       string            `json:"created_at"`
+	OpenCount       int               `json:"open_count,omitempty"`
+	LastOpenedAt    string            `json:"last_opened_at,omitempty"`
 }
 
 func (s Session) EffectiveBackendID() string {
@@ -60,15 +67,43 @@ type SessionStatus struct {
 
 func (s Session) WorkspaceConfig() WorkspaceSession {
 	return WorkspaceSession{
-		ID:            s.ID,
-		Name:          s.Name,
-		ProfileID:     s.ProfileID,
-		BackendID:     s.EffectiveBackendID(),
-		Command:       s.Command,
-		RunMode:       s.RunMode,
-		HostID:        s.HostID,
-		CodexConfigID: s.CodexConfigID,
-		Den:           s.Den,
-		CreatedAt:     s.CreatedAt,
+		ID:             s.ID,
+		Name:           s.Name,
+		ProfileID:      s.ProfileID,
+		BackendID:      s.EffectiveBackendID(),
+		Command:        s.Command,
+		RunMode:        s.RunMode,
+		HostID:         s.HostID,
+		CodexConfigID:  s.CodexConfigID,
+		PluginConfigID: s.PluginConfigID,
+		PluginData:     s.PluginData,
+		Den:            s.Den,
+		CreatedAt:      s.CreatedAt,
 	}
+}
+
+// SessionLaunchRequest is the V2 payload for creating a session.
+type SessionLaunchRequest struct {
+	ProfileID      string            `json:"profile_id"`
+	Name           string            `json:"name"`
+	Command        string            `json:"command,omitempty"`
+	RunMode        string            `json:"run_mode,omitempty"`
+	HostID         string            `json:"host_id,omitempty"`
+	CodexConfigID  string            `json:"codex_config_id,omitempty"`
+	PluginConfigID string            `json:"plugin_config_id,omitempty"`
+	PluginData     map[string]string `json:"plugin_data,omitempty"`
+	Den            string            `json:"den,omitempty"`
+}
+
+// SessionUpdateRequest is the V2 payload for updating a session.
+type SessionUpdateRequest struct {
+	SessionID      string            `json:"session_id"`
+	ProfileID      string            `json:"profile_id"`
+	Command        string            `json:"command,omitempty"`
+	RunMode        string            `json:"run_mode,omitempty"`
+	HostID         string            `json:"host_id,omitempty"`
+	CodexConfigID  string            `json:"codex_config_id,omitempty"`
+	PluginConfigID string            `json:"plugin_config_id,omitempty"`
+	PluginData     map[string]string `json:"plugin_data,omitempty"`
+	Den            string            `json:"den,omitempty"`
 }

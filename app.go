@@ -14,6 +14,7 @@ import (
 	"mole/internal/config"
 	"mole/internal/docker"
 	"mole/internal/inventory"
+	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/session"
 	"mole/internal/terminal"
@@ -25,13 +26,14 @@ import (
 
 // App struct holds the application state and managers.
 type App struct {
-	ctx        context.Context
-	profileMgr *profile.Manager
-	codexMgr   *codex.Manager
-	dockerMgr  *docker.Manager
-	sessionMgr *session.Manager
-	invMgr     *inventory.Manager
-	trayOnce   sync.Once
+	ctx             context.Context
+	profileMgr      *profile.Manager
+	codexMgr        *codex.Manager
+	dockerMgr       *docker.Manager
+	pluginConfigMgr *pluginconfig.Manager
+	sessionMgr      *session.Manager
+	invMgr          *inventory.Manager
+	trayOnce        sync.Once
 }
 
 // NewApp creates a new App instance.
@@ -55,10 +57,12 @@ func (a *App) startup(ctx context.Context) {
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
 	a.dockerMgr = docker.NewManager(config.DockerConfigsPath())
+	a.pluginConfigMgr = pluginconfig.NewManager(config.PluginConfigsPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
 	a.sessionMgr.SetCodexManager(a.codexMgr)
 	a.sessionMgr.SetDockerManager(a.dockerMgr)
+	a.sessionMgr.SetPluginConfigManager(a.pluginConfigMgr)
 }
 
 // domReady wires desktop integrations that rely on the frontend runtime being available.
@@ -116,6 +120,21 @@ func (a *App) DeleteDockerConfig(id string) error {
 	return a.dockerMgr.Delete(id)
 }
 
+// ListPluginConfigs returns reusable launch plugin presets.
+func (a *App) ListPluginConfigs(pluginID string) ([]pluginconfig.Config, error) {
+	return a.pluginConfigMgr.List(pluginID)
+}
+
+// SavePluginConfig saves a reusable launch plugin preset.
+func (a *App) SavePluginConfig(req pluginconfig.SaveRequest) (pluginconfig.Config, error) {
+	return a.pluginConfigMgr.Save(req)
+}
+
+// DeletePluginConfig removes a reusable launch plugin preset.
+func (a *App) DeletePluginConfig(id string) error {
+	return a.pluginConfigMgr.Delete(id)
+}
+
 // ListLaunchPlugins returns metadata for all registered launch plugins.
 func (a *App) ListLaunchPlugins() []session.PluginInfo {
 	return a.sessionMgr.ListLaunchPlugins()
@@ -129,6 +148,11 @@ func (a *App) CreateSession(profileID, name, command string) error {
 // CreateSessionWithOptions creates a new runtime session with explicit launch metadata.
 func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID, den string) error {
 	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID, den)
+}
+
+// CreateSessionWithOptionsV2 creates a new runtime session with plugin metadata.
+func (a *App) CreateSessionWithOptionsV2(req session.SessionLaunchRequest) error {
+	return a.sessionMgr.CreateWithRequest(req)
 }
 
 // ListSessions returns all sessions with live status.
@@ -154,6 +178,11 @@ func (a *App) UpdateSession(sessionID, profileID, command string) error {
 // UpdateSessionWithOptions updates a session with explicit launch metadata.
 func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
 	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den)
+}
+
+// UpdateSessionWithOptionsV2 updates a session with plugin metadata.
+func (a *App) UpdateSessionWithOptionsV2(req session.SessionUpdateRequest) error {
+	return a.sessionMgr.UpdateWithRequest(req)
 }
 
 // KillSession terminates a session and removes it from storage.
@@ -262,11 +291,21 @@ func (a *App) ExportBurrow() (string, error) {
 		return "", err
 	}
 
+	pluginConfigs := []pluginconfig.Config{}
+	if a.pluginConfigMgr != nil {
+		var pluginErr error
+		pluginConfigs, pluginErr = a.pluginConfigMgr.List("")
+		if pluginErr != nil {
+			return "", pluginErr
+		}
+	}
+
 	payload := workspace.Bundle{
 		SchemaVersion: workspace.SchemaVersion,
 		ExportedAt:    time.Now().Format(time.RFC3339Nano),
 		Profiles:      profiles,
 		Inventory:     inv,
+		PluginConfigs: pluginConfigs,
 		Sessions:      sessions,
 	}
 
@@ -303,6 +342,14 @@ func (a *App) ImportBurrow(raw string) error {
 	}
 
 	inv := a.invMgr.PrepareImport(payload.Inventory)
+	pluginConfigs := []pluginconfig.Config{}
+	if a.pluginConfigMgr != nil {
+		var pluginErr error
+		pluginConfigs, pluginErr = a.pluginConfigMgr.PrepareImport(payload.PluginConfigs)
+		if pluginErr != nil {
+			return pluginErr
+		}
+	}
 
 	profileIDs := make(map[string]struct{}, len(profiles))
 	for _, p := range profiles {
@@ -314,7 +361,12 @@ func (a *App) ImportBurrow(raw string) error {
 		hostIDs[host.ID] = struct{}{}
 	}
 
-	sessions, err := a.sessionMgr.PrepareBurrowImport(payload.Sessions, profileIDs, hostIDs)
+	pluginConfigIDs := make(map[string]struct{}, len(pluginConfigs))
+	for _, cfg := range pluginConfigs {
+		pluginConfigIDs[cfg.ID] = struct{}{}
+	}
+
+	sessions, err := a.sessionMgr.PrepareBurrowImport(payload.Sessions, profileIDs, hostIDs, pluginConfigIDs)
 	if err != nil {
 		return err
 	}
@@ -327,6 +379,11 @@ func (a *App) ImportBurrow(raw string) error {
 	}
 	if err := a.invMgr.SaveInventory(inv); err != nil {
 		return err
+	}
+	if a.pluginConfigMgr != nil {
+		if err := a.pluginConfigMgr.ReplaceAll(pluginConfigs); err != nil {
+			return err
+		}
 	}
 	if err := a.sessionMgr.ReplaceAllImported(sessions); err != nil {
 		return err

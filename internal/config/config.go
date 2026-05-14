@@ -56,6 +56,11 @@ func DockerConfigsPath() string {
 	return filepath.Join(Dir(), "docker_configs.json")
 }
 
+// PluginConfigsPath returns the path to launch plugin presets.
+func PluginConfigsPath() string {
+	return filepath.Join(Dir(), "plugin_configs.json")
+}
+
 // EnsureDir creates the config directory if it doesn't exist.
 func EnsureDir() error {
 	return os.MkdirAll(Dir(), 0755)

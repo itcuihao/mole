@@ -191,6 +191,51 @@ export namespace inventory {
 
 }
 
+export namespace pluginconfig {
+	
+	export class Config {
+	    id: string;
+	    name: string;
+	    plugin_id: string;
+	    settings?: Record<string, string>;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.plugin_id = source["plugin_id"];
+	        this.settings = source["settings"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class SaveRequest {
+	    id: string;
+	    name: string;
+	    plugin_id: string;
+	    settings?: Record<string, string>;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.plugin_id = source["plugin_id"];
+	        this.settings = source["settings"];
+	    }
+	}
+
+}
+
 export namespace profile {
 	
 	export class Profile {
@@ -229,6 +274,7 @@ export namespace session {
 	    requires_host: boolean;
 	    requires_codex: boolean;
 	    requires_command: boolean;
+	    requires_plugin_config: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new PluginInfo(source);
@@ -242,6 +288,35 @@ export namespace session {
 	        this.requires_host = source["requires_host"];
 	        this.requires_codex = source["requires_codex"];
 	        this.requires_command = source["requires_command"];
+	        this.requires_plugin_config = source["requires_plugin_config"];
+	    }
+	}
+	export class SessionLaunchRequest {
+	    profile_id: string;
+	    name: string;
+	    command?: string;
+	    run_mode?: string;
+	    host_id?: string;
+	    codex_config_id?: string;
+	    plugin_config_id?: string;
+	    plugin_data?: Record<string, string>;
+	    den?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionLaunchRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.profile_id = source["profile_id"];
+	        this.name = source["name"];
+	        this.command = source["command"];
+	        this.run_mode = source["run_mode"];
+	        this.host_id = source["host_id"];
+	        this.codex_config_id = source["codex_config_id"];
+	        this.plugin_config_id = source["plugin_config_id"];
+	        this.plugin_data = source["plugin_data"];
+	        this.den = source["den"];
 	    }
 	}
 	export class SessionStatus {
@@ -254,6 +329,8 @@ export namespace session {
 	    run_mode?: string;
 	    host_id?: string;
 	    codex_config_id?: string;
+	    plugin_config_id?: string;
+	    plugin_data?: Record<string, string>;
 	    den?: string;
 	    created_at: string;
 	    open_count?: number;
@@ -279,6 +356,8 @@ export namespace session {
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
 	        this.codex_config_id = source["codex_config_id"];
+	        this.plugin_config_id = source["plugin_config_id"];
+	        this.plugin_data = source["plugin_data"];
 	        this.den = source["den"];
 	        this.created_at = source["created_at"];
 	        this.open_count = source["open_count"];
@@ -288,6 +367,34 @@ export namespace session {
 	        this.attached = source["attached"];
 	        this.alive = source["alive"];
 	        this.windows = source["windows"];
+	    }
+	}
+	export class SessionUpdateRequest {
+	    session_id: string;
+	    profile_id: string;
+	    command?: string;
+	    run_mode?: string;
+	    host_id?: string;
+	    codex_config_id?: string;
+	    plugin_config_id?: string;
+	    plugin_data?: Record<string, string>;
+	    den?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SessionUpdateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session_id = source["session_id"];
+	        this.profile_id = source["profile_id"];
+	        this.command = source["command"];
+	        this.run_mode = source["run_mode"];
+	        this.host_id = source["host_id"];
+	        this.codex_config_id = source["codex_config_id"];
+	        this.plugin_config_id = source["plugin_config_id"];
+	        this.plugin_data = source["plugin_data"];
+	        this.den = source["den"];
 	    }
 	}
 

@@ -27,7 +27,7 @@ func TestPrepareBurrowImportNormalizesStaticSessions(t *testing.T) {
 		"profile-1": {},
 	}, map[string]struct{}{
 		"host-1": {},
-	})
+	}, map[string]struct{}{})
 	if err != nil {
 		t.Fatalf("PrepareBurrowImport() returned error: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestPrepareBurrowImportRejectsUnknownProfileReference(t *testing.T) {
 			Name:      "broken-session",
 			ProfileID: "missing-profile",
 		},
-	}, map[string]struct{}{}, map[string]struct{}{})
+	}, map[string]struct{}{}, map[string]struct{}{}, map[string]struct{}{})
 	if err == nil {
 		t.Fatal("PrepareBurrowImport() returned nil error for missing profile reference")
 	}

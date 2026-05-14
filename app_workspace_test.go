@@ -72,7 +72,7 @@ func TestAppExportImportBurrowRoundTrip(t *testing.T) {
 		"profile-1": {},
 	}, map[string]struct{}{
 		"host-1": {},
-	})
+	}, map[string]struct{}{})
 	if err != nil {
 		t.Fatalf("PrepareBurrowImport(sessions) failed: %v", err)
 	}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
 import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
-import { codex, docker, session, terminal } from '../../wailsjs/go/models'
+import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -11,6 +11,36 @@ import { useTranslation, type Language } from "@/i18n/context"
 import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info } from "lucide-react"
 
 type SettingsTab = 'general' | 'terminal' | 'import' | 'plugins' | 'about'
+type PluginConfigModalState = { mode: 'new' | 'edit'; pluginID: string; config?: pluginconfig.Config }
+
+const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
+const SETTINGS_PLUGIN_IDS = ['codex', 'docker', ...EXTERNAL_PLUGIN_IDS]
+
+const PLUGIN_CONFIG_FIELDS: Record<string, { key: string; labelKey: string; placeholderKey: string; required?: boolean }[]> = {
+  k8s_pod: [
+    { key: 'kubeconfig_path', labelKey: 'pluginConfig.k8s.kubeconfig', placeholderKey: 'pluginConfig.k8s.kubeconfigPlaceholder' },
+    { key: 'namespace', labelKey: 'pluginConfig.k8s.namespace', placeholderKey: 'pluginConfig.k8s.namespacePlaceholder', required: true },
+    { key: 'shell', labelKey: 'pluginConfig.k8s.shell', placeholderKey: 'pluginConfig.k8s.shellPlaceholder', required: true },
+  ],
+  conda: [
+    { key: 'env', labelKey: 'pluginConfig.conda.env', placeholderKey: 'pluginConfig.conda.envPlaceholder', required: true },
+  ],
+  ssh_config: [
+    { key: 'host', labelKey: 'pluginConfig.sshConfig.host', placeholderKey: 'pluginConfig.sshConfig.hostPlaceholder', required: true },
+  ],
+  tmux_attach: [
+    { key: 'session_name', labelKey: 'pluginConfig.tmux.sessionName', placeholderKey: 'pluginConfig.tmux.sessionNamePlaceholder', required: true },
+  ],
+  remote_tmux: [
+    { key: 'ssh_target', labelKey: 'pluginConfig.remoteTmux.sshTarget', placeholderKey: 'pluginConfig.remoteTmux.sshTargetPlaceholder', required: true },
+    { key: 'session_name', labelKey: 'pluginConfig.tmux.sessionName', placeholderKey: 'pluginConfig.tmux.sessionNamePlaceholder', required: true },
+  ],
+}
+
+const pluginConfigDefaults = (pluginID: string): Record<string, string> => {
+  if (pluginID === 'k8s_pod') return { namespace: 'default', shell: '/bin/sh' }
+  return {}
+}
 
 const SETTINGS_TAB_KEYS: { key: SettingsTab; labelKey: string; icon: typeof SettingsIcon }[] = [
   { key: 'general', labelKey: 'settings.tab.general', icon: Palette },
@@ -45,6 +75,8 @@ function Settings({
   const [dockerModal, setDockerModal] = useState<{ mode: 'new' | 'edit', config?: docker.Config } | null>(null)
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedPluginId, setSelectedPluginId] = useState<string>('')
+  const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
+  const [pluginConfigModal, setPluginConfigModal] = useState<PluginConfigModalState | null>(null)
 
   useEffect(() => {
     loadSettings()
@@ -81,12 +113,20 @@ function Settings({
     if (typeof method !== 'function') return
     try {
       const infos: session.PluginInfo[] = await method()
-      setPlugins(infos || [])
-      if (infos && infos.length > 0 && !selectedPluginId) {
-        setSelectedPluginId(infos[0].id)
+      const visible = (infos || []).filter(p => SETTINGS_PLUGIN_IDS.includes(p.id))
+      setPlugins(visible)
+      if (visible.length > 0 && !selectedPluginId) {
+        setSelectedPluginId(visible[0].id)
       }
     } catch { /* plugin list unavailable */ }
   }
+
+  useEffect(() => {
+    if (!selectedPluginId) return
+    if (!plugins.some(p => p.id === selectedPluginId)) {
+      setSelectedPluginId(plugins[0]?.id || '')
+    }
+  }, [plugins, selectedPluginId])
 
   const loadDockerConfigs = async () => {
     const method = getAppMethod('ListDockerConfigs')
@@ -97,9 +137,19 @@ function Settings({
     } catch { /* docker unavailable */ }
   }
 
+  const loadPluginConfigs = async () => {
+    const method = getAppMethod('ListPluginConfigs')
+    if (typeof method !== 'function') return
+    try {
+      const configs: pluginconfig.Config[] = await method('')
+      setPluginConfigs(configs || [])
+    } catch { /* plugin configs unavailable */ }
+  }
+
   useEffect(() => {
     loadCodexConfigs()
     loadDockerConfigs()
+    loadPluginConfigs()
     loadPlugins()
   }, [])
 
@@ -381,7 +431,9 @@ function Settings({
 
                 const isCodex = selected.id === 'codex'
                 const isDocker = selected.id === 'docker'
-                const isBuiltin = !isCodex && !isDocker
+                const isExternal = EXTERNAL_PLUGIN_IDS.includes(selected.id)
+                const isBuiltin = !isCodex && !isDocker && !isExternal
+                const selectedPluginConfigs = pluginConfigs.filter(cfg => cfg.plugin_id === selected.id)
 
                 const dockerCmdPreview = (cfg: docker.Config) => {
                   const parts = ['docker', 'run', '-it', '--rm', '-v', '${HOME}:/host/home', cfg.image]
@@ -525,6 +577,69 @@ function Settings({
                         )}
                       </>
                     )}
+
+                    {isExternal && (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-foreground">{t('settings.pluginConfigs.title')}</h4>
+                          <Button size="sm" onClick={() => setPluginConfigModal({ mode: 'new', pluginID: selected.id })}>
+                            <Plus className="w-4 h-4" />
+                            {t('common.new')}
+                          </Button>
+                        </div>
+
+                        {selectedPluginConfigs.length === 0 ? (
+                          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                            {t('settings.pluginConfigs.empty')}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {selectedPluginConfigs.map(cfg => (
+                              <div key={cfg.id} className="flex flex-col gap-3 rounded-lg border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                                      {cfg.id}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                                    {pluginConfigSummary(selected.id, cfg)}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => setPluginConfigModal({ mode: 'edit', pluginID: selected.id, config: cfg })}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    {t('common.edit')}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={async () => {
+                                      if (!window.confirm(t('settings.pluginConfigs.confirmRemove', { name: cfg.name }))) return
+                                      const method = getAppMethod('DeletePluginConfig')
+                                      if (typeof method !== 'function') return
+                                      try {
+                                        await method(cfg.id)
+                                        await loadPluginConfigs()
+                                        setMessage({ type: 'success', text: t('settings.pluginConfigs.removed') })
+                                        setTimeout(() => setMessage(null), 3000)
+                                      } catch (err) {
+                                        setMessage({ type: 'error', text: String(err) })
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {t('common.remove')}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )
               })()}
@@ -644,7 +759,174 @@ function Settings({
           }}
         />
       )}
+
+      {pluginConfigModal && (
+        <LaunchPluginConfigModal
+          mode={pluginConfigModal.mode}
+          pluginID={pluginConfigModal.pluginID}
+          plugin={plugins.find(p => p.id === pluginConfigModal.pluginID)}
+          config={pluginConfigModal.config}
+          onClose={() => setPluginConfigModal(null)}
+          onSaved={async () => {
+            setPluginConfigModal(null)
+            await loadPluginConfigs()
+            setMessage({ type: 'success', text: t('settings.pluginConfigs.saved') })
+            setTimeout(() => setMessage(null), 3000)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function pluginConfigSummary(pluginID: string, cfg: pluginconfig.Config) {
+  const settings = cfg.settings || {}
+  if (pluginID === 'k8s_pod') {
+    const kubeconfig = settings.kubeconfig_path || '~/.kube/config'
+    return `${kubeconfig} · ${settings.namespace || 'default'} · ${settings.shell || '/bin/sh'}`
+  }
+  if (pluginID === 'conda') return settings.env || '-'
+  if (pluginID === 'ssh_config') return settings.host || '-'
+  if (pluginID === 'tmux_attach') return settings.session_name || '-'
+  if (pluginID === 'remote_tmux') return `${settings.ssh_target || '-'} · ${settings.session_name || '-'}`
+  return Object.values(settings).filter(Boolean).join(' · ') || '-'
+}
+
+function LaunchPluginConfigModal({
+  mode,
+  pluginID,
+  plugin,
+  config,
+  onClose,
+  onSaved,
+}: {
+  mode: 'new' | 'edit'
+  pluginID: string
+  plugin?: session.PluginInfo
+  config?: pluginconfig.Config
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation()
+  const fields = PLUGIN_CONFIG_FIELDS[pluginID] || []
+  const [name, setName] = useState(config?.name || '')
+  const [id, setId] = useState(config?.id || '')
+  const [settings, setSettings] = useState<Record<string, string>>({
+    ...pluginConfigDefaults(pluginID),
+    ...(config?.settings || {}),
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const validateBeforeSave = () => {
+    if (!name.trim()) return t('codex.modal.nameRequired')
+    if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) return t('docker.modal.configIdHint')
+    const missing = fields.find(field => field.required && !String(settings[field.key] || '').trim())
+    if (missing) return t('settings.pluginConfigs.fieldRequired', { name: t(missing.labelKey) })
+    return ''
+  }
+
+  const preview = pluginConfigSummary(pluginID, {
+    id,
+    name,
+    plugin_id: pluginID,
+    settings,
+    created_at: '',
+    updated_at: '',
+  })
+
+  const handleSave = async () => {
+    const validationError = validateBeforeSave()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    const method = getAppMethod('SavePluginConfig')
+    if (typeof method !== 'function') {
+      setError('SavePluginConfig is unavailable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await method({
+        id: id.trim(),
+        name: name.trim(),
+        plugin_id: pluginID,
+        settings,
+      })
+      onSaved()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell
+      title={mode === 'new' ? t('settings.pluginConfigs.newTitle', { plugin: plugin ? t(plugin.label_key) : pluginID }) : t('settings.pluginConfigs.editTitle', { name: config?.name || '' })}
+      description={t('settings.pluginConfigs.desc')}
+      onClose={onClose}
+      contentStyle={{ maxWidth: '640px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim()}>
+            {saving ? t('profiles.form.saving') : t('common.save')}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('docker.modal.name')}</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('settings.pluginConfigs.namePlaceholder')}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('docker.modal.configId')}</label>
+            <input
+              value={id}
+              onChange={e => setId(e.target.value)}
+              placeholder="dev"
+              disabled={mode === 'edit'}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">{t('docker.modal.configIdHint')}</p>
+          </div>
+        </div>
+
+        {fields.map(field => (
+          <div key={field.key}>
+            <label className="block text-sm text-muted-foreground mb-1">{t(field.labelKey)}</label>
+            <input
+              value={settings[field.key] || ''}
+              onChange={e => setSettings(prev => ({ ...prev, [field.key]: e.target.value }))}
+              placeholder={t(field.placeholderKey)}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+            />
+          </div>
+        ))}
+
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
+          <div className="mb-1 text-xs font-medium text-muted-foreground">{t('common.preview')}</div>
+          <div className="font-mono text-xs text-foreground break-all">{preview}</div>
+        </div>
+      </div>
+    </ModalShell>
   )
 }
 

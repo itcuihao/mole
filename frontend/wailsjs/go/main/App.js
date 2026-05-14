@@ -18,6 +18,10 @@ export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg
   return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
+export function CreateSessionWithOptionsV2(arg1) {
+  return window['go']['main']['App']['CreateSessionWithOptionsV2'](arg1);
+}
+
 export function DeleteCodexConfig(arg1) {
   return window['go']['main']['App']['DeleteCodexConfig'](arg1);
 }
@@ -32,6 +36,10 @@ export function DeleteHost(arg1) {
 
 export function DeleteHostGroup(arg1) {
   return window['go']['main']['App']['DeleteHostGroup'](arg1);
+}
+
+export function DeletePluginConfig(arg1) {
+  return window['go']['main']['App']['DeletePluginConfig'](arg1);
 }
 
 export function DeleteProfile(arg1) {
@@ -82,6 +90,10 @@ export function ListLaunchPlugins() {
   return window['go']['main']['App']['ListLaunchPlugins']();
 }
 
+export function ListPluginConfigs(arg1) {
+  return window['go']['main']['App']['ListPluginConfigs'](arg1);
+}
+
 export function ListProfiles() {
   return window['go']['main']['App']['ListProfiles']();
 }
@@ -118,6 +130,10 @@ export function SaveInventoryDefaults(arg1) {
   return window['go']['main']['App']['SaveInventoryDefaults'](arg1);
 }
 
+export function SavePluginConfig(arg1) {
+  return window['go']['main']['App']['SavePluginConfig'](arg1);
+}
+
 export function SaveProfile(arg1, arg2) {
   return window['go']['main']['App']['SaveProfile'](arg1, arg2);
 }
@@ -132,4 +148,8 @@ export function UpdateSession(arg1, arg2, arg3) {
 
 export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+}
+
+export function UpdateSessionWithOptionsV2(arg1) {
+  return window['go']['main']['App']['UpdateSessionWithOptionsV2'](arg1);
 }

@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"mole/internal/inventory"
+	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/session"
 )
@@ -14,5 +15,6 @@ type Bundle struct {
 	ExportedAt    string                     `json:"exported_at"`
 	Profiles      []profile.Profile          `json:"profiles"`
 	Inventory     inventory.Inventory        `json:"inventory"`
+	PluginConfigs []pluginconfig.Config      `json:"plugin_configs,omitempty"`
 	Sessions      []session.WorkspaceSession `json:"sessions"`
 }

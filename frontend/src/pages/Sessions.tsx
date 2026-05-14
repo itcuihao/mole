@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, DetachSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
-import { codex, docker, session, profile, terminal, inventory } from '../../wailsjs/go/models'
+import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,8 @@ type SessionRecord = session.SessionStatus & {
   run_mode?: string
   host_id?: string
   codex_config_id?: string
+  plugin_config_id?: string
+  plugin_data?: Record<string, string>
   den?: string
   open_count?: number
   last_opened_at?: string
@@ -26,6 +28,9 @@ type SessionDraft = {
   profileID: string
   runMode: string
   hostID: string
+  codexConfigID?: string
+  pluginConfigID?: string
+  pluginData?: Record<string, string>
   command: string
   sessionName: string
   den: string
@@ -45,7 +50,37 @@ const SESSION_MENU_DESTRUCTIVE_ITEM_CLASS = 'flex w-full cursor-pointer items-ce
 const ALL_PROFILE_FILTER_VALUE = '__all_profiles__'
 const NO_DEN_FILTER_VALUE = '__no_den__'
 
-const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker'])
+const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
+const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', ...EXTERNAL_PLUGIN_IDS])
+const isExternalPluginMode = (mode: string) => EXTERNAL_PLUGIN_IDS.includes(mode)
+
+const pluginConfigSummary = (pluginID: string, cfg?: pluginconfig.Config | null) => {
+  const settings = cfg?.settings || {}
+  if (!cfg) return '-'
+  if (pluginID === 'k8s_pod') return `${settings.kubeconfig_path || '~/.kube/config'} · ${settings.namespace || 'default'} · ${settings.shell || '/bin/sh'}`
+  if (pluginID === 'conda') return settings.env || '-'
+  if (pluginID === 'ssh_config') return settings.host || '-'
+  if (pluginID === 'tmux_attach') return settings.session_name || '-'
+  if (pluginID === 'remote_tmux') return `${settings.ssh_target || '-'} · ${settings.session_name || '-'}`
+  return Object.values(settings).filter(Boolean).join(' · ') || '-'
+}
+
+const buildPluginCommandPreview = (mode: string, cfg?: pluginconfig.Config | null, pluginData: Record<string, string> = {}) => {
+  const settings = cfg?.settings || {}
+  if (!cfg) return '-'
+  if (mode === 'k8s_pod') {
+    const query = pluginData.pod_query || '<pod-name-or-selector>'
+    const namespace = settings.namespace || 'default'
+    const shell = settings.shell || '/bin/sh'
+    const kubeconfig = settings.kubeconfig_path ? `KUBECONFIG=${settings.kubeconfig_path} ` : ''
+    return `${kubeconfig}kubectl -n ${namespace} exec -it <first:${query}> -- ${shell}`
+  }
+  if (mode === 'conda') return `conda activate ${settings.env || '<env>'}`
+  if (mode === 'ssh_config') return `ssh -t ${settings.host || '<host>'}`
+  if (mode === 'tmux_attach') return `TMUX= tmux attach -t ${settings.session_name || '<session>'}`
+  if (mode === 'remote_tmux') return `ssh -t ${settings.ssh_target || '<target>'} 'tmux attach -t ${settings.session_name || '<session>'}'`
+  return '-'
+}
 
 const normalizeRunMode = (value?: string, hasCommand = false, availableModes?: Set<string>): string => {
   const modes = availableModes && availableModes.size > 0 ? availableModes : KNOWN_RUN_MODES
@@ -269,8 +304,24 @@ const createSessionWithOptions = (
   runMode: string,
   hostID: string,
   codexConfigID: string,
+  pluginConfigID: string,
+  pluginData: Record<string, string>,
   den: string,
 ) => {
+  const v2Method = getAppMethod('CreateSessionWithOptionsV2')
+  if (typeof v2Method === 'function') {
+    return v2Method({
+      profile_id: profileID,
+      name,
+      command,
+      run_mode: runMode,
+      host_id: hostID,
+      codex_config_id: codexConfigID,
+      plugin_config_id: pluginConfigID,
+      plugin_data: pluginData,
+      den,
+    }) as Promise<void>
+  }
   const method = getAppMethod('CreateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('CreateSessionWithOptions is unavailable'))
@@ -285,8 +336,24 @@ const updateSessionWithOptions = (
   runMode: string,
   hostID: string,
   codexConfigID: string,
+  pluginConfigID: string,
+  pluginData: Record<string, string>,
   den: string,
 ) => {
+  const v2Method = getAppMethod('UpdateSessionWithOptionsV2')
+  if (typeof v2Method === 'function') {
+    return v2Method({
+      session_id: sessionID,
+      profile_id: profileID,
+      command,
+      run_mode: runMode,
+      host_id: hostID,
+      codex_config_id: codexConfigID,
+      plugin_config_id: pluginConfigID,
+      plugin_data: pluginData,
+      den,
+    }) as Promise<void>
+  }
   const method = getAppMethod('UpdateSessionWithOptions')
   if (typeof method !== 'function') {
     return Promise.reject(new Error('UpdateSessionWithOptions is unavailable'))
@@ -556,6 +623,9 @@ function Sessions({
       profileID: sess.profile_id,
       runMode: normalizeRunMode(sess.run_mode, Boolean(sess.command)),
       hostID: sess.host_id || '',
+      codexConfigID: sess.codex_config_id || '',
+      pluginConfigID: sess.plugin_config_id || '',
+      pluginData: sess.plugin_data || {},
       command: sess.command || '',
       den: sess.den || '',
       sessionName: buildDuplicateSessionName(
@@ -1100,9 +1170,12 @@ function NewSessionModal({
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState(initialDraft?.hostID || '')
-  const [selectedCodexConfigId, setSelectedCodexConfigId] = useState('')
+  const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialDraft?.codexConfigID || '')
+  const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialDraft?.pluginConfigID || '')
+  const [pluginData, setPluginData] = useState<Record<string, string>>(initialDraft?.pluginData || {})
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
@@ -1121,6 +1194,9 @@ function NewSessionModal({
         if (draft.profileID) setSelectedProfile(draft.profileID)
         if (draft.runMode) setRunMode(draft.runMode)
         if (draft.hostID) setSelectedHostId(draft.hostID)
+        if (draft.codexConfigID) setSelectedCodexConfigId(draft.codexConfigID)
+        if (draft.pluginConfigID) setSelectedPluginConfigId(draft.pluginConfigID)
+        if (draft.pluginData) setPluginData(draft.pluginData)
         if (draft.command) setCommand(draft.command)
         if (draft.sessionName) setSessionName(draft.sessionName)
         if (draft.den) {
@@ -1196,6 +1272,13 @@ function NewSessionModal({
           .then((infos: session.PluginInfo[]) => setPlugins(infos || []))
           .catch(() => {})
       }
+
+      const listPluginConfigs = getAppMethod('ListPluginConfigs')
+      if (typeof listPluginConfigs === 'function') {
+        listPluginConfigs('')
+          .then((configs: pluginconfig.Config[]) => setPluginConfigs(configs || []))
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -1223,16 +1306,26 @@ function NewSessionModal({
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
+  const currentPluginConfigs = useMemo(() => (
+    pluginConfigs.filter(cfg => cfg.plugin_id === runMode).sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [pluginConfigs, runMode])
+  const selectedPluginConfig = selectedPluginConfigId
+    ? currentPluginConfigs.find(cfg => cfg.id === selectedPluginConfigId)
+    : null
 
   useEffect(() => {
     if (runMode === 'shell') {
       setSelectedHostId('')
       setSelectedCodexConfigId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       return
     }
 
     if (runMode === 'host') {
+      setSelectedPluginConfigId('')
+      setPluginData({})
       if (!selectedHostId && inv.hosts.length > 0) {
         const firstHost = inv.hosts[0]
         setSelectedHostId(firstHost.id)
@@ -1247,10 +1340,14 @@ function NewSessionModal({
     if (runMode === 'custom') {
       setSelectedHostId('')
       setSelectedCodexConfigId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
     }
 
     if (runMode === 'codex') {
       setSelectedHostId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       if (!selectedCodexConfigId && sortedCodexConfigs.length > 0) {
         setSelectedCodexConfigId(sortedCodexConfigs[0].id)
@@ -1259,12 +1356,23 @@ function NewSessionModal({
 
     if (runMode === 'docker') {
       setSelectedHostId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       if (!selectedCodexConfigId && sortedDockerConfigs.length > 0) {
         setSelectedCodexConfigId(sortedDockerConfigs[0].id)
       }
     }
-  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs])
+
+    if (isExternalPluginMode(runMode)) {
+      setSelectedHostId('')
+      setSelectedCodexConfigId('')
+      setCommand('')
+      if (!currentPluginConfigs.some(cfg => cfg.id === selectedPluginConfigId)) {
+        setSelectedPluginConfigId(currentPluginConfigs[0]?.id || '')
+      }
+    }
+  }, [runMode, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs, selectedPluginConfigId, currentPluginConfigs])
 
   const isDuplicating = Boolean(initialDraft)
   const modalTitle = isDuplicating
@@ -1291,6 +1399,14 @@ function NewSessionModal({
       setError(t('burrows.modal.selectDockerRequired'))
       return
     }
+    if (isExternalPluginMode(runMode) && !selectedPluginConfigId) {
+      setError(t('burrows.modal.selectPluginConfigRequired'))
+      return
+    }
+    if (runMode === 'k8s_pod' && !String(pluginData.pod_query || '').trim()) {
+      setError(t('burrows.modal.podQueryRequired'))
+      return
+    }
     setCreating(true)
     setError('')
     try {
@@ -1301,6 +1417,8 @@ function NewSessionModal({
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
+        isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
       )
       onCreated()
@@ -1349,7 +1467,7 @@ function NewSessionModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                         localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                         onClose()
                         onNavigate('profiles', { returnToNewSession: true })
@@ -1362,7 +1480,7 @@ function NewSessionModal({
                 </p>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1392,7 +1510,7 @@ function NewSessionModal({
                 </div>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1412,12 +1530,13 @@ function NewSessionModal({
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
             <div className="grid gap-2 sm:grid-cols-4">
-              {plugins.filter(p => {
-                if (p.requires_host && inv.hosts.length === 0) return false
-                if (p.id === 'codex' && codexConfigs.length === 0) return false
-                if (p.id === 'docker' && dockerConfigs.length === 0) return false
-                return true
-              }).map(p => (
+	              {plugins.filter(p => {
+	                if (p.requires_host && inv.hosts.length === 0) return false
+	                if (p.id === 'codex' && codexConfigs.length === 0) return false
+	                if (p.id === 'docker' && dockerConfigs.length === 0) return false
+	                if (p.requires_plugin_config && !pluginConfigs.some(cfg => cfg.plugin_id === p.id)) return false
+	                return true
+	              }).map(p => (
                 <RunModeOption
                   key={p.id}
                   mode={p.id}
@@ -1443,7 +1562,7 @@ function NewSessionModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                           localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                           onClose()
                           onNavigate?.('hosts', { returnToNewSession: true })
@@ -1456,7 +1575,7 @@ function NewSessionModal({
                   </p>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1495,7 +1614,7 @@ function NewSessionModal({
                   </div>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, command, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1593,11 +1712,55 @@ function NewSessionModal({
                   </div>
                 ) : null
               })()}
-            </div>
-          )}
+	            </div>
+	          )}
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
+	          {isExternalPluginMode(runMode) && (
+	            <div>
+	              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.pluginConfig')}</label>
+	              {currentPluginConfigs.length === 0 ? (
+	                <p className="text-sm text-muted-foreground">{t('burrows.modal.noPluginConfigs')}</p>
+	              ) : (
+	                <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
+	                  <SelectTrigger className="bg-background">
+	                    <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
+	                  </SelectTrigger>
+	                  <SelectContent>
+	                    {currentPluginConfigs.map(cfg => (
+	                      <SelectItem key={cfg.id} value={cfg.id}>
+	                        {cfg.name || cfg.id}
+	                      </SelectItem>
+	                    ))}
+	                  </SelectContent>
+	                </Select>
+	              )}
+	              {runMode === 'k8s_pod' && (
+	                <div className="mt-3">
+	                  <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.podQuery')}</label>
+	                  <input
+	                    type="text"
+	                    value={pluginData.pod_query || ''}
+	                    onChange={e => setPluginData(prev => ({ ...prev, pod_query: e.target.value }))}
+	                    placeholder={t('burrows.modal.podQueryPlaceholder')}
+	                    className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+	                  />
+	                </div>
+	              )}
+	              {selectedPluginConfig && (
+	                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+	                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+	                    <TerminalSquare className="h-3.5 w-3.5" />
+	                    {t('burrows.modal.launchPreview')}
+	                  </div>
+	                  <div className="mb-1 font-mono">{pluginConfigSummary(runMode, selectedPluginConfig)}</div>
+	                  <div className="font-mono text-muted-foreground/80">{buildPluginCommandPreview(runMode, selectedPluginConfig, pluginData)}</div>
+	                </div>
+	              )}
+	            </div>
+	          )}
+
+	          <div>
+	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
             <input
               type="text"
               value={sessionName}
@@ -1685,9 +1848,12 @@ function EditSessionModal({
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialSession.codex_config_id || '')
+  const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialSession.plugin_config_id || '')
+  const [pluginData, setPluginData] = useState<Record<string, string>>(initialSession.plugin_data || {})
   const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
@@ -1729,6 +1895,13 @@ function EditSessionModal({
           .then((configs: docker.Config[]) => setDockerConfigs(configs || []))
           .catch(() => {})
       }
+
+      const listPluginConfigs = getAppMethod('ListPluginConfigs')
+      if (typeof listPluginConfigs === 'function') {
+        listPluginConfigs('')
+          .then((configs: pluginconfig.Config[]) => setPluginConfigs(configs || []))
+          .catch(() => {})
+      }
     }
   }, [])
 
@@ -1756,6 +1929,12 @@ function EditSessionModal({
 
   const selectedHost = selectedHostId ? hostMap.get(selectedHostId) : null
   const hostCommand = selectedHost ? buildSSHCommand(selectedHost, inv.defaults, hostMap) : ''
+  const currentPluginConfigs = useMemo(() => (
+    pluginConfigs.filter(cfg => cfg.plugin_id === runMode).sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [pluginConfigs, runMode])
+  const selectedPluginConfig = selectedPluginConfigId
+    ? currentPluginConfigs.find(cfg => cfg.id === selectedPluginConfigId)
+    : null
 
   useEffect(() => {
     if (!hydrated) return
@@ -1771,6 +1950,14 @@ function EditSessionModal({
     if (initialSession.run_mode === 'codex' && initialSession.codex_config_id) {
       setRunMode('codex')
       setSelectedCodexConfigId(initialSession.codex_config_id)
+      setCommand('')
+      return
+    }
+
+    if (initialSession.run_mode && isExternalPluginMode(initialSession.run_mode)) {
+      setRunMode(initialSession.run_mode)
+      setSelectedPluginConfigId(initialSession.plugin_config_id || '')
+      setPluginData(initialSession.plugin_data || {})
       setCommand('')
       return
     }
@@ -1797,11 +1984,15 @@ function EditSessionModal({
     if (runMode === 'shell') {
       setSelectedHostId('')
       setSelectedCodexConfigId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       return
     }
 
     if (runMode === 'host') {
+      setSelectedPluginConfigId('')
+      setPluginData({})
       if (!selectedHostId && inv.hosts.length > 0) {
         const firstHost = inv.hosts[0]
         setSelectedHostId(firstHost.id)
@@ -1818,10 +2009,14 @@ function EditSessionModal({
     if (runMode === 'custom') {
       setSelectedHostId('')
       setSelectedCodexConfigId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
     }
 
     if (runMode === 'codex') {
       setSelectedHostId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       if (!selectedCodexConfigId && sortedCodexConfigs.length > 0) {
         setSelectedCodexConfigId(sortedCodexConfigs[0].id)
@@ -1830,12 +2025,23 @@ function EditSessionModal({
 
     if (runMode === 'docker') {
       setSelectedHostId('')
+      setSelectedPluginConfigId('')
+      setPluginData({})
       setCommand('')
       if (!selectedCodexConfigId && sortedDockerConfigs.length > 0) {
         setSelectedCodexConfigId(sortedDockerConfigs[0].id)
       }
     }
-  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs])
+
+    if (isExternalPluginMode(runMode)) {
+      setSelectedHostId('')
+      setSelectedCodexConfigId('')
+      setCommand('')
+      if (!currentPluginConfigs.some(cfg => cfg.id === selectedPluginConfigId)) {
+        setSelectedPluginConfigId(currentPluginConfigs[0]?.id || '')
+      }
+    }
+  }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs, selectedPluginConfigId, currentPluginConfigs])
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
@@ -1851,6 +2057,14 @@ function EditSessionModal({
       setError(t('burrows.modal.selectDockerRequiredEdit'))
       return
     }
+    if (isExternalPluginMode(runMode) && !selectedPluginConfigId) {
+      setError(t('burrows.modal.selectPluginConfigRequiredEdit'))
+      return
+    }
+    if (runMode === 'k8s_pod' && !String(pluginData.pod_query || '').trim()) {
+      setError(t('burrows.modal.podQueryRequired'))
+      return
+    }
     setUpdating(true)
     setError('')
     try {
@@ -1861,6 +2075,8 @@ function EditSessionModal({
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
+        isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
       )
       onUpdated()
@@ -1919,12 +2135,13 @@ function EditSessionModal({
           <div>
             <label className="block text-sm text-muted-foreground mb-2">Start With</label>
             <div className="grid gap-2 sm:grid-cols-4">
-              {plugins.filter(p => {
-                if (p.requires_host && inv.hosts.length === 0) return false
-                if (p.id === 'codex' && codexConfigs.length === 0) return false
-                if (p.id === 'docker' && dockerConfigs.length === 0) return false
-                return true
-              }).map(p => (
+	              {plugins.filter(p => {
+	                if (p.requires_host && inv.hosts.length === 0) return false
+	                if (p.id === 'codex' && codexConfigs.length === 0) return false
+	                if (p.id === 'docker' && dockerConfigs.length === 0) return false
+	                if (p.requires_plugin_config && !pluginConfigs.some(cfg => cfg.plugin_id === p.id)) return false
+	                return true
+	              }).map(p => (
                 <RunModeOption
                   key={p.id}
                   mode={p.id}
@@ -2050,11 +2267,55 @@ function EditSessionModal({
                   </div>
                 ) : null
               })()}
-            </div>
-          )}
+	            </div>
+	          )}
 
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
+	          {isExternalPluginMode(runMode) && (
+	            <div>
+	              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.pluginConfig')}</label>
+	              {currentPluginConfigs.length === 0 ? (
+	                <p className="text-sm text-muted-foreground">{t('burrows.modal.noPluginConfigs')}</p>
+	              ) : (
+	                <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
+	                  <SelectTrigger className="bg-background">
+	                    <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
+	                  </SelectTrigger>
+	                  <SelectContent>
+	                    {currentPluginConfigs.map(cfg => (
+	                      <SelectItem key={cfg.id} value={cfg.id}>
+	                        {cfg.name || cfg.id}
+	                      </SelectItem>
+	                    ))}
+	                  </SelectContent>
+	                </Select>
+	              )}
+	              {runMode === 'k8s_pod' && (
+	                <div className="mt-3">
+	                  <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.podQuery')}</label>
+	                  <input
+	                    type="text"
+	                    value={pluginData.pod_query || ''}
+	                    onChange={e => setPluginData(prev => ({ ...prev, pod_query: e.target.value }))}
+	                    placeholder={t('burrows.modal.podQueryPlaceholder')}
+	                    className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+	                  />
+	                </div>
+	              )}
+	              {selectedPluginConfig && (
+	                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+	                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+	                    <TerminalSquare className="h-3.5 w-3.5" />
+	                    {t('burrows.modal.launchPreview')}
+	                  </div>
+	                  <div className="mb-1 font-mono">{pluginConfigSummary(runMode, selectedPluginConfig)}</div>
+	                  <div className="font-mono text-muted-foreground/80">{buildPluginCommandPreview(runMode, selectedPluginConfig, pluginData)}</div>
+	                </div>
+	              )}
+	            </div>
+	          )}
+
+	          <div>
+	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
             <input
               type="text"
               value={den}
