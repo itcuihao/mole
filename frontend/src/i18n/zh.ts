@@ -1,6 +1,7 @@
 export const zh: Record<string, string> = {
   // Common
   'common.cancel': '取消',
+  'common.confirm': '确认',
   'common.save': '保存',
   'common.close': '关闭',
   'common.edit': '编辑',
@@ -215,7 +216,8 @@ export const zh: Record<string, string> = {
   'profiles.form.saving': '保存中...',
   'profiles.form.template': '配置模板',
   'profiles.form.templateDesc': '先选一个模型模板，变量名和基础地址会预填，剩下只需要补密钥和模型名。',
-  'profiles.form.templateReplaceConfirm': '切换到 {{name}} 会覆盖当前已填写的变量。继续吗？',
+  'profiles.form.templateReplaceConfirm': '切换到 {{name}}',
+  'profiles.form.templateReplaceDesc': '这会替换已填写的环境变量，是否继续？',
   'profiles.form.color': '颜色',
   'profiles.form.envVars': '环境变量',
   'profiles.form.envVarsHint': '将敏感变量标记为密钥，UI 会以不同方式显示。',

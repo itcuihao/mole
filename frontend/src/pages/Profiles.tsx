@@ -5,10 +5,11 @@ import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils'
 import { useTranslation } from "@/i18n/context"
 import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft, Search } from "lucide-react"
-import { PROFILE_TEMPLATES, type ProfileTemplate } from '@/lib/profile-templates'
+import { PROVIDER_PRESETS, type ProviderPreset } from '@/lib/profile-templates'
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -366,28 +367,23 @@ function ProfileForm({
     return issues
   }, [envEntries])
 
-  const selectedTemplate = useMemo(() => (
-    PROFILE_TEMPLATES.find(template => template.id === selectedTemplateID) || PROFILE_TEMPLATES[PROFILE_TEMPLATES.length - 1]
+  const selectedPreset = useMemo(() => (
+    PROVIDER_PRESETS.find(p => p.id === selectedTemplateID) || PROVIDER_PRESETS[PROVIDER_PRESETS.length - 1]
   ), [selectedTemplateID])
 
   const hasMeaningfulContent = name.trim() || description.trim() || envEntries.some(entry => normalizeEnvKey(entry.key) || entry.value)
 
-  const applyTemplate = (template: ProfileTemplate) => {
-    if (template.id !== selectedTemplateID && hasMeaningfulContent) {
-      const confirmed = window.confirm(t('profiles.form.templateReplaceConfirm', { name: template.name }))
-      if (!confirmed) return
-    }
-
-    setSelectedTemplateID(template.id)
+  const applyPreset = (preset: ProviderPreset) => {
+    setSelectedTemplateID(preset.id)
     setError('')
-    setEnvEntries(template.entries.map(entry => ({
+    setEnvEntries(preset.entries.map(entry => ({
       key: entry.key,
       value: entry.value,
       isSecret: entry.isSecret,
     })))
 
     if (isNew && !description.trim()) {
-      setDescription(template.id === 'custom' ? '' : template.description)
+      setDescription(preset.id === 'custom' ? '' : preset.description)
     }
   }
 
@@ -558,30 +554,25 @@ function ProfileForm({
               <label className="text-sm font-medium text-foreground">{t('profiles.form.template')}</label>
               <p className="mt-1 text-xs text-muted-foreground">{t('profiles.form.templateDesc')}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {PROFILE_TEMPLATES.map(template => {
-                const active = selectedTemplateID === template.id
-                return (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => applyTemplate(template)}
-                    className={cn(
-                      'interactive-chip rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                      active
-                        ? 'border-primary bg-[hsl(var(--selected))] text-[hsl(var(--selected-foreground))]'
-                        : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                    )}
-                  >
-                    {template.name}
-                  </button>
-                )
-              })}
-            </div>
-            {selectedTemplate && selectedTemplate.id !== 'custom' && (
+            <Select
+              value={selectedTemplateID}
+              onValueChange={value => {
+                const preset = PROVIDER_PRESETS.find(p => p.id === value)
+                if (preset) applyPreset(preset)
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={t('profiles.form.template')} />
+              </SelectTrigger>
+              <SelectContent className="z-[110]">
+                {PROVIDER_PRESETS.map(preset => (
+                  <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedPreset && selectedPreset.id !== 'custom' && (
               <div className="mt-3 rounded-lg border border-border/70 bg-background/70 px-3 py-2 text-xs text-muted-foreground">
-                <div className="font-medium text-foreground">{selectedTemplate.family}</div>
-                <div className="mt-1">{selectedTemplate.description}</div>
+                {selectedPreset.description}
               </div>
             )}
           </div>

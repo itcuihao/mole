@@ -1,6 +1,7 @@
 export const en: Record<string, string> = {
   // Common
   'common.cancel': 'Cancel',
+  'common.confirm': 'Confirm',
   'common.save': 'Save',
   'common.close': 'Close',
   'common.edit': 'Edit',
@@ -215,7 +216,8 @@ export const en: Record<string, string> = {
   'profiles.form.saving': 'Saving...',
   'profiles.form.template': 'Profile Template',
   'profiles.form.templateDesc': 'Start from a model template so variable names and base URLs are ready before you fill secrets and model names.',
-  'profiles.form.templateReplaceConfirm': 'Switching to {{name}} will replace the variables you already entered. Continue?',
+  'profiles.form.templateReplaceConfirm': 'Switch to {{name}}',
+  'profiles.form.templateReplaceDesc': 'This will replace the environment variables you already entered. Do you want to continue?',
   'profiles.form.color': 'Color',
   'profiles.form.envVars': 'Environment Variables',
   'profiles.form.envVarsHint': 'Mark sensitive keys as secret so the UI treats them differently.',
