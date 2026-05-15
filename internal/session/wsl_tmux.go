@@ -100,7 +100,7 @@ func detectWslUserShell() string {
 	return userShell
 }
 
-func CreateWslTmuxSession(name string, env map[string]string, command string) error {
+func CreateWslTmuxSession(name string, env map[string]string, command string, cwd string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
@@ -110,10 +110,16 @@ func CreateWslTmuxSession(name string, env map[string]string, command string) er
 	runnerFlag := "-lc"
 	shellCmd := fmt.Sprintf(". \"$tmp_script\" && exec %s", shellQuote(userShell))
 
+	cwdArg := ""
+	if trimmed := strings.TrimSpace(cwd); trimmed != "" {
+		cwdArg = " -c " + shellQuote(trimmed)
+	}
+
 	outerScript := fmt.Sprintf(
-		"tmp_script=$(mktemp \"${TMPDIR:-/tmp}/mole-env-%s.XXXXXX.sh\") || exit 1\ncat > \"$tmp_script\" <<'MOLE_EOF'\n%s\nMOLE_EOF\nchmod 600 \"$tmp_script\"\ntmux new-session -d -s %s %s %s %s",
+		"tmp_script=$(mktemp \"${TMPDIR:-/tmp}/mole-env-%s.XXXXXX.sh\") || exit 1\ncat > \"$tmp_script\" <<'MOLE_EOF'\n%s\nMOLE_EOF\nchmod 600 \"$tmp_script\"\ntmux new-session -d%s -s %s %s %s %s",
 		name,
 		envScript,
+		cwdArg,
 		shellQuote(name),
 		shellQuote(runnerShell),
 		shellQuote(runnerFlag),

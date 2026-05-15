@@ -147,12 +147,12 @@ func (a *App) ListLaunchPlugins() []session.PluginInfo {
 
 // CreateSession creates a new runtime session from a profile.
 func (a *App) CreateSession(profileID, name, command string) error {
-	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "", "", "")
+	return a.sessionMgr.Create(profileID, name, command, inferRunMode(command), "", "", "", "")
 }
 
 // CreateSessionWithOptions creates a new runtime session with explicit launch metadata.
-func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID, den string) error {
-	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID, den)
+func (a *App) CreateSessionWithOptions(profileID, name, command, runMode, hostID, codexConfigID, den, cwd string) error {
+	return a.sessionMgr.Create(profileID, name, command, runMode, hostID, codexConfigID, den, cwd)
 }
 
 // CreateSessionWithOptionsV2 creates a new runtime session with plugin metadata.
@@ -179,12 +179,12 @@ func (a *App) AttachSessionWithTerminal(sessionID, terminalID string) (bool, err
 
 // UpdateSession updates a session's profile and command, recreating the runtime session.
 func (a *App) UpdateSession(sessionID, profileID, command string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "", "", "")
+	return a.sessionMgr.Update(sessionID, profileID, command, inferRunMode(command), "", "", "", "")
 }
 
 // UpdateSessionWithOptions updates a session with explicit launch metadata.
-func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
-	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den)
+func (a *App) UpdateSessionWithOptions(sessionID, profileID, command, runMode, hostID, codexConfigID, den, cwd string) error {
+	return a.sessionMgr.Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den, cwd)
 }
 
 // UpdateSessionWithOptionsV2 updates a session with plugin metadata.
@@ -255,6 +255,15 @@ func (a *App) SetDefaultTerminal(terminalID string) error {
 
 	settings.DefaultTerminal = terminalID
 	return config.SaveSettings(settings)
+}
+
+// PickDirectory opens a native directory picker and returns the selected path.
+func (a *App) PickDirectory(initialPath string) (string, error) {
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title:                "Select Workspace Directory",
+		DefaultDirectory:     strings.TrimSpace(initialPath),
+		CanCreateDirectories: true,
+	})
 }
 
 // GetInventory returns the current host inventory.

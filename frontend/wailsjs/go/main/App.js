@@ -14,8 +14,8 @@ export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
 
-export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function CreateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['CreateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function CreateSessionWithOptionsV2(arg1) {
@@ -114,6 +114,10 @@ export function OpenDen(arg1) {
   return window['go']['main']['App']['OpenDen'](arg1);
 }
 
+export function PickDirectory(arg1) {
+  return window['go']['main']['App']['PickDirectory'](arg1);
+}
+
 export function PreviewSSHConfigImport(arg1) {
   return window['go']['main']['App']['PreviewSSHConfigImport'](arg1);
 }
@@ -166,8 +170,8 @@ export function UpdateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['UpdateSession'](arg1, arg2, arg3);
 }
 
-export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
-  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8) {
+  return window['go']['main']['App']['UpdateSessionWithOptions'](arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
 }
 
 export function UpdateSessionWithOptionsV2(arg1) {

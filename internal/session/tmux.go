@@ -84,6 +84,19 @@ func defaultSessionWorkingDir() string {
 	return "/"
 }
 
+func resolveSessionWorkingDir(cwd string) string {
+	trimmed := strings.TrimSpace(cwd)
+	if trimmed == "" {
+		return defaultSessionWorkingDir()
+	}
+
+	if info, err := os.Stat(trimmed); err == nil && info.IsDir() {
+		return trimmed
+	}
+
+	return defaultSessionWorkingDir()
+}
+
 // SyncTmuxSessionEnv refreshes tmux session-level environment variables so any
 // new panes or windows created after attach inherit the latest profile values.
 func SyncTmuxSessionEnv(name string, env map[string]string) error {
@@ -191,7 +204,7 @@ func TmuxAvailable() bool {
 
 // CreateTmuxSession creates a new detached tmux session with environment variables.
 // If command is non-empty, runs that command; otherwise starts an interactive shell.
-func CreateTmuxSession(name string, env map[string]string, command string) error {
+func CreateTmuxSession(name string, env map[string]string, command string, cwd string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
@@ -231,7 +244,7 @@ func CreateTmuxSession(name string, env map[string]string, command string) error
 	}
 
 	shellCmd := fmt.Sprintf(". %s; exec %s", shellQuote(envScriptPath), shellQuote(userShell))
-	startDir := defaultSessionWorkingDir()
+	startDir := resolveSessionWorkingDir(cwd)
 
 	// Use a stable default working directory instead of inheriting Mole's process
 	// cwd, which is often the repo root in development.

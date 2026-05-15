@@ -86,10 +86,11 @@ func (m *Manager) SetPluginConfigManager(pluginConfigMgr *pluginconfig.Manager) 
 }
 
 // Create creates a new runtime session with the environment from a profile.
-func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID, den string) error {
+func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID, den, cwd string) error {
 	return m.CreateWithRequest(SessionLaunchRequest{
 		ProfileID:     profileID,
 		Name:          sessionName,
+		Cwd:           cwd,
 		Command:       command,
 		RunMode:       runMode,
 		HostID:        hostID,
@@ -149,15 +150,16 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		Name:             sessionName,
 		ProfileID:        profileID,
 		ProfileUpdatedAt: profileUpdatedAt,
-		BackendID:       backend.ID(),
-		TmuxSessionName: tmuxName,
-		Command:         launchCfg.Command,
-		RunMode:         normalizedRunMode,
-		HostID:          launchCfg.HostID,
-		CodexConfigID:   launchCfg.CodexConfigID,
-		PluginConfigID:  launchCfg.PluginConfigID,
-		PluginData:      launchCfg.PluginData,
-		Den:             strings.TrimSpace(req.Den),
+		BackendID:        backend.ID(),
+		TmuxSessionName:  tmuxName,
+		Cwd:              strings.TrimSpace(req.Cwd),
+		Command:          launchCfg.Command,
+		RunMode:          normalizedRunMode,
+		HostID:           launchCfg.HostID,
+		CodexConfigID:    launchCfg.CodexConfigID,
+		PluginConfigID:   launchCfg.PluginConfigID,
+		PluginData:       launchCfg.PluginData,
+		Den:              strings.TrimSpace(req.Den),
 	}
 
 	env, sess.Command, err = m.prepareLaunchEnv(sess, env, sess.Command)
@@ -165,7 +167,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return err
 	}
 
-	if err := backend.Create(tmuxName, env, sess.Command); err != nil {
+	if err := backend.Create(tmuxName, env, sess.Command, sess.Cwd); err != nil {
 		return err
 	}
 
@@ -306,10 +308,11 @@ func (m *Manager) OpenDen(den string) (OpenDenResult, error) {
 
 // Update updates an existing session's profile and/or command.
 // If the session is alive, it will be recreated with new settings.
-func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den string) error {
+func (m *Manager) Update(sessionID, profileID, command, runMode, hostID, codexConfigID, den, cwd string) error {
 	return m.UpdateWithRequest(SessionUpdateRequest{
 		SessionID:     sessionID,
 		ProfileID:     profileID,
+		Cwd:           cwd,
 		Command:       command,
 		RunMode:       runMode,
 		HostID:        hostID,
@@ -369,6 +372,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	nextSession.PluginConfigID = launchCfg.PluginConfigID
 	nextSession.PluginData = launchCfg.PluginData
 	nextSession.Den = strings.TrimSpace(req.Den)
+	nextSession.Cwd = strings.TrimSpace(req.Cwd)
 
 	newEnv, nextSession.Command, err = m.prepareLaunchEnv(nextSession, newEnv, nextSession.Command)
 	if err != nil {
@@ -399,9 +403,9 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	// Update session metadata
 	sess = nextSession
 
-	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command); err != nil {
+	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd); err != nil {
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
@@ -413,7 +417,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	if err := m.store.Update(sess); err != nil {
 		_ = backend.Kill(sess.RuntimeName())
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
@@ -523,7 +527,7 @@ func (m *Manager) Restart(sessionID string) error {
 		}
 	}
 
-	if err := backend.Create(runtimeName, env, command); err != nil {
+	if err := backend.Create(runtimeName, env, command, sess.Cwd); err != nil {
 		return err
 	}
 
@@ -687,7 +691,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		if cmdErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 		}
-		if createErr := backend.Create(runtimeName, env, command); createErr != nil {
+		if createErr := backend.Create(runtimeName, env, command, sess.Cwd); createErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
@@ -960,6 +964,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			ProfileID:       profileID,
 			BackendID:       backendID,
 			TmuxSessionName: runtimeName,
+			Cwd:             strings.TrimSpace(cfg.Cwd),
 			Command:         command,
 			RunMode:         runMode,
 			HostID:          hostID,

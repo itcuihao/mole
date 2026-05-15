@@ -18,6 +18,7 @@ export type NavigateContext = {
     runMode: string
     hostID: string
     command: string
+    cwd?: string
     sessionName: string
   } | null
 }

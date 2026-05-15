@@ -21,6 +21,7 @@ type SessionRecord = session.SessionStatus & {
   codex_config_id?: string
   plugin_config_id?: string
   plugin_data?: Record<string, string>
+  cwd?: string
   den?: string
   open_count?: number
   last_opened_at?: string
@@ -34,6 +35,7 @@ type SessionDraft = {
   pluginConfigID?: string
   pluginData?: Record<string, string>
   command: string
+  cwd: string
   sessionName: string
   den: string
   sourceName?: string
@@ -351,10 +353,33 @@ const getAppMethod = (method: string) => {
   return (window as any)?.go?.main?.App?.[method]
 }
 
+const LAST_WORKSPACE_STORAGE_KEY = 'mole:lastWorkspaceCwd'
+
+const readLastWorkspace = () => {
+  if (typeof window === 'undefined') return ''
+  try {
+    return (localStorage.getItem(LAST_WORKSPACE_STORAGE_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+const saveLastWorkspace = (cwd: string) => {
+  if (typeof window === 'undefined') return
+  const trimmed = cwd.trim()
+  if (!trimmed) return
+  try {
+    localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, trimmed)
+  } catch {
+    // ignore storage failures
+  }
+}
+
 const createSessionWithOptions = (
   profileID: string,
   name: string,
   command: string,
+  cwd: string,
   runMode: string,
   hostID: string,
   codexConfigID: string,
@@ -368,6 +393,7 @@ const createSessionWithOptions = (
       profile_id: profileID,
       name,
       command,
+      cwd,
       run_mode: runMode,
       host_id: hostID,
       codex_config_id: codexConfigID,
@@ -380,13 +406,14 @@ const createSessionWithOptions = (
   if (typeof method !== 'function') {
     return Promise.reject(new Error('CreateSessionWithOptions is unavailable'))
   }
-  return method(profileID, name, command, runMode, hostID, codexConfigID, den) as Promise<void>
+  return method(profileID, name, command, runMode, hostID, codexConfigID, den, cwd) as Promise<void>
 }
 
 const updateSessionWithOptions = (
   sessionID: string,
   profileID: string,
   command: string,
+  cwd: string,
   runMode: string,
   hostID: string,
   codexConfigID: string,
@@ -400,6 +427,7 @@ const updateSessionWithOptions = (
       session_id: sessionID,
       profile_id: profileID,
       command,
+      cwd,
       run_mode: runMode,
       host_id: hostID,
       codex_config_id: codexConfigID,
@@ -412,7 +440,15 @@ const updateSessionWithOptions = (
   if (typeof method !== 'function') {
     return Promise.reject(new Error('UpdateSessionWithOptions is unavailable'))
   }
-  return method(sessionID, profileID, command, runMode, hostID, codexConfigID, den) as Promise<void>
+  return method(sessionID, profileID, command, runMode, hostID, codexConfigID, den, cwd) as Promise<void>
+}
+
+const pickDirectory = (initialPath: string) => {
+  const method = getAppMethod('PickDirectory')
+  if (typeof method !== 'function') {
+    return Promise.reject(new Error('PickDirectory is unavailable'))
+  }
+  return method(initialPath) as Promise<string>
 }
 
 function Sessions({
@@ -775,6 +811,7 @@ function Sessions({
       pluginConfigID: sess.plugin_config_id || '',
       pluginData: sess.plugin_data || {},
       command: sess.command || '',
+      cwd: sess.cwd || '',
       den: sess.den || '',
       sessionName: buildDuplicateSessionName(
         sess.name || 'session',
@@ -1114,6 +1151,11 @@ function SessionCard({
             <span className="mx-1 text-muted-foreground/50">|</span>
             {s.alive ? t('burrows.windowCount', { count: s.windows }) : t('burrows.willRestore')}
           </div>
+          {s.cwd && (
+            <div className="mt-1 text-xs text-muted-foreground font-mono">
+              {t('burrows.workspaceLabel', { path: s.cwd })}
+            </div>
+          )}
           {s.command && (
             <div
               className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
@@ -1331,9 +1373,12 @@ function NewSessionModal({
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
+  const [cwd, setCwd] = useState(initialDraft?.cwd || readLastWorkspace())
+  const [cwdTouched, setCwdTouched] = useState(Boolean(initialDraft?.cwd))
   const [den, setDen] = useState(initialDraft?.den || '')
   const [denSuggestions, setDenSuggestions] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
+  const [pickingCwd, setPickingCwd] = useState(false)
   const [error, setError] = useState('')
   const [denTouched, setDenTouched] = useState(Boolean(initialDraft?.den))
 
@@ -1350,6 +1395,10 @@ function NewSessionModal({
         if (draft.pluginConfigID) setSelectedPluginConfigId(draft.pluginConfigID)
         if (draft.pluginData) setPluginData(draft.pluginData)
         if (draft.command) setCommand(draft.command)
+        if (draft.cwd) {
+          setCwd(draft.cwd)
+          setCwdTouched(true)
+        }
         if (draft.sessionName) setSessionName(draft.sessionName)
         if (draft.den) {
           setDen(draft.den)
@@ -1381,6 +1430,21 @@ function NewSessionModal({
 
       ListSessions()
         .then(items => {
+          if (!cwdTouched && !initialDraft?.cwd && !cwd.trim()) {
+            const recentWorkspace = [...(items || [])]
+              .filter(item => (item.cwd || '').trim())
+              .sort((left, right) => {
+                const leftTs = parseTimestamp(left.last_opened_at || left.created_at)
+                const rightTs = parseTimestamp(right.last_opened_at || right.created_at)
+                return rightTs - leftTs
+              })[0]?.cwd || ''
+            const fallbackWorkspace = readLastWorkspace()
+            const nextWorkspace = recentWorkspace.trim() || fallbackWorkspace
+            if (nextWorkspace) {
+              setCwd(nextWorkspace)
+            }
+          }
+
           const counts = new Map<string, number>()
           ;(items || []).forEach(item => {
             const key = (item.den || '').trim()
@@ -1432,7 +1496,7 @@ function NewSessionModal({
           .catch(() => {})
       }
     }
-  }, [])
+  }, [cwd, cwdTouched, initialDraft?.cwd])
 
   const hostMap = useMemo(() => {
     const map = new Map<string, HostRecord>()
@@ -1566,6 +1630,7 @@ function NewSessionModal({
         selectedProfile,
         sessionName.trim(),
         command.trim(),
+        cwd.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
@@ -1573,11 +1638,29 @@ function NewSessionModal({
         isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
       )
+      saveLastWorkspace(cwd.trim())
       onCreated()
     } catch (err) {
       setError(String(err))
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handlePickWorkspace = async () => {
+    setCwdTouched(true)
+    setPickingCwd(true)
+    try {
+      const selected = await pickDirectory(cwd.trim())
+      if (selected && selected.trim()) {
+        const next = selected.trim()
+        setCwd(next)
+        saveLastWorkspace(next)
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setPickingCwd(false)
     }
   }
 
@@ -1619,7 +1702,7 @@ function NewSessionModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                         localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                         onClose()
                         onNavigate('profiles', { returnToNewSession: true })
@@ -1632,7 +1715,7 @@ function NewSessionModal({
                 </p>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1662,7 +1745,7 @@ function NewSessionModal({
                 </div>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1714,7 +1797,7 @@ function NewSessionModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                           localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                           onClose()
                           onNavigate?.('hosts', { returnToNewSession: true })
@@ -1727,7 +1810,7 @@ function NewSessionModal({
                   </p>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1766,7 +1849,7 @@ function NewSessionModal({
                   </div>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1925,6 +2008,34 @@ function NewSessionModal({
           </div>
 
           <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={cwd}
+                onChange={e => {
+                  setCwdTouched(true)
+                  setCwd(e.target.value)
+                }}
+                placeholder={t('burrows.modal.workspacePlaceholder')}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={handlePickWorkspace}
+                disabled={creating || pickingCwd}
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                {t('burrows.modal.browse')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
+          </div>
+
+          <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
             <input
               type="text"
@@ -2009,7 +2120,9 @@ function EditSessionModal({
   const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
+  const [cwd, setCwd] = useState(initialSession.cwd || '')
   const [den, setDen] = useState(initialSession.den || '')
+  const [pickingCwd, setPickingCwd] = useState(false)
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const [hydrated, setHydrated] = useState(false)
@@ -2224,6 +2337,7 @@ function EditSessionModal({
         initialSession.id,
         selectedProfile,
         command.trim(),
+        cwd.trim(),
         runMode,
         runMode === 'host' ? selectedHostId : '',
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
@@ -2231,11 +2345,28 @@ function EditSessionModal({
         isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
       )
+      saveLastWorkspace(cwd.trim())
       onUpdated()
     } catch (err) {
       setError(String(err))
     } finally {
       setUpdating(false)
+    }
+  }
+
+  const handlePickWorkspace = async () => {
+    setPickingCwd(true)
+    try {
+      const selected = await pickDirectory(cwd.trim())
+      if (selected && selected.trim()) {
+        const next = selected.trim()
+        setCwd(next)
+        saveLastWorkspace(next)
+      }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setPickingCwd(false)
     }
   }
 
@@ -2465,6 +2596,31 @@ function EditSessionModal({
 	              )}
 	            </div>
 	          )}
+
+	          <div>
+	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={cwd}
+                onChange={e => setCwd(e.target.value)}
+                placeholder={t('burrows.modal.workspacePlaceholder')}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={handlePickWorkspace}
+                disabled={updating || pickingCwd}
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                {t('burrows.modal.browse')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
+          </div>
 
 	          <div>
 	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>

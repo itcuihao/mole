@@ -24,6 +24,7 @@ type Session struct {
 	ProfileUpdatedAt string            `json:"profile_updated_at,omitempty"`
 	BackendID        string            `json:"backend_id,omitempty"`
 	TmuxSessionName  string            `json:"tmux_session_name"`
+	Cwd              string            `json:"cwd,omitempty"`
 	Command          string            `json:"command"` // Optional command to run (e.g., "claude")
 	RunMode          string            `json:"run_mode,omitempty"`
 	HostID           string            `json:"host_id,omitempty"`
@@ -72,6 +73,7 @@ func (s Session) WorkspaceConfig() WorkspaceSession {
 		Name:           s.Name,
 		ProfileID:      s.ProfileID,
 		BackendID:      s.EffectiveBackendID(),
+		Cwd:            s.Cwd,
 		Command:        s.Command,
 		RunMode:        s.RunMode,
 		HostID:         s.HostID,
@@ -87,6 +89,7 @@ func (s Session) WorkspaceConfig() WorkspaceSession {
 type SessionLaunchRequest struct {
 	ProfileID      string            `json:"profile_id"`
 	Name           string            `json:"name"`
+	Cwd            string            `json:"cwd,omitempty"`
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`
@@ -100,6 +103,7 @@ type SessionLaunchRequest struct {
 type SessionUpdateRequest struct {
 	SessionID      string            `json:"session_id"`
 	ProfileID      string            `json:"profile_id"`
+	Cwd            string            `json:"cwd,omitempty"`
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`

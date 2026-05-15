@@ -6,6 +6,7 @@ type WorkspaceSession struct {
 	Name           string            `json:"name"`
 	ProfileID      string            `json:"profile_id"`
 	BackendID      string            `json:"backend_id,omitempty"`
+	Cwd            string            `json:"cwd,omitempty"`
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`

@@ -436,6 +436,7 @@ export namespace session {
 	export class SessionLaunchRequest {
 	    profile_id: string;
 	    name: string;
+	    cwd?: string;
 	    command?: string;
 	    run_mode?: string;
 	    host_id?: string;
@@ -452,6 +453,7 @@ export namespace session {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.profile_id = source["profile_id"];
 	        this.name = source["name"];
+	        this.cwd = source["cwd"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
@@ -468,6 +470,7 @@ export namespace session {
 	    profile_updated_at?: string;
 	    backend_id?: string;
 	    tmux_session_name: string;
+	    cwd?: string;
 	    command: string;
 	    run_mode?: string;
 	    host_id?: string;
@@ -496,6 +499,7 @@ export namespace session {
 	        this.profile_updated_at = source["profile_updated_at"];
 	        this.backend_id = source["backend_id"];
 	        this.tmux_session_name = source["tmux_session_name"];
+	        this.cwd = source["cwd"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
@@ -516,6 +520,7 @@ export namespace session {
 	export class SessionUpdateRequest {
 	    session_id: string;
 	    profile_id: string;
+	    cwd?: string;
 	    command?: string;
 	    run_mode?: string;
 	    host_id?: string;
@@ -532,6 +537,7 @@ export namespace session {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.session_id = source["session_id"];
 	        this.profile_id = source["profile_id"];
+	        this.cwd = source["cwd"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
