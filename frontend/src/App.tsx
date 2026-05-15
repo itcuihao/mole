@@ -111,7 +111,7 @@ function App() {
       >
         {/* Header with terminal aesthetic */}
         <div className="drag-region flex items-center justify-between border-b border-border/80 bg-card/85 px-4 py-3 shadow-sm backdrop-blur-md">
-          <div className="no-drag flex min-w-0 items-center gap-3 overflow-x-auto pr-2">
+          <div className="no-drag flex min-w-0 flex-1 items-center gap-3 overflow-x-auto pr-2">
             {isMacDesktop ? (
               <>
                 <div aria-hidden="true" className="h-8 w-[78px] shrink-0" />
@@ -141,9 +141,9 @@ function App() {
                 </span>
               </TabsTrigger>
             </TabsList>
-            <div className="no-drag flex-1 min-w-4" />
-            <MoleMascot />
-            <div className="flex-1 min-w-2" />
+            <div className="no-drag flex-1 min-w-[220px] px-1">
+              <MoleMascot />
+            </div>
           </div>
           <div className="no-drag flex shrink-0 items-center gap-1">
             <button

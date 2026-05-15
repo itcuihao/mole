@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from "@/lib/mascot-events"
 import { useTranslation } from "@/i18n/context"
 import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
@@ -516,6 +517,11 @@ function Sessions({
   const handleOpenSession = async (sess: SessionRecord, terminalID?: string) => {
     const resolvedTerminal = terminalID || defaultTerminal
     const wasRestarted = !sess.alive
+
+    if (typeof window !== 'undefined') {
+      const detail: MoleOpenBurrowDetail = { profileColor: sess.profile_color || '' }
+      window.dispatchEvent(new CustomEvent<MoleOpenBurrowDetail>(MOLE_OPEN_BURROW_EVENT, { detail }))
+    }
 
     setSessionAction({ id: sess.id, kind: 'open' })
     setError('')
