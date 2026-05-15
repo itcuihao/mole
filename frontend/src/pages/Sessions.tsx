@@ -1787,6 +1787,19 @@ function NewSessionModal({
           </div>
 
           <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
+            <input
+              type="text"
+              value={sessionName}
+              onChange={e => setSessionName(e.target.value)}
+              placeholder={t('burrows.modal.namePlaceholder')}
+              pattern="[a-zA-Z0-9_-]+"
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.nameHint')}</p>
+          </div>
+
+          <div>
             <label className="block text-sm text-muted-foreground mb-2">{t('burrows.modal.execEnv')}</label>
             <div className="grid gap-2 sm:grid-cols-2">
               <RunModeOption
@@ -1896,6 +1909,34 @@ function NewSessionModal({
               )}
             </div>
           )}
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={cwd}
+                onChange={e => {
+                  setCwdTouched(true)
+                  setCwd(e.target.value)
+                }}
+                placeholder={t('burrows.modal.workspacePlaceholder')}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={handlePickWorkspace}
+                disabled={creating || pickingCwd}
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                {t('burrows.modal.browse')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
+          </div>
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
@@ -2020,46 +2061,6 @@ function NewSessionModal({
 	            </div>
 	          )}
 
-	          <div>
-	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.burrowName')}</label>
-            <input
-              type="text"
-              value={sessionName}
-              onChange={e => setSessionName(e.target.value)}
-              placeholder={t('burrows.modal.namePlaceholder')}
-              pattern="[a-zA-Z0-9_-]+"
-              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.nameHint')}</p>
-          </div>
-
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={cwd}
-                onChange={e => {
-                  setCwdTouched(true)
-                  setCwd(e.target.value)
-                }}
-                placeholder={t('burrows.modal.workspacePlaceholder')}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={handlePickWorkspace}
-                disabled={creating || pickingCwd}
-              >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                {t('burrows.modal.browse')}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
-          </div>
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>
@@ -2531,6 +2532,31 @@ function EditSessionModal({
           )}
 
           <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={cwd}
+                onChange={e => setCwd(e.target.value)}
+                placeholder={t('burrows.modal.workspacePlaceholder')}
+                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={handlePickWorkspace}
+                disabled={updating || pickingCwd}
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                {t('burrows.modal.browse')}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
+          </div>
+
+          <div>
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
             <textarea
               value={command}
@@ -2653,30 +2679,6 @@ function EditSessionModal({
 	            </div>
 	          )}
 
-	          <div>
-	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.workspace')}</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={cwd}
-                onChange={e => setCwd(e.target.value)}
-                placeholder={t('burrows.modal.workspacePlaceholder')}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={handlePickWorkspace}
-                disabled={updating || pickingCwd}
-              >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                {t('burrows.modal.browse')}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
-          </div>
 
 	          <div>
 	            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.den')}</label>

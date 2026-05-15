@@ -357,6 +357,67 @@ export namespace profile {
 
 }
 
+export namespace provider {
+	
+	export class PresetEntry {
+	    key: string;
+	    value: string;
+	    isSecret: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PresetEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.value = source["value"];
+	        this.isSecret = source["isSecret"];
+	    }
+	}
+	export class Preset {
+	    id: string;
+	    name: string;
+	    descriptionEn: string;
+	    descriptionZh: string;
+	    link?: string;
+	    entries: PresetEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Preset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.descriptionEn = source["descriptionEn"];
+	        this.descriptionZh = source["descriptionZh"];
+	        this.link = source["link"];
+	        this.entries = this.convertValues(source["entries"], PresetEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace session {
 	
 	export class OpenDenFailure {

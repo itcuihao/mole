@@ -16,6 +16,7 @@ import (
 	"mole/internal/inventory"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
+	"mole/internal/provider"
 	"mole/internal/session"
 	"mole/internal/terminal"
 	"mole/internal/tray"
@@ -68,6 +69,11 @@ func (a *App) startup(ctx context.Context) {
 // domReady wires desktop integrations that rely on the frontend runtime being available.
 func (a *App) domReady(ctx context.Context) {
 	a.startTray()
+}
+
+// GetProviderPresets returns all built-in provider preset templates.
+func (a *App) GetProviderPresets() []provider.Preset {
+	return provider.GetPresets()
 }
 
 // ListProfiles returns all profiles.

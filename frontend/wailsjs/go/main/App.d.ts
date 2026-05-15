@@ -3,6 +3,7 @@
 import {session} from '../models';
 import {terminal} from '../models';
 import {inventory} from '../models';
+import {provider} from '../models';
 import {codex} from '../models';
 import {docker} from '../models';
 import {pluginconfig} from '../models';
@@ -43,6 +44,8 @@ export function GetDenOrder(arg1:string):Promise<Array<string>>;
 export function GetInstalledTerminals():Promise<Array<terminal.TerminalApp>>;
 
 export function GetInventory():Promise<inventory.Inventory>;
+
+export function GetProviderPresets():Promise<Array<provider.Preset>>;
 
 export function ImportBurrow(arg1:string):Promise<void>;
 

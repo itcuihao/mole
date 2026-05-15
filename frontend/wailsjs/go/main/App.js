@@ -74,6 +74,10 @@ export function GetInventory() {
   return window['go']['main']['App']['GetInventory']();
 }
 
+export function GetProviderPresets() {
+  return window['go']['main']['App']['GetProviderPresets']();
+}
+
 export function ImportBurrow(arg1) {
   return window['go']['main']['App']['ImportBurrow'](arg1);
 }

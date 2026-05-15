@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ListProfiles, SaveProfile, DeleteProfile } from '../../wailsjs/go/main/App'
-import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
+import { ListProfiles, SaveProfile, DeleteProfile, GetProviderPresets } from '../../wailsjs/go/main/App'
+import { ClipboardSetText, BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,8 +8,8 @@ import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils'
 import { useTranslation } from "@/i18n/context"
-import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft, Search } from "lucide-react"
-import { PROVIDER_PRESETS, type ProviderPreset } from '@/lib/profile-templates'
+import { Plus, Pencil, Trash2, Upload, X, Check, Copy, ArrowLeft, Search, ExternalLink } from "lucide-react"
+import { type ProviderPreset } from '@/lib/profile-templates'
 
 const PRESET_COLORS = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -315,7 +315,8 @@ function ProfileForm({
   onSave: () => void
   onCancel: () => void
 }) {
-  const { t } = useTranslation()
+  const { t, language } = useTranslation()
+  const [presets, setPresets] = useState<ProviderPreset[]>([])
   const [name, setName] = useState(initial.name)
   const [description, setDescription] = useState(initial.description)
   const [color, setColor] = useState(initial.color || PRESET_COLORS[0])
@@ -338,6 +339,13 @@ function ProfileForm({
   const [error, setError] = useState('')
   const [showBulkImport, setShowBulkImport] = useState(false)
   const [selectedTemplateID, setSelectedTemplateID] = useState('custom')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).go) {
+      GetProviderPresets().then(setPresets).catch(() => {})
+    }
+  }, [])
+
   const envEntryIssues = useMemo(() => {
     const issues = new Map<number, string[]>()
     const indexesByKey = new Map<string, number[]>()
@@ -367,9 +375,11 @@ function ProfileForm({
     return issues
   }, [envEntries])
 
-  const selectedPreset = useMemo(() => (
-    PROVIDER_PRESETS.find(p => p.id === selectedTemplateID) || PROVIDER_PRESETS[PROVIDER_PRESETS.length - 1]
-  ), [selectedTemplateID])
+  const selectedPreset = useMemo(() => {
+    const found = presets.find(p => p.id === selectedTemplateID)
+    if (found) return found
+    return presets.length > 0 ? presets[presets.length - 1] : null
+  }, [selectedTemplateID, presets])
 
   const hasMeaningfulContent = name.trim() || description.trim() || envEntries.some(entry => normalizeEnvKey(entry.key) || entry.value)
 
@@ -381,9 +391,8 @@ function ProfileForm({
       value: entry.value,
       isSecret: entry.isSecret,
     })))
-
     if (isNew && !description.trim()) {
-      setDescription(preset.id === 'custom' ? '' : preset.description)
+      setDescription(preset.id === 'custom' ? '' : (language === 'zh' ? preset.descriptionZh : preset.descriptionEn))
     }
   }
 
@@ -555,7 +564,7 @@ function ProfileForm({
               <Select
                 value={selectedTemplateID}
                 onValueChange={value => {
-                  const preset = PROVIDER_PRESETS.find(p => p.id === value)
+                  const preset = presets.find(p => p.id === value)
                   if (preset) applyPreset(preset)
                 }}
               >
@@ -563,11 +572,22 @@ function ProfileForm({
                   <SelectValue placeholder={t('profiles.form.template')} />
                 </SelectTrigger>
                 <SelectContent className="z-[110]">
-                  {PROVIDER_PRESETS.map(preset => (
+                  {presets.map(preset => (
                     <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedPreset?.link && (
+                <a
+                  className="inline-flex items-center gap-1 text-xs text-primary/80 hover:text-primary hover:underline transition-colors mt-1"
+                  onClick={(e) => { e.preventDefault(); BrowserOpenURL(selectedPreset!.link!) }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  {t('profiles.form.providerLink')}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </div>
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
