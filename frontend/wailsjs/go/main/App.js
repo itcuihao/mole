@@ -46,6 +46,10 @@ export function DeleteProfile(arg1) {
   return window['go']['main']['App']['DeleteProfile'](arg1);
 }
 
+export function DeleteScriptConfig(arg1) {
+  return window['go']['main']['App']['DeleteScriptConfig'](arg1);
+}
+
 export function DetachSession(arg1) {
   return window['go']['main']['App']['DetachSession'](arg1);
 }
@@ -110,6 +114,10 @@ export function ListProfiles() {
   return window['go']['main']['App']['ListProfiles']();
 }
 
+export function ListScriptConfigs() {
+  return window['go']['main']['App']['ListScriptConfigs']();
+}
+
 export function ListSessions() {
   return window['go']['main']['App']['ListSessions']();
 }
@@ -166,8 +174,16 @@ export function SaveProfile(arg1, arg2) {
   return window['go']['main']['App']['SaveProfile'](arg1, arg2);
 }
 
+export function SaveScriptConfig(arg1) {
+  return window['go']['main']['App']['SaveScriptConfig'](arg1);
+}
+
 export function SetDefaultTerminal(arg1) {
   return window['go']['main']['App']['SetDefaultTerminal'](arg1);
+}
+
+export function TestScriptCommand(arg1) {
+  return window['go']['main']['App']['TestScriptCommand'](arg1);
 }
 
 export function UpdateSession(arg1, arg2, arg3) {

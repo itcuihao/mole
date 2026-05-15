@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"mole/internal/codex"
 	"mole/internal/config"
@@ -17,6 +21,7 @@ import (
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/provider"
+	"mole/internal/scriptcfg"
 	"mole/internal/session"
 	"mole/internal/terminal"
 	"mole/internal/tray"
@@ -31,6 +36,7 @@ type App struct {
 	profileMgr      *profile.Manager
 	codexMgr        *codex.Manager
 	dockerMgr       *docker.Manager
+	scriptMgr       *scriptcfg.Manager
 	pluginConfigMgr *pluginconfig.Manager
 	sessionMgr      *session.Manager
 	invMgr          *inventory.Manager
@@ -58,6 +64,7 @@ func (a *App) startup(ctx context.Context) {
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
 	a.dockerMgr = docker.NewManager(config.DockerConfigsPath())
+	a.scriptMgr = scriptcfg.NewManager(config.ScriptConfigsPath())
 	a.pluginConfigMgr = pluginconfig.NewManager(config.PluginConfigsPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
@@ -129,6 +136,64 @@ func (a *App) SaveDockerConfig(req docker.SaveRequest) (docker.Config, error) {
 // DeleteDockerConfig removes Docker config metadata.
 func (a *App) DeleteDockerConfig(id string) error {
 	return a.dockerMgr.Delete(id)
+}
+
+// ListScriptConfigs returns reusable local script launch presets.
+func (a *App) ListScriptConfigs() ([]scriptcfg.Config, error) {
+	return a.scriptMgr.List()
+}
+
+// SaveScriptConfig saves or updates one reusable script preset.
+func (a *App) SaveScriptConfig(req scriptcfg.SaveRequest) (scriptcfg.Config, error) {
+	return a.scriptMgr.Save(req)
+}
+
+// DeleteScriptConfig removes one reusable script preset.
+func (a *App) DeleteScriptConfig(id string) error {
+	return a.scriptMgr.Delete(id)
+}
+
+// TestScriptCommand validates whether a launch command can run on this machine.
+// It checks command syntax, executable availability, and referenced script path.
+func (a *App) TestScriptCommand(command string) (scriptcfg.CommandTestResult, error) {
+	command = strings.TrimSpace(command)
+	if command == "" {
+		return scriptcfg.CommandTestResult{OK: false, Message: "命令为空，无法测试"}, nil
+	}
+
+	tokens, err := splitShellLike(command)
+	if err != nil {
+		return scriptcfg.CommandTestResult{OK: false, Message: fmt.Sprintf("命令格式错误: %v", err)}, nil
+	}
+	if len(tokens) == 0 {
+		return scriptcfg.CommandTestResult{OK: false, Message: "命令为空，无法测试"}, nil
+	}
+
+	exeName := tokens[0]
+	exePath, err := exec.LookPath(exeName)
+	if err != nil {
+		return scriptcfg.CommandTestResult{OK: false, Message: fmt.Sprintf("找不到可执行程序: %s", exeName)}, nil
+	}
+
+	if scriptPath, ok := inferScriptPath(tokens); ok {
+		resolved := expandUserHome(scriptPath)
+		info, statErr := os.Stat(resolved)
+		if statErr != nil || info.IsDir() {
+			return scriptcfg.CommandTestResult{
+				OK:      false,
+				Message: fmt.Sprintf("脚本文件不存在: %s", resolved),
+			}, nil
+		}
+		return scriptcfg.CommandTestResult{
+			OK:      true,
+			Message: fmt.Sprintf("测试通过: %s 可用，脚本存在 (%s)", exePath, resolved),
+		}, nil
+	}
+
+	return scriptcfg.CommandTestResult{
+		OK:      true,
+		Message: fmt.Sprintf("测试通过: %s 可用", exePath),
+	}, nil
 }
 
 // ListPluginConfigs returns reusable launch plugin presets.
@@ -444,6 +509,94 @@ func inferRunMode(command string) string {
 		return session.RunModeShell
 	}
 	return session.RunModeCustom
+}
+
+func splitShellLike(input string) ([]string, error) {
+	var tokens []string
+	var current strings.Builder
+	inSingle := false
+	inDouble := false
+	escaped := false
+
+	for _, r := range input {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\' && !inSingle:
+			escaped = true
+		case r == '\'' && !inDouble:
+			inSingle = !inSingle
+		case r == '"' && !inSingle:
+			inDouble = !inDouble
+		case unicode.IsSpace(r) && !inSingle && !inDouble:
+			if current.Len() > 0 {
+				tokens = append(tokens, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+
+	if escaped || inSingle || inDouble {
+		return nil, fmt.Errorf("引号或转义未闭合")
+	}
+	if current.Len() > 0 {
+		tokens = append(tokens, current.String())
+	}
+	return tokens, nil
+}
+
+func inferScriptPath(tokens []string) (string, bool) {
+	if len(tokens) < 2 {
+		return "", false
+	}
+	exeName := strings.ToLower(filepath.Base(tokens[0]))
+	args := tokens[1:]
+
+	switch exeName {
+	case "bash", "sh", "zsh":
+		if len(args) >= 2 && args[0] == "-c" {
+			return "", false
+		}
+		for _, arg := range args {
+			if strings.HasPrefix(arg, "-") {
+				continue
+			}
+			if strings.Contains(arg, "/") || strings.Contains(arg, `\`) || strings.HasSuffix(strings.ToLower(arg), ".sh") {
+				return arg, true
+			}
+			return "", false
+		}
+	case "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+		for i := 0; i < len(args); i++ {
+			if strings.EqualFold(args[i], "-File") || strings.EqualFold(args[i], "/File") {
+				if i+1 < len(args) {
+					return args[i+1], true
+				}
+			}
+		}
+	}
+
+	return "", false
+}
+
+func expandUserHome(path string) string {
+	if path == "" {
+		return path
+	}
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil || strings.TrimSpace(home) == "" {
+			return path
+		}
+		if path == "~" {
+			return home
+		}
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }
 
 func (a *App) startTray() {

@@ -1,31 +1,29 @@
-# Mole
+<p align="center">
+  <img src="build/appicon.png" alt="mole logo" width="128" height="128">
+</p>
 
-[English README](./README.md)
+<h1 align="center">Mole</h1>
 
-```
-┌┬┐┌─┐╷  ┌─╴
-││││ ││  ├╴
-╵ ╵└─┘└─╴└─╴
-```
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-**面向 Profiles、Hosts 和命令启动流程的终端工作区管理工具**
+<p align="center">
+  面向 Profiles、Hosts 和命令启动流程的终端工作区管理工具
+</p>
 
-Mole 是一个基于 Wails 的桌面应用，用来运行带名字的运行时会话，并复用环境变量 Profile。它可以启动普通 Shell，会根据已保存的 Host 生成 SSH 命令，也可以在你偏好的终端里重新打开已有会话。
-
-目前默认运行时仍然是 tmux，但 tmux 已经被收敛成一个 backend，而不是整个应用模型本身：
-
-- macOS 和 Linux 默认使用本地 `tmux` backend
-- Windows 默认优先走 `WSL + tmux` backend
-- 终端启动逻辑已经按平台拆分，不再写死为 macOS 专用
+<p align="center">
+  9 种运行模式 · iTerm2/Ghostty 窗口分组 · 可复用环境配置 · SSH 主机库存
+</p>
 
 ## 功能概览
 
-- 创建可复用的 Profile，管理环境变量，并在 UI 中对敏感值做掩码显示
-- 保存 Hosts 和 Groups，并把 Host 自动转换成 SSH 启动命令
-- 用三种模式创建会话：`Shell`、`SSH Host`、`Command`
-- 对在线工作区执行 Open Workspace；对已保存但当前离线的工作区执行 Restore Workspace
-- 根据当前平台检测并调用可用终端
-- 支持导入导出 Host 清单，以及批量导入 Profile 变量
+- **Burrows** — 9 种运行模式启动终端会话（Shell / SSH / Command / Codex / Docker / K8s / Conda / SSH Config / Tmux） → [配置指南](docs/guides/burrows.md)
+- **Dens** — 同组 Burrow 共享终端窗口（iTerm2 Tab / Ghostty Window） → [配置指南](docs/guides/dens.md)
+- **Profiles** — 可复用环境配置 + Provider 预设模板（Claude / DeepSeek / GLM / Maxx） → [配置指南](docs/guides/profiles.md)
+- **Hosts** — SSH 主机库存、分组、堡垒机/JumpHost → [配置指南](docs/guides/hosts.md)
+
+其他：System Tray 快捷菜单、Burrow Export/Import、Profile 变更自动同步、中英双语、主题切换
 
 ## 平台支持
 
@@ -135,6 +133,42 @@ sudo apt install tmux
 4. 在线工作区使用 `Open Workspace`，离线但已保存的工作区使用 `Restore Workspace`。
 
 Mole 会把工作区元数据和真实运行时 backend 分开存储。所以即使 backend 进程暂时没了，保存过的工作区依然会留在 UI 中，并且可以通过 `Restore Workspace` 按原配置重建。
+
+## 一键启动 VS Code + Claude（macOS / Windows）
+
+仓库内置了两份脚本模板，适合给非技术用户做“一键启动”：
+
+- `scripts/vscode-claude/start_vscode_claude_mac.sh`
+- `scripts/vscode-claude/start_vscode_claude_win.ps1`
+
+### 1) 准备本地配置（不要提交到 git）
+
+- macOS：复制 `scripts/vscode-claude/config.mac.env.example` 到 `~/.config/mole/vscode-claude.env`
+- Windows：复制 `scripts/vscode-claude/config.win.ps1.example` 到 `%USERPROFILE%\\.mole\\vscode-claude.ps1`
+
+至少填写：
+
+- `PROJECT_DIR`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_BASE_URL`（可选）
+
+脚本会自动：
+
+- 检查项目目录是否存在
+- 确保项目下有 `.claude/` 目录
+- 注入 Claude 需要的环境变量
+- 打开 VS Code 并进入项目目录
+
+### 2) 在 Mole 里配置 Burrow 命令
+
+新建 Burrow，选择本地运行，命令填写：
+
+- macOS:
+  `bash /绝对路径/mole/scripts/vscode-claude/start_vscode_claude_mac.sh`
+- Windows:
+  `powershell -ExecutionPolicy Bypass -File \"D:\\绝对路径\\mole\\scripts\\vscode-claude\\start_vscode_claude_win.ps1\"`
+
+之后用户只需要点击一次 Open/Restart。
 
 ## 支持的变量导入格式
 

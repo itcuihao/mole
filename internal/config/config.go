@@ -61,6 +61,11 @@ func PluginConfigsPath() string {
 	return filepath.Join(Dir(), "plugin_configs.json")
 }
 
+// ScriptConfigsPath returns the path to reusable local script presets.
+func ScriptConfigsPath() string {
+	return filepath.Join(Dir(), "script_configs.json")
+}
+
 // EnsureDir creates the config directory if it doesn't exist.
 func EnsureDir() error {
 	return os.MkdirAll(Dir(), 0755)

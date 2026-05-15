@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
-import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
+import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
@@ -10,8 +10,30 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { useTranslation, type Language } from "@/i18n/context"
 import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info } from "lucide-react"
 
-type SettingsTab = 'general' | 'terminal' | 'import' | 'plugins' | 'about'
+type SettingsTab = 'general' | 'terminal' | 'import' | 'scripts' | 'plugins' | 'about'
 type PluginConfigModalState = { mode: 'new' | 'edit'; pluginID: string; config?: pluginconfig.Config }
+type ScriptConfigModalState = { mode: 'new' | 'edit'; config?: ScriptConfig }
+
+type ScriptConfig = {
+  id: string
+  name: string
+  description?: string
+  platform?: string
+  command: string
+  created_at?: string
+  updated_at?: string
+}
+
+type ScriptSaveRequest = {
+  id: string
+  name: string
+  description?: string
+  platform?: string
+  command: string
+}
+
+type ScriptPlatform = 'macos' | 'windows'
+type RuntimeScriptPlatform = ScriptPlatform | 'other'
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
 const SETTINGS_PLUGIN_IDS = ['codex', 'docker', ...EXTERNAL_PLUGIN_IDS]
@@ -46,9 +68,58 @@ const SETTINGS_TAB_KEYS: { key: SettingsTab; labelKey: string; icon: typeof Sett
   { key: 'general', labelKey: 'settings.tab.general', icon: Palette },
   { key: 'terminal', labelKey: 'settings.tab.terminal', icon: TerminalIcon },
   { key: 'import', labelKey: 'settings.tab.import', icon: FileUp },
+  { key: 'scripts', labelKey: 'settings.tab.scripts', icon: HardDrive },
   { key: 'plugins', labelKey: 'settings.tab.plugins', icon: Puzzle },
   { key: 'about', labelKey: 'settings.tab.about', icon: Info },
 ]
+
+const SCRIPT_PLATFORM_OPTIONS: { value: ScriptPlatform; labelKey: string }[] = [
+  { value: 'macos', labelKey: 'settings.scripts.platformMacOS' },
+  { value: 'windows', labelKey: 'settings.scripts.platformWindows' },
+]
+
+const BUILTIN_SCRIPT_CONTENT: Record<string, string> = {
+  'vscode-claude-mac': `#!/usr/bin/env bash
+set -euo pipefail
+PROJECT_DIR="\${PROJECT_DIR:-$HOME/mygo/mole}"
+CONFIG_FILE="\${HOME}/.config/mole/vscode-claude.env"
+
+[[ -f "$CONFIG_FILE" ]] || { echo "缺少配置: $CONFIG_FILE"; exit 1; }
+source "$CONFIG_FILE"
+
+cd "$PROJECT_DIR"
+mkdir -p .claude
+code "$PROJECT_DIR"`,
+  'vscode-claude-win': `$ProjectDir = if ($env:PROJECT_DIR) { $env:PROJECT_DIR } else { "$env:USERPROFILE\\mygo\\mole" }
+$ConfigFile = "$env:USERPROFILE\\.mole\\vscode-claude.ps1"
+
+if (!(Test-Path $ConfigFile)) { Write-Error "缺少配置: $ConfigFile"; exit 1 }
+. $ConfigFile
+
+Set-Location $ProjectDir
+if (!(Test-Path ".claude")) { New-Item -ItemType Directory -Path ".claude" | Out-Null }
+
+code $ProjectDir`,
+}
+
+const normalizeScriptPlatform = (value?: string): ScriptPlatform | '' => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'macos' || normalized === 'windows') return normalized
+  return ''
+}
+
+const resolveRuntimeScriptPlatform = (platform?: string): RuntimeScriptPlatform => {
+  if (platform === 'darwin') return 'macos'
+  if (platform === 'windows') return 'windows'
+  return 'other'
+}
+
+const scriptPlatformMatchesRuntime = (cfg: ScriptConfig, runtimePlatform: RuntimeScriptPlatform) => {
+  const platform = normalizeScriptPlatform(cfg.platform)
+  if (!platform) return true
+  if (runtimePlatform === 'other') return true
+  return platform === runtimePlatform
+}
 
 const getAppMethod = (method: string) => {
   return (window as any)?.go?.main?.App?.[method]
@@ -73,6 +144,10 @@ function Settings({
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
   const [dockerModal, setDockerModal] = useState<{ mode: 'new' | 'edit', config?: docker.Config } | null>(null)
+  const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
+  const [selectedScriptId, setSelectedScriptId] = useState('')
+  const [runtimeScriptPlatform, setRuntimeScriptPlatform] = useState<RuntimeScriptPlatform>('other')
+  const [scriptModal, setScriptModal] = useState<ScriptConfigModalState | null>(null)
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedPluginId, setSelectedPluginId] = useState<string>('')
   const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
@@ -80,6 +155,23 @@ function Settings({
 
   useEffect(() => {
     loadSettings()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void Environment()
+      .then(info => {
+        if (cancelled) return
+        setRuntimeScriptPlatform(resolveRuntimeScriptPlatform(info?.platform))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeScriptPlatform('other')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const loadSettings = async () => {
@@ -128,6 +220,16 @@ function Settings({
     }
   }, [plugins, selectedPluginId])
 
+  useEffect(() => {
+    if (scriptConfigs.length === 0) {
+      setSelectedScriptId('')
+      return
+    }
+    if (!scriptConfigs.some(cfg => cfg.id === selectedScriptId)) {
+      setSelectedScriptId(scriptConfigs[0].id)
+    }
+  }, [scriptConfigs, selectedScriptId])
+
   const loadDockerConfigs = async () => {
     const method = getAppMethod('ListDockerConfigs')
     if (typeof method !== 'function') return
@@ -146,9 +248,21 @@ function Settings({
     } catch { /* plugin configs unavailable */ }
   }
 
+  const loadScriptConfigs = async () => {
+    const method = getAppMethod('ListScriptConfigs')
+    if (typeof method !== 'function') return
+    try {
+      const configs: ScriptConfig[] = await method()
+      setScriptConfigs(configs || [])
+    } catch (err) {
+      setMessage({ type: 'error', text: String(err) })
+    }
+  }
+
   useEffect(() => {
     loadCodexConfigs()
     loadDockerConfigs()
+    loadScriptConfigs()
     loadPluginConfigs()
     loadPlugins()
   }, [])
@@ -211,6 +325,17 @@ function Settings({
       setBurrowBusy(null)
     }
   }
+
+  const sortedScriptConfigs = [...scriptConfigs].sort((a, b) =>
+    (a.name || a.id).localeCompare(b.name || b.id, undefined, { sensitivity: 'base', numeric: true })
+  )
+  const selectedScriptConfig = sortedScriptConfigs.find(cfg => cfg.id === selectedScriptId) || sortedScriptConfigs[0]
+  const runtimeFilteredScriptCount = sortedScriptConfigs.filter(cfg => scriptPlatformMatchesRuntime(cfg, runtimeScriptPlatform)).length
+  const runtimePlatformLabel = runtimeScriptPlatform === 'macos'
+    ? t('settings.scripts.platformMacOS')
+    : runtimeScriptPlatform === 'windows'
+      ? t('settings.scripts.platformWindows')
+      : t('common.none')
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -401,6 +526,143 @@ function Settings({
               {t('settings.importExport.importBurrow')}
             </Button>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'scripts' && (
+        <div className="surface-panel rounded-2xl border border-border p-6">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">{t('settings.scripts.title')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t('settings.scripts.desc')}</p>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setScriptModal({
+                mode: 'new',
+                config: {
+                  id: '',
+                  name: '',
+                  description: '',
+                  platform: runtimeScriptPlatform === 'windows' ? 'windows' : 'macos',
+                  command: '',
+                },
+              })}
+            >
+              <Plus className="w-4 h-4" />
+              {t('common.new')}
+            </Button>
+          </div>
+
+          {scriptConfigs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-muted/20 p-6">
+              <div className="text-sm text-muted-foreground">{t('settings.scripts.empty')}</div>
+            </div>
+          ) : (
+            <div className="flex min-h-[320px] gap-0">
+              <div className="w-56 shrink-0 border-r border-border pr-4 space-y-1">
+                {sortedScriptConfigs.map(cfg => {
+                  const selected = selectedScriptConfig?.id === cfg.id
+                  const platform = normalizeScriptPlatform(cfg.platform)
+                  return (
+                    <button
+                      key={cfg.id}
+                      type="button"
+                      onClick={() => setSelectedScriptId(cfg.id)}
+                      className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                        selected
+                          ? 'border-primary/30 bg-[hsl(var(--selected))] text-[hsl(var(--selected-foreground))]'
+                          : 'border-transparent text-muted-foreground hover:border-primary/20 hover:bg-muted/30 hover:text-foreground'
+                      }`}
+                    >
+                      <div className="truncate font-medium">{cfg.name || cfg.id}</div>
+                      <div className="mt-1 text-[11px] opacity-80">
+                        {platform
+                          ? t(platform === 'macos' ? 'settings.scripts.platformMacOS' : 'settings.scripts.platformWindows')
+                          : t('settings.scripts.platformAny')}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex-1 pl-6">
+                {!selectedScriptConfig ? (
+                  <div className="text-sm text-muted-foreground">{t('settings.scripts.empty')}</div>
+                ) : (
+                  <div>
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-base font-semibold text-foreground">{selectedScriptConfig.name || selectedScriptConfig.id}</h3>
+                          <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                            {selectedScriptConfig.id}
+                          </span>
+                          <span className="rounded border border-border bg-muted/30 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                            {(() => {
+                              const platform = normalizeScriptPlatform(selectedScriptConfig.platform)
+                              if (!platform) return t('settings.scripts.platformAny')
+                              return t(platform === 'macos' ? 'settings.scripts.platformMacOS' : 'settings.scripts.platformWindows')
+                            })()}
+                          </span>
+                        </div>
+                        {selectedScriptConfig.description ? (
+                          <p className="mt-2 text-sm text-muted-foreground">{selectedScriptConfig.description}</p>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">{t('settings.scripts.noDescription')}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => setScriptModal({ mode: 'edit', config: selectedScriptConfig })}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          {t('common.edit')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={async () => {
+                            if (!window.confirm(t('settings.scripts.confirmRemove', { name: selectedScriptConfig.name }))) return
+                            const method = getAppMethod('DeleteScriptConfig')
+                            if (typeof method !== 'function') return
+                            try {
+                              await method(selectedScriptConfig.id)
+                              await loadScriptConfigs()
+                              setMessage({ type: 'success', text: t('settings.scripts.removed') })
+                              setTimeout(() => setMessage(null), 3000)
+                            } catch (err) {
+                              setMessage({ type: 'error', text: String(err) })
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {t('common.remove')}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/20 p-3">
+                      <div className="mb-1 text-xs font-medium text-muted-foreground">{t('settings.scripts.command')}</div>
+                      <div className="font-mono text-xs text-foreground break-all">{selectedScriptConfig.command}</div>
+                    </div>
+
+                    {BUILTIN_SCRIPT_CONTENT[selectedScriptConfig.id] && (
+                      <div className="mt-3 rounded-lg border border-border bg-background p-3">
+                        <div className="mb-2 text-xs font-medium text-muted-foreground">{t('settings.scripts.builtinContent')}</div>
+                        <pre className="overflow-auto rounded border border-border/70 bg-muted/20 p-3 font-mono text-[11px] text-foreground whitespace-pre-wrap break-words">
+                          {BUILTIN_SCRIPT_CONTENT[selectedScriptConfig.id]}
+                        </pre>
+                      </div>
+                    )}
+                    <div className="mt-3 rounded-lg border border-border bg-background/70 p-3 text-xs text-muted-foreground">
+                      {t('settings.scripts.runtimeHint', {
+                        platform: runtimePlatformLabel,
+                        count: runtimeFilteredScriptCount,
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -761,6 +1023,20 @@ function Settings({
             setDockerModal(null)
             await loadDockerConfigs()
             setMessage({ type: 'success', text: t('settings.docker.saved') })
+            setTimeout(() => setMessage(null), 3000)
+          }}
+        />
+      )}
+
+      {scriptModal && (
+        <ScriptConfigModal
+          mode={scriptModal.mode}
+          config={scriptModal.config}
+          onClose={() => setScriptModal(null)}
+          onSaved={async () => {
+            setScriptModal(null)
+            await loadScriptConfigs()
+            setMessage({ type: 'success', text: t('settings.scripts.saved') })
             setTimeout(() => setMessage(null), 3000)
           }}
         />
@@ -1255,6 +1531,150 @@ function DockerConfigModal({
         <div className="rounded-lg border border-border bg-muted/20 p-3">
           <div className="mb-1 text-xs font-medium text-muted-foreground">{t('docker.modal.commandPreview')}</div>
           <div className="font-mono text-xs text-foreground break-all">{dockerCmdPreview}</div>
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+function ScriptConfigModal({
+  mode,
+  config,
+  onClose,
+  onSaved,
+}: {
+  mode: 'new' | 'edit'
+  config?: ScriptConfig
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation()
+  const [name, setName] = useState(config?.name || '')
+  const [id, setId] = useState(config?.id || '')
+  const [description, setDescription] = useState(config?.description || '')
+  const [platform, setPlatform] = useState<ScriptPlatform>(normalizeScriptPlatform(config?.platform) || 'macos')
+  const [command, setCommand] = useState(config?.command || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const validateBeforeSave = () => {
+    if (!name.trim()) return t('codex.modal.nameRequired')
+    if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) return t('docker.modal.configIdHint')
+    if (!command.trim()) return t('settings.scripts.commandRequired')
+    return ''
+  }
+
+  const handleSave = async () => {
+    const validationError = validateBeforeSave()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    const method = getAppMethod('SaveScriptConfig')
+    if (typeof method !== 'function') {
+      setError('SaveScriptConfig is unavailable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      const req: ScriptSaveRequest = {
+        id: id.trim(),
+        name: name.trim(),
+        description: description.trim(),
+        platform: platform,
+        command: command.trim(),
+      }
+      await method(req)
+      onSaved()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell
+      title={mode === 'new' ? t('settings.scripts.newTitle') : t('settings.scripts.editTitle', { name: config?.name || '' })}
+      description={t('settings.scripts.desc')}
+      onClose={onClose}
+      contentStyle={{ maxWidth: '680px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim() || !command.trim()}>
+            {saving ? t('profiles.form.saving') : t('common.save')}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm text-muted-foreground">{t('docker.modal.name')}</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t('settings.scripts.namePlaceholder')}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-muted-foreground">{t('docker.modal.configId')}</label>
+            <input
+              value={id}
+              onChange={e => setId(e.target.value)}
+              placeholder="vscode-claude-local"
+              disabled={mode === 'edit'}
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">{t('docker.modal.configIdHint')}</p>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm text-muted-foreground">{t('settings.scripts.platform')}</label>
+          <Select value={platform} onValueChange={value => setPlatform(value as ScriptPlatform)}>
+            <SelectTrigger className="bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SCRIPT_PLATFORM_OPTIONS.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {t(option.labelKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm text-muted-foreground">{t('common.description')}</label>
+          <input
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder={t('common.description')}
+            className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm text-muted-foreground">{t('settings.scripts.command')}</label>
+          <Textarea
+            value={command}
+            onChange={e => setCommand(e.target.value)}
+            rows={4}
+            placeholder={t('settings.scripts.commandPlaceholder')}
+            className="font-mono text-xs"
+          />
         </div>
       </div>
     </ModalShell>

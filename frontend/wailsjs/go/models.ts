@@ -420,6 +420,69 @@ export namespace provider {
 
 }
 
+export namespace scriptcfg {
+	
+	export class CommandTestResult {
+	    ok: boolean;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommandTestResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.message = source["message"];
+	    }
+	}
+	export class Config {
+	    id: string;
+	    name: string;
+	    description?: string;
+	    platform?: string;
+	    command: string;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.platform = source["platform"];
+	        this.command = source["command"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class SaveRequest {
+	    id: string;
+	    name: string;
+	    description?: string;
+	    platform?: string;
+	    command: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.description = source["description"];
+	        this.platform = source["platform"];
+	        this.command = source["command"];
+	    }
+	}
+
+}
+
 export namespace session {
 	
 	export class OpenDenFailure {

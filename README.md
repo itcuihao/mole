@@ -1,37 +1,29 @@
-# Mole
+<p align="center">
+  <img src="build/appicon.png" alt="mole logo" width="128" height="128">
+</p>
 
-[中文说明](./README.zh-CN.md)
+<h1 align="center">Mole</h1>
 
-```
-┌┬┐┌─┐╷  ┌─╴
-││││ ││  ├╴
-╵ ╵└─┘└─╴└─╴
-```
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-**Terminal workspace manager for profiles, hosts, and commands**
+<p align="center">
+  Terminal workspace manager for profiles, hosts, and commands
+</p>
 
-Mole is a Wails desktop app for running named runtime sessions with reusable environment profiles. It launches sessions across nine run modes — plain shell, SSH, custom commands, Docker containers, Codex (OpenAI CLI), Kubernetes pods, Conda environments, SSH config hosts, and tmux attach — and opens them in your preferred terminal with optional window grouping.
+<p align="center">
+  9 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
+</p>
 
 ## Features
 
-- Create reusable profiles with environment variables and UI-only secret masking
-- Save hosts and groups, then turn a host into a generated SSH launch command (with bastion/JumpHost support)
-- Create sessions in nine run modes via a plugin architecture:
-  - **Shell** — plain terminal session
-  - **SSH Host** — connect to an inventory host
-  - **Command** — run a custom command
-  - **Codex** — launch OpenAI Codex CLI with an isolated home directory
-  - **Docker** — launch a Docker container shell
-  - **K8s Pod** — exec into a Kubernetes pod via kubectl
-  - **Conda** — activate a Conda environment
-  - **SSH Config** — connect to a host from ~/.ssh/config
-  - **Tmux Attach** / **Remote Tmux** — attach to a local or remote tmux session
-- Group sessions into **dens** (巢) that share a terminal window (iTerm2 tabs, Ghostty window-id)
-- Reattach to live sessions or restore dead sessions after backend loss
-- macOS system tray with quick session attach and new-session shortcut
-- Full **Burrow** export/import: portable JSON bundle of profiles, hosts, groups, plugin presets, and sessions
-- English and Chinese UI with language selector
-- Profile change detection: auto-syncs env vars to live sessions when a profile is updated
+- **Burrows** — Launch terminal sessions across 9 run modes (Shell / SSH / Command / Codex / Docker / K8s / Conda / SSH Config / Tmux) → [Setup Guide](docs/guides/burrows.md)
+- **Dens** — Group Burrows into the same terminal window (iTerm2 tabs / Ghostty windows) → [Setup Guide](docs/guides/dens.md)
+- **Profiles** — Reusable environment configs + Provider presets (Claude / DeepSeek / GLM / Maxx) → [Setup Guide](docs/guides/profiles.md)
+- **Hosts** — SSH host inventory, groups, bastion/JumpHost → [Setup Guide](docs/guides/hosts.md)
+
+Also: System Tray, Burrow Export/Import, Profile change auto-sync, bilingual UI, theme toggle
 
 ## Platform Support
 
@@ -167,6 +159,42 @@ sudo apt install tmux
 4. Use **Open** for live workspaces or **Restore** for saved-but-dead workspaces.
 
 Mole stores workspace metadata separately from the live runtime backend. A saved workspace can still appear in the UI even if the backend process is gone, and **Restore** recreates it from stored settings.
+
+## One-click VS Code + Claude (macOS / Windows)
+
+This repo includes two script templates for simple one-click startup:
+
+- `scripts/vscode-claude/start_vscode_claude_mac.sh`
+- `scripts/vscode-claude/start_vscode_claude_win.ps1`
+
+### 1) Create local config files (do not commit secrets)
+
+- macOS: copy `scripts/vscode-claude/config.mac.env.example` to `~/.config/mole/vscode-claude.env`
+- Windows: copy `scripts/vscode-claude/config.win.ps1.example` to `%USERPROFILE%\\.mole\\vscode-claude.ps1`
+
+Required values:
+
+- `PROJECT_DIR`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_BASE_URL` (optional)
+
+What the scripts do:
+
+- validate the project directory
+- ensure `.claude/` exists in the project
+- inject Claude environment variables
+- open VS Code in that project
+
+### 2) Use it in Mole Burrow command
+
+Create a local Burrow and set command to:
+
+- macOS:
+  `bash /absolute/path/to/mole/scripts/vscode-claude/start_vscode_claude_mac.sh`
+- Windows:
+  `powershell -ExecutionPolicy Bypass -File \"D:\\absolute\\path\\to\\mole\\scripts\\vscode-claude\\start_vscode_claude_win.ps1\"`
+
+Then the user can just click Open/Restart.
 
 ## Supported Variable Import Formats
 

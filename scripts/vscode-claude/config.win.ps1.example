@@ -1,0 +1,7 @@
+# Copy to $env:USERPROFILE\.mole\vscode-claude.ps1 and fill real values.
+# Keep this file out of git; it contains secrets.
+
+$PROJECT_DIR = "$env:USERPROFILE\mygo\mole"
+$ANTHROPIC_API_KEY = "sk-ant-xxxxxxxx"
+# Optional
+$ANTHROPIC_BASE_URL = ""

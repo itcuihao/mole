@@ -8,6 +8,7 @@ import {codex} from '../models';
 import {docker} from '../models';
 import {pluginconfig} from '../models';
 import {profile} from '../models';
+import {scriptcfg} from '../models';
 
 export function AttachSession(arg1:string):Promise<boolean>;
 
@@ -30,6 +31,8 @@ export function DeleteHostGroup(arg1:string):Promise<void>;
 export function DeletePluginConfig(arg1:string):Promise<void>;
 
 export function DeleteProfile(arg1:string):Promise<void>;
+
+export function DeleteScriptConfig(arg1:string):Promise<void>;
 
 export function DetachSession(arg1:string):Promise<void>;
 
@@ -63,6 +66,8 @@ export function ListPluginConfigs(arg1:string):Promise<Array<pluginconfig.Config
 
 export function ListProfiles():Promise<Array<profile.Profile>>;
 
+export function ListScriptConfigs():Promise<Array<scriptcfg.Config>>;
+
 export function ListSessions():Promise<Array<session.SessionStatus>>;
 
 export function OpenDen(arg1:string):Promise<session.OpenDenResult>;
@@ -91,7 +96,11 @@ export function SavePluginConfig(arg1:pluginconfig.SaveRequest):Promise<pluginco
 
 export function SaveProfile(arg1:profile.Profile,arg2:Record<string, string>):Promise<void>;
 
+export function SaveScriptConfig(arg1:scriptcfg.SaveRequest):Promise<scriptcfg.Config>;
+
 export function SetDefaultTerminal(arg1:string):Promise<void>;
+
+export function TestScriptCommand(arg1:string):Promise<scriptcfg.CommandTestResult>;
 
 export function UpdateSession(arg1:string,arg2:string,arg3:string):Promise<void>;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
 import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
+import { Environment } from '../../wailsjs/runtime/runtime'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -36,12 +37,24 @@ type SessionDraft = {
   pluginData?: Record<string, string>
   execEnv?: 'local' | 'ssh'
   commandMode?: 'auto' | 'manual'
+  scriptID?: string
   command: string
   cwd: string
   sessionName: string
   den: string
   sourceName?: string
 }
+
+type ScriptConfig = {
+  id: string
+  name: string
+  description?: string
+  platform?: string
+  command: string
+}
+
+type ScriptPlatform = 'macos' | 'windows'
+type RuntimeScriptPlatform = ScriptPlatform | 'other'
 
 const SESSION_SORT_LABEL_KEYS: Record<SessionSortMode, string> = {
   most_used: 'burrows.sort.mostUsed',
@@ -100,6 +113,25 @@ const parseTimestamp = (value?: string) => {
   if (!value) return 0
   const parsed = Date.parse(value)
   return Number.isNaN(parsed) ? 0 : parsed
+}
+
+const normalizeScriptPlatform = (value?: string): ScriptPlatform | '' => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'macos' || normalized === 'windows') return normalized
+  return ''
+}
+
+const resolveRuntimeScriptPlatform = (platform?: string): RuntimeScriptPlatform => {
+  if (platform === 'darwin') return 'macos'
+  if (platform === 'windows') return 'windows'
+  return 'other'
+}
+
+const scriptPlatformMatchesRuntime = (cfg: ScriptConfig, runtimePlatform: RuntimeScriptPlatform) => {
+  const platform = normalizeScriptPlatform(cfg.platform)
+  if (!platform) return true
+  if (runtimePlatform === 'other') return true
+  return platform === runtimePlatform
 }
 
 const sessionPriority = (sess: SessionRecord) => {
@@ -350,6 +382,13 @@ const findHostIDForCommand = (
   }
 
   return ''
+}
+
+const findScriptIDForCommand = (command: string, scripts: ScriptConfig[]) => {
+  const normalized = command.trim()
+  if (!normalized) return ''
+  const found = scripts.find(item => (item.command || '').trim() === normalized)
+  return found?.id || ''
 }
 
 const buildSessionStartupPreview = (sess: SessionRecord) => {
@@ -1547,6 +1586,8 @@ function NewSessionModal({
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
+  const [runtimeScriptPlatform, setRuntimeScriptPlatform] = useState<RuntimeScriptPlatform>('other')
   const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState(initialDraft?.hostID || '')
@@ -1556,6 +1597,8 @@ function NewSessionModal({
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
   const [execEnv, setExecEnv] = useState<'local' | 'ssh'>(initialDraft?.execEnv || 'local')
   const [commandMode, setCommandMode] = useState<'auto' | 'manual'>(initialDraft?.commandMode || (initialDraft?.command ? 'manual' : 'auto'))
+  const [selectedScriptID, setSelectedScriptID] = useState(initialDraft?.scriptID || '')
+  const [scriptFallback, setScriptFallback] = useState<{ command: string; mode: 'auto' | 'manual' } | null>(null)
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
   const [cwd, setCwd] = useState(initialDraft?.cwd || readLastWorkspace())
@@ -1585,6 +1628,7 @@ function NewSessionModal({
         } else if (typeof draft.command === 'string' && draft.command.trim()) {
           setCommandMode('manual')
         }
+        if (draft.scriptID) setSelectedScriptID(draft.scriptID)
         if (typeof draft.command === 'string') setCommand(draft.command)
         if (draft.cwd) {
           setCwd(draft.cwd)
@@ -1607,6 +1651,23 @@ function NewSessionModal({
       setDen('')
     }
   }, [selectedProfile, denTouched, initialDraft?.den, den])
+
+  useEffect(() => {
+    let cancelled = false
+    void Environment()
+      .then(info => {
+        if (cancelled) return
+        setRuntimeScriptPlatform(resolveRuntimeScriptPlatform(info?.platform))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeScriptPlatform('other')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -1670,6 +1731,13 @@ function NewSessionModal({
           .catch(() => {})
       }
 
+      const listScriptConfigs = getAppMethod('ListScriptConfigs')
+      if (typeof listScriptConfigs === 'function') {
+        listScriptConfigs()
+          .then((configs: ScriptConfig[]) => setScriptConfigs(configs || []))
+          .catch(() => {})
+      }
+
       const listLaunchPlugins = getAppMethod('ListLaunchPlugins')
       if (typeof listLaunchPlugins === 'function') {
         listLaunchPlugins()
@@ -1707,6 +1775,18 @@ function NewSessionModal({
   const sortedDockerConfigs = useMemo(() => (
     [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [dockerConfigs])
+  const sortedScriptConfigs = useMemo(() => (
+    [...scriptConfigs]
+      .filter(cfg => scriptPlatformMatchesRuntime(cfg, runtimeScriptPlatform))
+      .sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [runtimeScriptPlatform, scriptConfigs])
+
+  useEffect(() => {
+    if (!selectedScriptID) return
+    if (!sortedScriptConfigs.some(cfg => cfg.id === selectedScriptID)) {
+      setSelectedScriptID('')
+    }
+  }, [selectedScriptID, sortedScriptConfigs])
 
   const selectedProfileRecord = useMemo(
     () => profiles.find(p => p.id === selectedProfile) || null,
@@ -1729,12 +1809,22 @@ function NewSessionModal({
     }
 
     if (execEnv === 'ssh') {
+      if (selectedScriptID) {
+        if (scriptFallback) {
+          setCommand(scriptFallback.command)
+          setCommandMode(scriptFallback.mode)
+        } else {
+          setCommandMode('auto')
+        }
+        setSelectedScriptID('')
+        setScriptFallback(null)
+      }
       if (!selectedHostId && inv.hosts.length > 0) {
         setSelectedHostId(inv.hosts[0].id)
       }
       return
     }
-  }, [execEnv, inv.hosts, selectedHostId])
+  }, [execEnv, inv.hosts, scriptFallback, selectedHostId, selectedScriptID])
 
   useEffect(() => {
     if (commandMode !== 'auto') return
@@ -1759,6 +1849,8 @@ function NewSessionModal({
 
     if (runMode === 'codex') {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedPluginConfigId('')
       setPluginData({})
       setCommand('')
@@ -1769,6 +1861,8 @@ function NewSessionModal({
 
     if (runMode === 'docker') {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedPluginConfigId('')
       setPluginData({})
       setCommand('')
@@ -1779,6 +1873,8 @@ function NewSessionModal({
 
     if (isExternalPluginMode(runMode)) {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedCodexConfigId('')
       setCommand('')
       if (!currentPluginConfigs.some(cfg => cfg.id === selectedPluginConfigId)) {
@@ -1807,6 +1903,7 @@ function NewSessionModal({
     pluginData,
     execEnv,
     commandMode,
+    scriptID: selectedScriptID,
     command,
     cwd,
     sessionName,
@@ -2145,11 +2242,57 @@ function NewSessionModal({
           </div>
 
           <div>
+            {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && (
+              <div className="mb-3">
+                <label className="mb-1 block text-sm text-muted-foreground">{t('burrows.modal.scriptPreset')}</label>
+                {sortedScriptConfigs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{t('burrows.modal.scriptPresetEmpty')}</p>
+                ) : (
+                  <Select
+                    value={selectedScriptID || '__none__'}
+                    onValueChange={value => {
+                      if (value === '__none__') {
+                        if (scriptFallback) {
+                          setCommand(scriptFallback.command)
+                          setCommandMode(scriptFallback.mode)
+                        } else {
+                          setCommandMode('auto')
+                        }
+                        setScriptFallback(null)
+                        setSelectedScriptID('')
+                        return
+                      }
+                      if (!selectedScriptID) {
+                        setScriptFallback({ command, mode: commandMode })
+                      }
+                      const selectedScript = sortedScriptConfigs.find(item => item.id === value)
+                      setSelectedScriptID(value)
+                      if (selectedScript?.command) {
+                        setCommandMode('manual')
+                        setCommand(selectedScript.command)
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder={t('burrows.modal.scriptPresetPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t('common.none')}</SelectItem>
+                      {sortedScriptConfigs.map(cfg => (
+                        <SelectItem key={cfg.id} value={cfg.id}>{cfg.name || cfg.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
             <textarea
               value={command}
               onChange={e => {
                 setCommandMode('manual')
+                setSelectedScriptID('')
+                setScriptFallback(null)
                 setCommand(e.target.value)
               }}
               placeholder={execEnv === 'ssh' ? t('burrows.modal.commandSshPlaceholder') : t('burrows.modal.commandPlaceholder')}
@@ -2347,6 +2490,8 @@ function EditSessionModal({
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
+  const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
+  const [runtimeScriptPlatform, setRuntimeScriptPlatform] = useState<RuntimeScriptPlatform>('other')
   const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
@@ -2359,6 +2504,8 @@ function EditSessionModal({
   const [commandMode, setCommandMode] = useState<'auto' | 'manual'>(
     initialSession.run_mode === 'custom' ? 'manual' : 'auto'
   )
+  const [selectedScriptID, setSelectedScriptID] = useState('')
+  const [scriptFallback, setScriptFallback] = useState<{ command: string; mode: 'auto' | 'manual' } | null>(null)
   const [execEnv, setExecEnv] = useState<'local' | 'ssh'>(
     initialSession.run_mode === 'host' || initialSession.host_id ? 'ssh' : 'local'
   )
@@ -2368,6 +2515,23 @@ function EditSessionModal({
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState('')
   const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void Environment()
+      .then(info => {
+        if (cancelled) return
+        setRuntimeScriptPlatform(resolveRuntimeScriptPlatform(info?.platform))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeScriptPlatform('other')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -2403,6 +2567,13 @@ function EditSessionModal({
           .catch(() => {})
       }
 
+      const listScriptConfigs = getAppMethod('ListScriptConfigs')
+      if (typeof listScriptConfigs === 'function') {
+        listScriptConfigs()
+          .then((configs: ScriptConfig[]) => setScriptConfigs(configs || []))
+          .catch(() => {})
+      }
+
       const listPluginConfigs = getAppMethod('ListPluginConfigs')
       if (typeof listPluginConfigs === 'function') {
         listPluginConfigs('')
@@ -2433,6 +2604,18 @@ function EditSessionModal({
   const sortedDockerConfigs = useMemo(() => (
     [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [dockerConfigs])
+  const sortedScriptConfigs = useMemo(() => (
+    [...scriptConfigs]
+      .filter(cfg => scriptPlatformMatchesRuntime(cfg, runtimeScriptPlatform))
+      .sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [runtimeScriptPlatform, scriptConfigs])
+
+  useEffect(() => {
+    if (!selectedScriptID) return
+    if (!sortedScriptConfigs.some(cfg => cfg.id === selectedScriptID)) {
+      setSelectedScriptID('')
+    }
+  }, [selectedScriptID, sortedScriptConfigs])
 
   const selectedProfileRecord = useMemo(
     () => profiles.find(p => p.id === selectedProfile) || null,
@@ -2456,6 +2639,7 @@ function EditSessionModal({
       setSelectedHostId(initialSession.host_id)
       const host = hostMap.get(initialSession.host_id)
       setCommandMode('auto')
+      setSelectedScriptID('')
       setCommand((initialSession.command || '').trim() || (host ? buildSSHCommand(host, inv.defaults, hostMap) : ''))
       return
     }
@@ -2465,6 +2649,7 @@ function EditSessionModal({
       setExecEnv('local')
       setSelectedCodexConfigId(initialSession.codex_config_id)
       setCommandMode('manual')
+      setSelectedScriptID('')
       setCommand('')
       return
     }
@@ -2475,6 +2660,7 @@ function EditSessionModal({
       setSelectedPluginConfigId(initialSession.plugin_config_id || '')
       setPluginData(initialSession.plugin_data || {})
       setCommandMode('manual')
+      setSelectedScriptID('')
       setCommand('')
       return
     }
@@ -2485,6 +2671,7 @@ function EditSessionModal({
       setExecEnv('ssh')
       setSelectedHostId(matchingHostID)
       setCommandMode('auto')
+      setSelectedScriptID('')
       setCommand(initialSession.command || '')
       return
     }
@@ -2493,6 +2680,7 @@ function EditSessionModal({
       setRunMode('custom')
       setExecEnv('local')
       setCommandMode('manual')
+      setSelectedScriptID(findScriptIDForCommand(initialSession.command || '', scriptConfigs))
       setCommand(initialSession.command || '')
       return
     }
@@ -2500,8 +2688,9 @@ function EditSessionModal({
     setRunMode('shell')
     setExecEnv('local')
     setCommandMode('auto')
+    setSelectedScriptID('')
     setCommand('')
-  }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, inv, hostMap])
+  }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, inv, hostMap, scriptConfigs])
 
   useEffect(() => {
     // Edit flow: keep the stored host selection; do not auto-pick the first
@@ -2510,7 +2699,17 @@ function EditSessionModal({
       setSelectedHostId('')
       return
     }
-  }, [execEnv])
+    if (execEnv === 'ssh' && selectedScriptID) {
+      if (scriptFallback) {
+        setCommand(scriptFallback.command)
+        setCommandMode(scriptFallback.mode)
+      } else {
+        setCommandMode('auto')
+      }
+      setSelectedScriptID('')
+      setScriptFallback(null)
+    }
+  }, [execEnv, scriptFallback, selectedScriptID])
 
   useEffect(() => {
     if (commandMode !== 'auto') return
@@ -2535,6 +2734,8 @@ function EditSessionModal({
 
     if (runMode === 'codex') {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedPluginConfigId('')
       setPluginData({})
       setCommand('')
@@ -2545,6 +2746,8 @@ function EditSessionModal({
 
     if (runMode === 'docker') {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedPluginConfigId('')
       setPluginData({})
       setCommand('')
@@ -2555,6 +2758,8 @@ function EditSessionModal({
 
     if (isExternalPluginMode(runMode)) {
       setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
       setSelectedCodexConfigId('')
       setCommand('')
       if (!currentPluginConfigs.some(cfg => cfg.id === selectedPluginConfigId)) {
@@ -2767,11 +2972,57 @@ function EditSessionModal({
           </div>
 
           <div>
+            {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && (
+              <div className="mb-3">
+                <label className="mb-1 block text-sm text-muted-foreground">{t('burrows.modal.scriptPreset')}</label>
+                {sortedScriptConfigs.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">{t('burrows.modal.scriptPresetEmpty')}</p>
+                ) : (
+                  <Select
+                    value={selectedScriptID || '__none__'}
+                    onValueChange={value => {
+                      if (value === '__none__') {
+                        if (scriptFallback) {
+                          setCommand(scriptFallback.command)
+                          setCommandMode(scriptFallback.mode)
+                        } else {
+                          setCommandMode('auto')
+                        }
+                        setScriptFallback(null)
+                        setSelectedScriptID('')
+                        return
+                      }
+                      if (!selectedScriptID) {
+                        setScriptFallback({ command, mode: commandMode })
+                      }
+                      const selectedScript = sortedScriptConfigs.find(item => item.id === value)
+                      setSelectedScriptID(value)
+                      if (selectedScript?.command) {
+                        setCommandMode('manual')
+                        setCommand(selectedScript.command)
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="bg-background">
+                      <SelectValue placeholder={t('burrows.modal.scriptPresetPlaceholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t('common.none')}</SelectItem>
+                      {sortedScriptConfigs.map(cfg => (
+                        <SelectItem key={cfg.id} value={cfg.id}>{cfg.name || cfg.id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
             <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
             <textarea
               value={command}
               onChange={e => {
                 setCommandMode('manual')
+                setSelectedScriptID('')
+                setScriptFallback(null)
                 setCommand(e.target.value)
               }}
               placeholder={execEnv === 'ssh' ? t('burrows.modal.commandSshPlaceholder') : t('burrows.modal.commandPlaceholder')}
