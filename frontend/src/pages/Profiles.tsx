@@ -77,6 +77,7 @@ function Profiles({
       name: '',
       description: '',
       color: PRESET_COLORS[0],
+      default_command: '',
       env_vars: {},
       secret_keys: [],
     }))
@@ -101,6 +102,7 @@ function Profiles({
       ),
       description: p.description || '',
       color: p.color || PRESET_COLORS[0],
+      default_command: p.default_command || '',
       env_vars: { ...(p.env_vars || {}) },
       secret_keys: [...(p.secret_keys || [])],
     }))
@@ -319,6 +321,7 @@ function ProfileForm({
   const [presets, setPresets] = useState<ProviderPreset[]>([])
   const [name, setName] = useState(initial.name)
   const [description, setDescription] = useState(initial.description)
+  const [defaultCommand, setDefaultCommand] = useState(initial.default_command || '')
   const [color, setColor] = useState(initial.color || PRESET_COLORS[0])
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>(() => {
     const entries: EnvEntry[] = []
@@ -381,7 +384,7 @@ function ProfileForm({
     return presets.length > 0 ? presets[presets.length - 1] : null
   }, [selectedTemplateID, presets])
 
-  const hasMeaningfulContent = name.trim() || description.trim() || envEntries.some(entry => normalizeEnvKey(entry.key) || entry.value)
+  const hasMeaningfulContent = name.trim() || description.trim() || defaultCommand.trim() || envEntries.some(entry => normalizeEnvKey(entry.key) || entry.value)
 
   const applyPreset = (preset: ProviderPreset) => {
     setSelectedTemplateID(preset.id)
@@ -517,6 +520,7 @@ function ProfileForm({
         name: name.trim(),
         description: description.trim(),
         color,
+        default_command: defaultCommand.trim(),
         env_vars: envVars,
         secret_keys: secretKeys,
       })
@@ -610,6 +614,18 @@ function ProfileForm({
               placeholder={t('common.description')}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('profiles.form.defaultCommand')}</label>
+            <input
+              type="text"
+              value={defaultCommand}
+              onChange={e => setDefaultCommand(e.target.value)}
+              placeholder={t('profiles.form.defaultCommandPlaceholder')}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono text-foreground placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t('profiles.form.defaultCommandHint')}</p>
           </div>
 
           <div>

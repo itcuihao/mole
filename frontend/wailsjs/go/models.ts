@@ -333,6 +333,7 @@ export namespace profile {
 	    name: string;
 	    description: string;
 	    color: string;
+	    default_command?: string;
 	    env_vars: Record<string, string>;
 	    secret_keys: string[];
 	    created_at: string;
@@ -348,6 +349,7 @@ export namespace profile {
 	        this.name = source["name"];
 	        this.description = source["description"];
 	        this.color = source["color"];
+	        this.default_command = source["default_command"];
 	        this.env_vars = source["env_vars"];
 	        this.secret_keys = source["secret_keys"];
 	        this.created_at = source["created_at"];

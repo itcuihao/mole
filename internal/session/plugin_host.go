@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"strings"
 
 	"mole/internal/inventory"
 )
@@ -33,6 +34,9 @@ func (p *hostPlugin) Resolve(req LaunchRequest) (LaunchConfig, error) {
 	if req.HostID == "" {
 		return LaunchConfig{}, fmt.Errorf("host mode requires a selected host")
 	}
+	if strings.TrimSpace(req.Command) != "" {
+		return LaunchConfig{Command: req.Command, HostID: req.HostID}, nil
+	}
 	if p.invMgr == nil {
 		return LaunchConfig{}, fmt.Errorf("host inventory is unavailable")
 	}
@@ -44,6 +48,9 @@ func (p *hostPlugin) Resolve(req LaunchRequest) (LaunchConfig, error) {
 }
 
 func (p *hostPlugin) Command(sess Session) (string, error) {
+	if strings.TrimSpace(sess.Command) != "" {
+		return sess.Command, nil
+	}
 	if p.invMgr == nil {
 		return "", fmt.Errorf("host inventory is unavailable")
 	}
