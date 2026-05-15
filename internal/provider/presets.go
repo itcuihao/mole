@@ -74,8 +74,8 @@ func GetPresets() []Preset {
 		{
 			ID:            "claude-maxx",
 			Name:          "Maxx (Free)",
-			DescriptionEn: "Multi-provider AI proxy with built-in admin UI, routing, and usage tracking. Free access provided.",
-			DescriptionZh: "多模型 AI 代理，自带管理界面、路由和用量追踪。免费使用。",
+			DescriptionEn: "Free token provider for Claude Code, thanks to the Maxx developer. Multi-provider AI proxy with admin UI, routing, and usage tracking.",
+			DescriptionZh: "免费 Claude Code token 提供商，感谢 Maxx 开发者。多模型 AI 代理，自带管理界面、路由和用量追踪。",
 			Link:          "https://github.com/awsl-project/maxx",
 			Entries: []PresetEntry{
 				{Key: "ANTHROPIC_AUTH_TOKEN", Value: "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9", IsSecret: true},
