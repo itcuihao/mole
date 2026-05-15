@@ -165,27 +165,13 @@ function Hosts({
     return map
   }, [inv.groups])
 
-  const bastionUsage = useMemo(() => {
-    const usage = new Map<string, { groups: string[]; hosts: string[] }>()
-    inv.groups.forEach(group => {
-      if (group.bastion_id) {
-        const entry = usage.get(group.bastion_id) || { groups: [], hosts: [] }
-        entry.groups.push(group.name || 'Group')
-        usage.set(group.bastion_id, entry)
-      }
+  const bastionHostIds = useMemo(() => {
+    const ids = new Set<string>()
+    inv.hosts.forEach(h => {
+      if ((h.tags || []).includes('bastion')) ids.add(h.id)
     })
-    inv.hosts.forEach(host => {
-      const chain = hostJumpChain(host)
-      chain.forEach(bastionId => {
-        if (bastionId !== host.id) {
-          const entry = usage.get(bastionId) || { groups: [], hosts: [] }
-          entry.hosts.push(host.name || host.host || host.id)
-          usage.set(bastionId, entry)
-        }
-      })
-    })
-    return usage
-  }, [inv.hosts, inv.groups])
+    return ids
+  }, [inv.hosts])
 
   const effectiveBastion = (host: HostRecord): { id: string; name: string; fromGroup?: string } | null => {
     if (host.bastion_id) {
@@ -206,10 +192,15 @@ function Hosts({
     [...inv.hosts].sort(compareHostLabels)
   ), [inv.hosts])
 
+  const bastionHosts = useMemo(
+    () => sortedHosts.filter(h => bastionHostIds.has(h.id)),
+    [sortedHosts, bastionHostIds],
+  )
+
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     inv.hosts.forEach(host => {
-      (host.tags || []).forEach(tag => tags.add(tag))
+      (host.tags || []).forEach(tag => { if (tag !== 'bastion') tags.add(tag) })
     })
     return Array.from(tags).sort()
   }, [inv.hosts])
@@ -625,7 +616,125 @@ function Hosts({
   }
 
   return (
-    <div className="flex h-full min-h-0 gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      {/* ── Top bar (Profiles style) ── */}
+      <div className="surface-panel flex flex-col gap-3 rounded-2xl border border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+          )}
+          <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('hosts.searchPlaceholder')}
+              className="h-9 rounded-xl border-border bg-background/80 pl-10 pr-10"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                aria-label={t('common.clear')}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
+            {t('hosts.import.shortButton')}
+          </Button>
+          <Button onClick={() => openHostModal()} size="sm" className="shadow-sm">
+            <Plus className="w-4 h-4" />
+            {t('common.add')}
+          </Button>
+        </div>
+      </div>
+
+      {/* Tags + summary */}
+      <div className="flex flex-col gap-2">
+        <div className="text-xs text-muted-foreground">
+          {t('hosts.summary', { filtered: filteredHosts.length, total: inv.hosts.length })}
+        </div>
+        {/* Mobile group pills */}
+        {inv.groups.length > 0 && (
+          <div className="flex flex-wrap gap-2 md:hidden">
+            <Button
+              onClick={() => setSelectedGroupId(null)}
+              variant="secondary"
+              size="sm"
+              className={selectedGroupId === null
+                ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+            >
+              {t('hosts.allHosts')}
+            </Button>
+            {inv.groups.map(group => (
+              <Button
+                key={group.id}
+                onClick={() => setSelectedGroupId(group.id)}
+                variant="secondary"
+                size="sm"
+                className={selectedGroupId === group.id
+                  ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                  : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+              >
+                {group.name}
+              </Button>
+            ))}
+          </div>
+        )}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {allTags.map(tag => {
+              const active = selectedTags.includes(tag)
+              return (
+                <Button
+                  key={tag}
+                  onClick={() => toggleTagFilter(tag)}
+                  variant="secondary"
+                  size="sm"
+                  aria-pressed={active}
+                  className={active
+                    ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
+                    : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
+                >
+                  {tag}
+                </Button>
+              )
+            })}
+            {(search || selectedTags.length > 0 || selectedGroupId) && (
+              <Button onClick={clearFilters} variant="ghost" size="sm" className="h-8 rounded-full px-3">
+                {t('common.clear')}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Status banners */}
+      {error && (
+        <div className="surface-panel flex items-start justify-between gap-2 rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="flex-1">{error}</span>
+          <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0 hover:bg-destructive/20">
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      )}
+      {message && (
+        <div className="surface-panel rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
+          {message}
+        </div>
+      )}
+
+      {/* ── Sidebar + Main ── */}
+      <div className="flex min-h-0 flex-1 gap-4">
       {/* ── Left sidebar ── */}
       <div className="hidden w-56 shrink-0 flex-col gap-3 md:flex">
         {/* Groups */}
@@ -758,126 +867,6 @@ function Hosts({
       </div>
 
       {/* ── Main content ── */}
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        {/* Header */}
-        <div className="surface-panel rounded-2xl border border-border px-5 py-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              {onBack && (
-                <Button onClick={onBack} variant="ghost" size="sm" className="h-8 w-8 rounded-xl p-0">
-                  <ArrowLeft className="w-4 h-4" />
-                </Button>
-              )}
-              <h1 className="text-xl font-semibold text-foreground">{t('hosts.title')}</h1>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              <div className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder={t('hosts.searchPlaceholder')}
-                  className="h-10 rounded-xl border-border bg-background/80 pl-10 pr-10"
-                />
-                {search && (
-                  <button
-                    type="button"
-                    onClick={() => setSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    aria-label={t('common.clear')}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-                <Button onClick={() => setShowSSHImportModal(true)} variant="outline" size="sm">
-                  {t('hosts.import.shortButton')}
-                </Button>
-                <Button onClick={() => openHostModal()} size="sm" className="shadow-sm">
-                  <Plus className="w-4 h-4" />
-                  {t('common.add')}
-                </Button>
-              </div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t('hosts.summary', { filtered: filteredHosts.length, total: inv.hosts.length })}
-            </div>
-
-            {/* Mobile group pills (visible only when sidebar is hidden) */}
-            {inv.groups.length > 0 && (
-              <div className="flex flex-wrap gap-2 md:hidden">
-                <Button
-                  onClick={() => setSelectedGroupId(null)}
-                  variant="secondary"
-                  size="sm"
-                  className={selectedGroupId === null
-                    ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
-                    : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
-                >
-                  {t('hosts.allHosts')}
-                </Button>
-                {inv.groups.map(group => (
-                  <Button
-                    key={group.id}
-                    onClick={() => setSelectedGroupId(group.id)}
-                    variant="secondary"
-                    size="sm"
-                    className={selectedGroupId === group.id
-                      ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
-                      : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
-                  >
-                    {group.name}
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            {allTags.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {allTags.map(tag => {
-                  const active = selectedTags.includes(tag)
-                  return (
-                    <Button
-                      key={tag}
-                      onClick={() => toggleTagFilter(tag)}
-                      variant="secondary"
-                      size="sm"
-                      aria-pressed={active}
-                      className={active
-                        ? 'interactive-chip h-8 rounded-full border-primary bg-primary/10 px-3 text-primary'
-                        : 'interactive-chip h-8 rounded-full border-border bg-background px-3 text-muted-foreground hover:border-primary/30 hover:text-foreground'}
-                    >
-                      {tag}
-                    </Button>
-                  )
-                })}
-                {(search || selectedTags.length > 0 || selectedGroupId) && (
-                  <Button onClick={clearFilters} variant="ghost" size="sm" className="h-8 rounded-full px-3">
-                    {t('common.clear')}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Status banners */}
-        {error && (
-          <div className="surface-panel flex items-start justify-between gap-2 rounded-2xl border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <span className="flex-1">{error}</span>
-            <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-6 w-6 rounded-full p-0 hover:bg-destructive/20">
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-
-        {message && (
-          <div className="surface-panel rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-foreground">
-            {message}
-          </div>
-        )}
-
         {/* Host grid */}
         <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
           <div className="grid gap-3 pb-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -896,7 +885,7 @@ function Hosts({
                 const bastion = effectiveBastion(host)
                 const jumpChain = hostJumpChain(host)
                 const command = buildSSHCommand(host)
-                const usage = bastionUsage.get(host.id)
+                const isBastion = bastionHostIds.has(host.id)
                 const inheritedFields = [
                   (!host.user && inv.defaults.user) ? t('hosts.defaults.user') : '',
                   (!host.port && inv.defaults.port) ? t('hosts.defaults.port') : '',
@@ -904,14 +893,15 @@ function Hosts({
                 ].filter(Boolean)
                 return (
                   <div key={host.id} className="breathing-card surface-panel flex flex-col rounded-2xl border border-border bg-card p-4 transition-all">
-                    <div className="flex flex-col gap-3">
+                    {/* Content — fills space, truncates overflow */}
+                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
                       <div>
                         <div className="flex items-center gap-2">
                           <Server className="w-4 h-4 text-muted-foreground" />
                           <span className="truncate text-sm font-medium text-foreground">
                             {host.name || host.host || t('hosts.untitled')}
                           </span>
-                          {usage && (
+                          {isBastion && (
                             <Badge variant="secondary" className="shrink-0 rounded-full border border-primary/20 bg-primary/10 text-[10px] text-primary">
                               <Shield className="w-2.5 h-2.5 mr-0.5" />
                               {t('hosts.bastionRole')}
@@ -931,13 +921,6 @@ function Hosts({
                                 ({t('hosts.bastionFromGroup', { group: bastion.fromGroup })})
                               </span>
                             )}
-                          </div>
-                        )}
-                        {usage && (
-                          <div className="text-[11px] text-muted-foreground/80 mt-0.5">
-                            {t('hosts.bastionUsedBy', {
-                              names: [...usage.groups.map(g => `${g}`), ...usage.hosts].join(', '),
-                            })}
                           </div>
                         )}
                         {host.source_alias && (
@@ -964,15 +947,17 @@ function Hosts({
                             {t('hosts.inheritedFromDefault', { fields: inheritedFields.join(', ') })}
                           </div>
                         )}
-                        {host.tags && host.tags.length > 0 && (
+                        {host.tags && host.tags.filter(t => t !== 'bastion').length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {host.tags.map(tag => (
+                            {host.tags.filter(t => t !== 'bastion').map(tag => (
                               <Badge key={tag} variant="secondary" className="rounded-full border border-border/80 bg-muted/30 text-[10px] text-muted-foreground">{tag}</Badge>
                             ))}
                           </div>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
+                    </div>
+                    {/* Buttons — pinned to bottom */}
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 pt-3">
                         <Button
                           onClick={() => copyCommand(host)}
                           variant="secondary"
@@ -995,7 +980,6 @@ function Hosts({
                           <Trash2 className="w-3.5 h-3.5" />
                           {t('common.delete')}
                         </Button>
-                      </div>
                     </div>
                   </div>
                 )
@@ -1289,19 +1273,13 @@ function Hosts({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {inv.hosts
+                      {bastionHosts
                         .filter(h => h.id !== hostForm.id)
-                        .map(h => {
-                          const isBastion = bastionUsage.has(h.id)
-                          return (
-                            <SelectItem key={h.id} value={h.id}>
-                              <span className="flex items-center gap-1.5">
-                                {isBastion && <Shield className="w-3 h-3 text-primary" />}
-                                <span>{h.name || h.host}</span>
-                              </span>
-                            </SelectItem>
-                          )
-                        })}
+                        .map(h => (
+                          <SelectItem key={h.id} value={h.id}>
+                            {h.name || h.host}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   {editingHost && hostJumpChain(editingHost).length > 1 && (
@@ -1322,6 +1300,52 @@ function Hosts({
                     placeholder={t('hosts.form.tagsPlaceholder')}
                     className="bg-muted/30 focus:bg-background"
                   />
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {/* Bastion toggle — always visible */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const current = parseTags(hostForm.tags)
+                        const isBastion = current.includes('bastion')
+                        const next = isBastion
+                          ? current.filter(t => t !== 'bastion')
+                          : ['bastion', ...current]
+                        setHostForm({ ...hostForm, tags: next.join(', ') })
+                      }}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
+                        parseTags(hostForm.tags).includes('bastion')
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                      }`}
+                    >
+                      <Shield className="w-3 h-3" />
+                      {t('hosts.bastionRole')}
+                    </button>
+                    {/* Other existing tags */}
+                    {allTags.map(tag => {
+                      const selected = parseTags(hostForm.tags).includes(tag)
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            const current = parseTags(hostForm.tags)
+                            const next = selected
+                              ? current.filter(t => t !== tag)
+                              : [...current, tag]
+                            setHostForm({ ...hostForm, tags: next.join(', ') })
+                          }}
+                          className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors cursor-pointer ${
+                            selected
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border bg-muted/30 text-muted-foreground hover:border-primary/30 hover:text-foreground'
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
           </div>
@@ -1385,18 +1409,15 @@ function Hosts({
                     </SelectTrigger>
                     <SelectContent className="z-[110]">
                       <SelectItem value="__none__">{t('hosts.group.noBastion')}</SelectItem>
-                      {sortedHosts.map(host => {
-                        const isBastion = bastionUsage.has(host.id)
-                        return (
-                          <SelectItem key={host.id} value={host.id}>
-                            <span className="flex items-center gap-1.5">
-                              {isBastion && <Shield className="w-3 h-3 text-primary" />}
-                              <span>{host.name || host.host}</span>
-                              {host.host && <span className="text-muted-foreground">({host.host})</span>}
-                            </span>
-                          </SelectItem>
-                        )
-                      })}
+                      {bastionHosts.map(host => (
+                        <SelectItem key={host.id} value={host.id}>
+                          <span className="flex items-center gap-1.5">
+                            <Shield className="w-3 h-3 text-primary" />
+                            <span>{host.name || host.host}</span>
+                            {host.host && <span className="text-muted-foreground">({host.host})</span>}
+                          </span>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">{t('hosts.group.bastionHint')}</p>
@@ -1454,7 +1475,7 @@ function Hosts({
                     <div className="border border-border rounded-lg bg-muted/20 max-h-56 overflow-auto">
                       {filteredGroupHosts.map(host => {
                         const checked = groupForm.host_ids.includes(host.id)
-                        const isBastion = bastionUsage.has(host.id)
+                        const isBastion = bastionHostIds.has(host.id)
                         return (
                           <label
                             key={host.id}
