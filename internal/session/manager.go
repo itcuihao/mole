@@ -629,6 +629,22 @@ func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, erro
 	if !backend.IsAlive(runtimeName) {
 		return false, nil
 	}
+	// Only skip launching when this specific runtime session is already attached.
+	// During OpenDen we iterate multiple sessions in the same den; merely finding
+	// an existing grouped window is not enough to conclude the target session is
+	// already open in a terminal tab.
+	runtimeAttached := false
+	if runtimeSessions, listErr := backend.List(); listErr == nil {
+		for _, runtimeSession := range runtimeSessions {
+			if runtimeSession.Name == runtimeName {
+				runtimeAttached = runtimeSession.Attached > 0
+				break
+			}
+		}
+	}
+	if !runtimeAttached {
+		return false, nil
+	}
 
 	focused, err := terminal.FocusGroupedWindow(terminalID, group)
 	if err != nil {

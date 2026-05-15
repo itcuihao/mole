@@ -258,6 +258,35 @@ const buildResolvedCommand = ({
   return `${sshPrefix} ${shellQuote(remoteCommand)}`
 }
 
+const resolveSessionCommandForSubmit = ({
+  execEnv,
+  command,
+  hostCommand,
+  workspace,
+  profileDefaultCommand,
+}: {
+  execEnv: 'local' | 'ssh'
+  command: string
+  hostCommand: string
+  workspace: string
+  profileDefaultCommand: string
+}) => {
+  const trimmed = command.trim()
+  if (execEnv === 'ssh') {
+    if (trimmed.startsWith('ssh ')) {
+      return trimmed
+    }
+    const startup = trimmed || profileDefaultCommand.trim()
+    return buildResolvedCommand({
+      execEnv,
+      hostCommand,
+      workspace,
+      startupCommand: startup,
+    })
+  }
+  return trimmed
+}
+
 const buildNestedProxyCommand = (hops: HostConnection[]): string => {
   const last = hops[hops.length - 1]
   const args = ['ssh']
@@ -321,6 +350,27 @@ const findHostIDForCommand = (
   }
 
   return ''
+}
+
+const buildSessionStartupPreview = (sess: SessionRecord) => {
+  const command = (sess.command || '').trim()
+  if (!command) return ''
+
+  const isSSH = sess.run_mode === 'host' || Boolean(sess.host_id) || command.startsWith('ssh ')
+  if (isSSH) {
+    return command
+  }
+
+  const workspace = (sess.cwd || '').trim()
+  if (!workspace) {
+    return command
+  }
+
+  if (/^cd\s+.+&&\s+/.test(command)) {
+    return command
+  }
+
+  return `cd ${formatWorkspaceForCd(workspace)} && ${command}`
 }
 
 function CommandText({
@@ -542,7 +592,7 @@ function Sessions({
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'restart' } | null>(null)
   const [showDenOrderModal, setShowDenOrderModal] = useState(false)
   const [denOrderDraft, setDenOrderDraft] = useState<SessionRecord[]>([])
-  const [denActionBusy, setDenActionBusy] = useState<'open' | 'save-order' | null>(null)
+  const [denActionBusy, setDenActionBusy] = useState<'open' | 'restart' | 'save-order' | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -701,6 +751,73 @@ function Sessions({
       showTimedInfo(pieces.join(' '), 9000)
     } catch (err) {
       setError(String(err))
+    } finally {
+      setDenActionBusy(null)
+    }
+  }
+
+  const restartDen = async () => {
+    if (!selectedDenFilter || selectedDenFilter === NO_DEN_FILTER_VALUE) return
+
+    const denSessions = sessions.filter(s => (s.den || '').trim() === selectedDenFilter)
+    if (denSessions.length === 0) return
+
+    const getOrder = getAppMethod('GetDenOrder')
+    let orderedIDs: string[] = []
+    if (typeof getOrder === 'function') {
+      try {
+        orderedIDs = await getOrder(selectedDenFilter)
+      } catch {
+        orderedIDs = []
+      }
+    }
+
+    const byID = new Map(denSessions.map(item => [item.id, item]))
+    const orderedSessions: SessionRecord[] = []
+    const seen = new Set<string>()
+    orderedIDs.forEach(id => {
+      const match = byID.get(id)
+      if (!match) return
+      orderedSessions.push(match)
+      seen.add(id)
+    })
+    denSessions.forEach(item => {
+      if (seen.has(item.id)) return
+      orderedSessions.push(item)
+    })
+
+    setDenActionBusy('restart')
+    setError('')
+    try {
+      const restarted: string[] = []
+      const failed: Array<{ id: string; name: string; error: string }> = []
+
+      for (const sess of orderedSessions) {
+        try {
+          await RestartSession(sess.id)
+          restarted.push(sess.id)
+        } catch (err) {
+          failed.push({
+            id: sess.id,
+            name: sess.name || sess.id,
+            error: String(err),
+          })
+        }
+      }
+
+      refresh()
+
+      const pieces = [
+        t('burrows.den.restartSummary', {
+          den: selectedDenFilter,
+          restarted: restarted.length,
+          failed: failed.length,
+        }),
+      ]
+      if (failed.length > 0) {
+        pieces.push(t('burrows.den.restartFailedList', { names: failed.map(item => item.name).join(', ') }))
+      }
+      showTimedInfo(pieces.join(' '), 9000)
     } finally {
       setDenActionBusy(null)
     }
@@ -991,11 +1108,15 @@ function Sessions({
               </div>
               {selectedDenFilter && selectedDenFilter !== NO_DEN_FILTER_VALUE && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={openDen} size="sm" disabled={denActionBusy === 'open'} className="shadow-sm">
+                  <Button onClick={openDen} size="sm" disabled={denActionBusy !== null} className="shadow-sm">
                     <Play className="w-3.5 h-3.5" />
                     {denActionBusy === 'open' ? t('burrows.den.opening') : t('burrows.den.open')}
                   </Button>
-                  <Button onClick={openDenOrderEditor} variant="outline" size="sm">
+                  <Button onClick={restartDen} variant="secondary" size="sm" disabled={denActionBusy !== null}>
+                    <RotateCw className="w-3.5 h-3.5" />
+                    {denActionBusy === 'restart' ? t('burrows.den.restarting') : t('burrows.den.restart')}
+                  </Button>
+                  <Button onClick={openDenOrderEditor} variant="outline" size="sm" disabled={denActionBusy !== null}>
                     <ChevronDown className="w-3.5 h-3.5" />
                     {t('burrows.den.reorder')}
                   </Button>
@@ -1165,6 +1286,7 @@ function SessionCard({
 }) {
   const { t } = useTranslation()
   const [confirmKill, setConfirmKill] = useState(false)
+  const startupPreview = buildSessionStartupPreview(s)
 
   const statusColor = !s.alive
     ? 'bg-muted-foreground/70'
@@ -1217,13 +1339,13 @@ function SessionCard({
               {t('burrows.workspaceLabel', { path: s.cwd })}
             </div>
           )}
-          {s.command && (
+          {startupPreview && (
             <div
               className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
-              title={t('burrows.autoRunsHint', { command: s.command })}
+              title={t('burrows.autoRunsHint', { command: startupPreview })}
             >
               <span className="shrink-0 font-mono">{t('burrows.startup')}</span>
-              <CommandText command={s.command} className="min-w-0 flex-1" />
+              <CommandText command={startupPreview} className="min-w-0 flex-1" />
             </div>
           )}
         </div>
@@ -1716,6 +1838,14 @@ function NewSessionModal({
     setCreating(true)
     setError('')
     try {
+      const persistedCommand = resolveSessionCommandForSubmit({
+        execEnv,
+        command,
+        hostCommand,
+        workspace: cwd,
+        profileDefaultCommand: selectedProfileRecord?.default_command || '',
+      })
+
       // Determine the effective run mode based on execEnv and command
       let effectiveRunMode = runMode
       let effectiveHostId = ''
@@ -1725,7 +1855,7 @@ function NewSessionModal({
         effectiveHostId = selectedHostId
       } else {
         // execEnv === 'local'
-        if (command.trim()) {
+        if (persistedCommand.trim()) {
           effectiveRunMode = 'custom'
         } else {
           effectiveRunMode = 'shell'
@@ -1735,7 +1865,7 @@ function NewSessionModal({
       await createSessionWithOptions(
         selectedProfile,
         sessionName.trim(),
-        command.trim(),
+        persistedCommand.trim(),
         cwd.trim(),
         effectiveRunMode,
         effectiveHostId,
