@@ -17,8 +17,8 @@ func (WslTmuxBackend) EnsureAvailable() error {
 	return EnsureWslTmuxAvailable()
 }
 
-func (WslTmuxBackend) Create(name string, env map[string]string, command string, cwd string) error {
-	return CreateWslTmuxSession(name, env, command, cwd)
+func (WslTmuxBackend) Create(name string, env map[string]string, command string, cwd string, runCommand bool) error {
+	return CreateWslTmuxSession(name, env, command, cwd, runCommand)
 }
 
 func (WslTmuxBackend) List() ([]RuntimeSessionInfo, error) {

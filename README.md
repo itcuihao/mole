@@ -167,22 +167,22 @@ This repo includes two script templates for simple one-click startup:
 - `scripts/vscode-claude/start_vscode_claude_mac.sh`
 - `scripts/vscode-claude/start_vscode_claude_win.ps1`
 
-### 1) Create local config files (do not commit secrets)
+### 1) Configure profile environment variables
 
-- macOS: copy `scripts/vscode-claude/config.mac.env.example` to `~/.config/mole/vscode-claude.env`
-- Windows: copy `scripts/vscode-claude/config.win.ps1.example` to `%USERPROFILE%\\.mole\\vscode-claude.ps1`
+The scripts receive configuration from Mole automatically:
 
-Required values:
+- **Workspace**: comes from the Burrow's `workspace` field (`MOLE_WORKSPACE` env var)
+- **Environment variables**: come from the Profile's env vars (e.g., `ANTHROPIC_API_KEY`)
 
-- `PROJECT_DIR`
-- `ANTHROPIC_API_KEY`
+Add these to your Mole profile (Settings > Profiles):
+
+- `ANTHROPIC_API_KEY` (required)
 - `ANTHROPIC_BASE_URL` (optional)
 
 What the scripts do:
 
-- validate the project directory
+- use `MOLE_WORKSPACE` as the project directory (falls back to `$HOME`)
 - ensure `.claude/` exists in the project
-- inject Claude environment variables
 - open VS Code in that project
 
 ### 2) Use it in Mole Burrow command

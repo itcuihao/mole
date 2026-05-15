@@ -21,8 +21,8 @@ func (TmuxBackend) EnsureAvailable() error {
 	return ErrTmuxUnavailable
 }
 
-func (TmuxBackend) Create(name string, env map[string]string, command string, cwd string) error {
-	return CreateTmuxSession(name, env, command, cwd)
+func (TmuxBackend) Create(name string, env map[string]string, command string, cwd string, runCommand bool) error {
+	return CreateTmuxSession(name, env, command, cwd, runCommand)
 }
 
 func (TmuxBackend) List() ([]RuntimeSessionInfo, error) {

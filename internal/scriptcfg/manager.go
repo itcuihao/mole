@@ -62,6 +62,9 @@ func (m *Manager) Save(req SaveRequest) (Config, error) {
 	now := time.Now().Format(time.RFC3339Nano)
 	existing, existingErr := m.store.Get(req.ID)
 	if existingErr == nil && strings.TrimSpace(existing.CreatedAt) != "" {
+		if existing.Builtin {
+			return Config{}, fmt.Errorf("built-in script %q cannot be edited", req.ID)
+		}
 		existing.Name = req.Name
 		existing.Description = req.Description
 		existing.Platform = req.Platform
@@ -92,6 +95,13 @@ func (m *Manager) Delete(id string) error {
 	if err := validateID(id); err != nil {
 		return err
 	}
+	existing, err := m.store.Get(id)
+	if err != nil {
+		return err
+	}
+	if existing.Builtin {
+		return fmt.Errorf("built-in script %q cannot be deleted", id)
+	}
 	return m.store.Delete(id)
 }
 
@@ -116,10 +126,11 @@ func (m *Manager) ensureBuiltins(configs []Config) ([]Config, error) {
 		if !ok {
 			continue
 		}
-		if shouldRefreshBuiltinCommand(cfg.Command) {
+		if shouldRefreshBuiltinCommand(cfg.Command) || !cfg.Builtin {
 			configs[i].Command = builtin.Command
 			configs[i].Platform = builtin.Platform
 			configs[i].Description = builtin.Description
+			configs[i].Builtin = true
 			configs[i].UpdatedAt = time.Now().Format(time.RFC3339Nano)
 			if err := m.store.Save(configs[i]); err != nil {
 				return configs, fmt.Errorf("failed to refresh built-in script config %q: %w", cfg.ID, err)
@@ -174,6 +185,7 @@ func builtinScriptConfigs() ([]Config, error) {
 			Description: "Built-in one-click VSCode + Claude startup script",
 			Platform:    "macos",
 			Command:     "bash " + quoteShellArg(macPath),
+			Builtin:     true,
 		},
 		{
 			ID:          "vscode-claude-win",
@@ -181,6 +193,7 @@ func builtinScriptConfigs() ([]Config, error) {
 			Description: "Built-in one-click VSCode + Claude startup script",
 			Platform:    "windows",
 			Command:     "powershell -ExecutionPolicy Bypass -File " + quotePowerShellArg(winPath),
+			Builtin:     true,
 		},
 	}, nil
 }
@@ -208,28 +221,64 @@ func shouldRefreshBuiltinCommand(command string) bool {
 
 const builtinMacScriptContent = `#!/usr/bin/env bash
 set -euo pipefail
-PROJECT_DIR="${PROJECT_DIR:-$HOME/mygo/mole}"
-CONFIG_FILE="${HOME}/.config/mole/vscode-claude.env"
+WORKSPACE="${MOLE_WORKSPACE:-$HOME}"
 
-[[ -f "$CONFIG_FILE" ]] || { echo "缺少配置: $CONFIG_FILE"; exit 1; }
-# shellcheck disable=SC1090
-source "$CONFIG_FILE"
+cd "$WORKSPACE"
+mkdir -p .vscode
 
-cd "$PROJECT_DIR"
-mkdir -p .claude
-code "$PROJECT_DIR"
+# Write profile env vars to .vscode/settings.json for Claude Code extension
+python3 -c '
+import json, os, sys
+path = os.path.join(".vscode", "settings.json")
+settings = {}
+if os.path.isfile(path):
+    try:
+        with open(path) as f:
+            settings = json.load(f)
+    except Exception:
+        pass
+env = settings.get("claude-code.environmentVariables", {})
+for key in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"):
+    val = os.environ.get(key)
+    if val:
+        env[key] = val
+    else:
+        env.pop(key, None)
+if env:
+    settings["claude-code.environmentVariables"] = env
+else:
+    settings.pop("claude-code.environmentVariables", None)
+with open(path, "w") as f:
+    json.dump(settings, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+'
+
+code -n "$WORKSPACE"
 `
 
-const builtinWinScriptContent = `$ProjectDir = if ($env:PROJECT_DIR) { $env:PROJECT_DIR } else { "$env:USERPROFILE\mygo\mole" }
-$ConfigFile = "$env:USERPROFILE\.mole\vscode-claude.ps1"
+const builtinWinScriptContent = `$Workspace = if ($env:MOLE_WORKSPACE) { $env:MOLE_WORKSPACE } else { $env:USERPROFILE }
 
-if (!(Test-Path $ConfigFile)) { Write-Error "缺少配置: $ConfigFile"; exit 1 }
-. $ConfigFile
+Set-Location $Workspace
+if (!(Test-Path ".vscode")) { New-Item -ItemType Directory -Path ".vscode" | Out-Null }
 
-Set-Location $ProjectDir
-if (!(Test-Path ".claude")) { New-Item -ItemType Directory -Path ".claude" | Out-Null }
+# Write profile env vars to .vscode/settings.json for Claude Code extension
+$settingsPath = Join-Path ".vscode" "settings.json"
+$settings = @{}
+if (Test-Path $settingsPath) {
+    try { $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json -AsHashtable } catch {}
+}
+$envMap = @{}
+if ($settings."claude-code.environmentVariables") {
+    $settings."claude-code.environmentVariables".GetEnumerator() | ForEach-Object { $envMap[$_.Key] = $_.Value }
+}
+foreach ($key in @("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")) {
+    $val = [Environment]::GetEnvironmentVariable($key)
+    if ($val) { $envMap[$key] = $val } else { $envMap.Remove($key) }
+}
+if ($envMap.Count -gt 0) { $settings."claude-code.environmentVariables" = $envMap } else { $settings.Remove("claude-code.environmentVariables") }
+$settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
-code $ProjectDir
+code -n $Workspace
 `
 
 func quoteShellArg(value string) string {

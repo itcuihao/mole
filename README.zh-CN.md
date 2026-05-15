@@ -141,22 +141,22 @@ Mole 会把工作区元数据和真实运行时 backend 分开存储。所以即
 - `scripts/vscode-claude/start_vscode_claude_mac.sh`
 - `scripts/vscode-claude/start_vscode_claude_win.ps1`
 
-### 1) 准备本地配置（不要提交到 git）
+### 1) 配置 Profile 环境变量
 
-- macOS：复制 `scripts/vscode-claude/config.mac.env.example` 到 `~/.config/mole/vscode-claude.env`
-- Windows：复制 `scripts/vscode-claude/config.win.ps1.example` 到 `%USERPROFILE%\\.mole\\vscode-claude.ps1`
+脚本的配置由 Mole 自动传入：
 
-至少填写：
+- **工作目录**：来自 Burrow 的 `workspace` 字段（`MOLE_WORKSPACE` 环境变量）
+- **环境变量**：来自 Profile 的 env vars（如 `ANTHROPIC_API_KEY`）
 
-- `PROJECT_DIR`
-- `ANTHROPIC_API_KEY`
+在 Mole Profile 中添加以下环境变量（Settings > Profiles）：
+
+- `ANTHROPIC_API_KEY`（必填）
 - `ANTHROPIC_BASE_URL`（可选）
 
 脚本会自动：
 
-- 检查项目目录是否存在
+- 使用 `MOLE_WORKSPACE` 作为项目目录（未设置时回退到 `$HOME`）
 - 确保项目下有 `.claude/` 目录
-- 注入 Claude 需要的环境变量
 - 打开 VS Code 并进入项目目录
 
 ### 2) 在 Mole 里配置 Burrow 命令

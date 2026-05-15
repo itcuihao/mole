@@ -20,6 +20,7 @@ type ScriptConfig = {
   description?: string
   platform?: string
   command: string
+  builtin?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -81,25 +82,62 @@ const SCRIPT_PLATFORM_OPTIONS: { value: ScriptPlatform; labelKey: string }[] = [
 const BUILTIN_SCRIPT_CONTENT: Record<string, string> = {
   'vscode-claude-mac': `#!/usr/bin/env bash
 set -euo pipefail
-PROJECT_DIR="\${PROJECT_DIR:-$HOME/mygo/mole}"
-CONFIG_FILE="\${HOME}/.config/mole/vscode-claude.env"
+WORKSPACE="\${MOLE_WORKSPACE:-$HOME}"
 
-[[ -f "$CONFIG_FILE" ]] || { echo "缺少配置: $CONFIG_FILE"; exit 1; }
-source "$CONFIG_FILE"
+cd "$WORKSPACE"
+mkdir -p .vscode
 
-cd "$PROJECT_DIR"
-mkdir -p .claude
-code "$PROJECT_DIR"`,
-  'vscode-claude-win': `$ProjectDir = if ($env:PROJECT_DIR) { $env:PROJECT_DIR } else { "$env:USERPROFILE\\mygo\\mole" }
-$ConfigFile = "$env:USERPROFILE\\.mole\\vscode-claude.ps1"
+# Write profile env vars to .vscode/settings.json for Claude Code extension
+python3 -c '
+import json, os, sys
+path = os.path.join(".vscode", "settings.json")
+settings = {}
+if os.path.isfile(path):
+    try:
+        with open(path) as f:
+            settings = json.load(f)
+    except Exception:
+        pass
+env = settings.get("claude-code.environmentVariables", {})
+for key in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"):
+    val = os.environ.get(key)
+    if val:
+        env[key] = val
+    else:
+        env.pop(key, None)
+if env:
+    settings["claude-code.environmentVariables"] = env
+else:
+    settings.pop("claude-code.environmentVariables", None)
+with open(path, "w") as f:
+    json.dump(settings, f, indent=2, ensure_ascii=False)
+    f.write("\\n")
+'
 
-if (!(Test-Path $ConfigFile)) { Write-Error "缺少配置: $ConfigFile"; exit 1 }
-. $ConfigFile
+code -n "$WORKSPACE"`,
+  'vscode-claude-win': `$Workspace = if ($env:MOLE_WORKSPACE) { $env:MOLE_WORKSPACE } else { $env:USERPROFILE }
 
-Set-Location $ProjectDir
-if (!(Test-Path ".claude")) { New-Item -ItemType Directory -Path ".claude" | Out-Null }
+Set-Location $Workspace
+if (!(Test-Path ".vscode")) { New-Item -ItemType Directory -Path ".vscode" | Out-Null }
 
-code $ProjectDir`,
+# Write profile env vars to .vscode/settings.json for Claude Code extension
+$settingsPath = Join-Path ".vscode" "settings.json"
+$settings = @{}
+if (Test-Path $settingsPath) {
+    try { $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json -AsHashtable } catch {}
+}
+$envMap = @{}
+if ($settings."claude-code.environmentVariables") {
+    $settings."claude-code.environmentVariables".GetEnumerator() | ForEach-Object { $envMap[$_.Key] = $_.Value }
+}
+foreach ($key in @("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL")) {
+    $val = [Environment]::GetEnvironmentVariable($key)
+    if ($val) { $envMap[$key] = $val } else { $envMap.Remove($key) }
+}
+if ($envMap.Count -gt 0) { $settings."claude-code.environmentVariables" = $envMap } else { $settings.Remove("claude-code.environmentVariables") }
+$settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
+
+code -n $Workspace`,
 }
 
 const normalizeScriptPlatform = (value?: string): ScriptPlatform | '' => {
@@ -575,7 +613,12 @@ function Settings({
                           : 'border-transparent text-muted-foreground hover:border-primary/20 hover:bg-muted/30 hover:text-foreground'
                       }`}
                     >
-                      <div className="truncate font-medium">{cfg.name || cfg.id}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-medium">{cfg.name || cfg.id}</span>
+                        {cfg.builtin && (
+                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{t('settings.plugins.builtin')}</span>
+                        )}
+                      </div>
                       <div className="mt-1 text-[11px] opacity-80">
                         {platform
                           ? t(platform === 'macos' ? 'settings.scripts.platformMacOS' : 'settings.scripts.platformWindows')
@@ -612,37 +655,46 @@ function Settings({
                         )}
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => setScriptModal({ mode: 'edit', config: selectedScriptConfig })}>
-                          <Pencil className="w-3.5 h-3.5" />
-                          {t('common.edit')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          onClick={async () => {
-                            if (!window.confirm(t('settings.scripts.confirmRemove', { name: selectedScriptConfig.name }))) return
-                            const method = getAppMethod('DeleteScriptConfig')
-                            if (typeof method !== 'function') return
-                            try {
-                              await method(selectedScriptConfig.id)
-                              await loadScriptConfigs()
-                              setMessage({ type: 'success', text: t('settings.scripts.removed') })
-                              setTimeout(() => setMessage(null), 3000)
-                            } catch (err) {
-                              setMessage({ type: 'error', text: String(err) })
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          {t('common.remove')}
-                        </Button>
+                        {!selectedScriptConfig.builtin && (
+                          <>
+                            <Button variant="secondary" size="sm" onClick={() => setScriptModal({ mode: 'edit', config: selectedScriptConfig })}>
+                              <Pencil className="w-3.5 h-3.5" />
+                              {t('common.edit')}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={async () => {
+                                if (!window.confirm(t('settings.scripts.confirmRemove', { name: selectedScriptConfig.name }))) return
+                                const method = getAppMethod('DeleteScriptConfig')
+                                if (typeof method !== 'function') return
+                                try {
+                                  await method(selectedScriptConfig.id)
+                                  await loadScriptConfigs()
+                                  setMessage({ type: 'success', text: t('settings.scripts.removed') })
+                                  setTimeout(() => setMessage(null), 3000)
+                                } catch (err) {
+                                  setMessage({ type: 'error', text: String(err) })
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              {t('common.remove')}
+                            </Button>
+                          </>
+                        )}
+                        {selectedScriptConfig.builtin && (
+                          <span className="rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{t('settings.plugins.builtin')}</span>
+                        )}
                       </div>
                     </div>
-                    <div className="rounded-lg border border-border bg-muted/20 p-3">
-                      <div className="mb-1 text-xs font-medium text-muted-foreground">{t('settings.scripts.command')}</div>
-                      <div className="font-mono text-xs text-foreground break-all">{selectedScriptConfig.command}</div>
-                    </div>
+                    {!selectedScriptConfig.builtin && (
+                      <div className="rounded-lg border border-border bg-muted/20 p-3">
+                        <div className="mb-1 text-xs font-medium text-muted-foreground">{t('settings.scripts.command')}</div>
+                        <div className="font-mono text-xs text-foreground break-all">{selectedScriptConfig.command}</div>
+                      </div>
+                    )}
 
                     {BUILTIN_SCRIPT_CONTENT[selectedScriptConfig.id] && (
                       <div className="mt-3 rounded-lg border border-border bg-background p-3">

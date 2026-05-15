@@ -138,6 +138,9 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve profile env: %w", err)
 	}
+	if cwd := strings.TrimSpace(req.Cwd); cwd != "" {
+		env["MOLE_WORKSPACE"] = cwd
+	}
 
 	// Record profile timestamp for change detection on attach
 	prof, profErr := m.profileMgr.Get(profileID)
@@ -167,7 +170,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return err
 	}
 
-	if err := backend.Create(tmuxName, env, sess.Command, sess.Cwd); err != nil {
+	if err := backend.Create(tmuxName, env, sess.Command, sess.Cwd, false); err != nil {
 		return err
 	}
 
@@ -403,9 +406,9 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	// Update session metadata
 	sess = nextSession
 
-	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd); err != nil {
+	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
@@ -417,7 +420,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	if err := m.store.Update(sess); err != nil {
 		_ = backend.Kill(sess.RuntimeName())
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd); rollbackErr != nil {
+			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
@@ -527,7 +530,7 @@ func (m *Manager) Restart(sessionID string) error {
 		}
 	}
 
-	if err := backend.Create(runtimeName, env, command, sess.Cwd); err != nil {
+	if err := backend.Create(runtimeName, env, command, sess.Cwd, true); err != nil {
 		return err
 	}
 
@@ -707,7 +710,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		if cmdErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 		}
-		if createErr := backend.Create(runtimeName, env, command, sess.Cwd); createErr != nil {
+		if createErr := backend.Create(runtimeName, env, command, sess.Cwd, true); createErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
@@ -783,6 +786,9 @@ func (m *Manager) environmentForSession(sess Session) (map[string]string, error)
 	env, err := m.profileMgr.GetFullEnv(sess.ProfileID)
 	if err != nil {
 		return nil, err
+	}
+	if cwd := strings.TrimSpace(sess.Cwd); cwd != "" {
+		env["MOLE_WORKSPACE"] = cwd
 	}
 
 	command, err := m.commandForSession(sess)

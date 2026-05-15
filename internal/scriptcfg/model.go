@@ -7,6 +7,7 @@ type Config struct {
 	Description string `json:"description,omitempty"`
 	Platform    string `json:"platform,omitempty"`
 	Command     string `json:"command"`
+	Builtin     bool   `json:"builtin,omitempty"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 }

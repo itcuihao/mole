@@ -203,8 +203,9 @@ func TmuxAvailable() bool {
 }
 
 // CreateTmuxSession creates a new detached tmux session with environment variables.
-// If command is non-empty, runs that command; otherwise starts an interactive shell.
-func CreateTmuxSession(name string, env map[string]string, command string, cwd string) error {
+// If command is non-empty and runCommand is true, auto-runs the startup command;
+// if runCommand is false, defers execution until the user explicitly opens the session.
+func CreateTmuxSession(name string, env map[string]string, command string, cwd string, runCommand bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
@@ -265,7 +266,14 @@ func CreateTmuxSession(name string, env map[string]string, command string, cwd s
 	}
 
 	if command != "" {
-		fmt.Printf("✅ Startup command will auto-run on first shell: %s\n", command)
+		if runCommand {
+			fmt.Printf("✅ Startup command will auto-run on first shell: %s\n", command)
+		} else {
+			// Mark as already ran so the startup command is deferred.
+			// It will run on next restart or explicit open.
+			_ = SyncTmuxSessionEnv(name, map[string]string{"MOLE_CMD_RAN": "1"})
+			fmt.Printf("⏸️  Startup command deferred: %s\n", command)
+		}
 	}
 
 	return nil

@@ -21,7 +21,7 @@ type RuntimeSessionInfo struct {
 type SessionBackend interface {
 	ID() string
 	EnsureAvailable() error
-	Create(name string, env map[string]string, command string, cwd string) error
+	Create(name string, env map[string]string, command string, cwd string, runCommand bool) error
 	List() ([]RuntimeSessionInfo, error)
 	Kill(name string) error
 	Detach(name string) error

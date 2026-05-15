@@ -100,7 +100,7 @@ func detectWslUserShell() string {
 	return userShell
 }
 
-func CreateWslTmuxSession(name string, env map[string]string, command string, cwd string) error {
+func CreateWslTmuxSession(name string, env map[string]string, command string, cwd string, runCommand bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
@@ -139,7 +139,12 @@ func CreateWslTmuxSession(name string, env map[string]string, command string, cw
 	}
 
 	if command != "" {
-		fmt.Printf("✅ Startup command will auto-run on first WSL shell: %s\n", command)
+		if runCommand {
+			fmt.Printf("✅ Startup command will auto-run on first WSL shell: %s\n", command)
+		} else {
+			_ = SyncWslTmuxSessionEnv(name, map[string]string{"MOLE_CMD_RAN": "1"})
+			fmt.Printf("⏸️  Startup command deferred: %s\n", command)
+		}
 	}
 
 	return nil

@@ -442,6 +442,7 @@ export namespace scriptcfg {
 	    description?: string;
 	    platform?: string;
 	    command: string;
+	    builtin?: boolean;
 	    created_at: string;
 	    updated_at: string;
 	
@@ -456,6 +457,7 @@ export namespace scriptcfg {
 	        this.description = source["description"];
 	        this.platform = source["platform"];
 	        this.command = source["command"];
+	        this.builtin = source["builtin"];
 	        this.created_at = source["created_at"];
 	        this.updated_at = source["updated_at"];
 	    }
