@@ -34,6 +34,7 @@ type SessionDraft = {
   codexConfigID?: string
   pluginConfigID?: string
   pluginData?: Record<string, string>
+  execEnv?: 'local' | 'ssh'
   command: string
   cwd: string
   sessionName: string
@@ -1371,6 +1372,7 @@ function NewSessionModal({
   const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialDraft?.pluginConfigID || '')
   const [pluginData, setPluginData] = useState<Record<string, string>>(initialDraft?.pluginData || {})
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
+  const [execEnv, setExecEnv] = useState<'local' | 'ssh'>(initialDraft?.execEnv || 'local')
   const [sessionName, setSessionName] = useState(initialDraft?.sessionName || '')
   const [command, setCommand] = useState(initialDraft?.command || '')
   const [cwd, setCwd] = useState(initialDraft?.cwd || readLastWorkspace())
@@ -1390,6 +1392,7 @@ function NewSessionModal({
         const draft = JSON.parse(saved)
         if (draft.profileID) setSelectedProfile(draft.profileID)
         if (draft.runMode) setRunMode(draft.runMode)
+        if (draft.execEnv) setExecEnv(draft.execEnv)
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.codexConfigID) setSelectedCodexConfigId(draft.codexConfigID)
         if (draft.pluginConfigID) setSelectedPluginConfigId(draft.pluginConfigID)
@@ -1530,34 +1533,39 @@ function NewSessionModal({
     : null
 
   useEffect(() => {
-    if (runMode === 'shell') {
+    // When execEnv changes, update host selection and command accordingly
+    if (execEnv === 'local') {
+      // Clear SSH-related state when switching to local
       setSelectedHostId('')
-      setSelectedCodexConfigId('')
-      setSelectedPluginConfigId('')
-      setPluginData({})
-      setCommand('')
+      // Don't clear command - let user keep their custom command
       return
     }
 
-    if (runMode === 'host') {
-      setSelectedPluginConfigId('')
-      setPluginData({})
+    if (execEnv === 'ssh') {
+      // Auto-select first host if none selected
       if (!selectedHostId && inv.hosts.length > 0) {
         const firstHost = inv.hosts[0]
         setSelectedHostId(firstHost.id)
-        const nextCommand = buildSSHCommand(firstHost, inv.defaults, hostMap)
-        setCommand(nextCommand)
+        // If command is empty, generate SSH command; otherwise keep user's command
+        if (!command.trim()) {
+          const nextCommand = buildSSHCommand(firstHost, inv.defaults, hostMap)
+          setCommand(nextCommand)
+        }
       } else if (selectedHost && hostCommand) {
-        setCommand(hostCommand)
+        // If command is empty, generate SSH command; otherwise keep user's command
+        if (!command.trim()) {
+          setCommand(hostCommand)
+        }
       }
       return
     }
+  }, [execEnv, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, command])
 
-    if (runMode === 'custom') {
-      setSelectedHostId('')
-      setSelectedCodexConfigId('')
-      setSelectedPluginConfigId('')
-      setPluginData({})
+  // Keep old runMode effect for plugin modes (codex, docker, etc.)
+  useEffect(() => {
+    if (runMode === 'shell' || runMode === 'host' || runMode === 'custom') {
+      // These are now handled by execEnv
+      return
     }
 
     if (runMode === 'codex') {
@@ -1626,13 +1634,29 @@ function NewSessionModal({
     setCreating(true)
     setError('')
     try {
+      // Determine the effective run mode based on execEnv and command
+      let effectiveRunMode = runMode
+      let effectiveHostId = ''
+
+      if (execEnv === 'ssh') {
+        effectiveRunMode = 'host'
+        effectiveHostId = selectedHostId
+      } else {
+        // execEnv === 'local'
+        if (command.trim()) {
+          effectiveRunMode = 'custom'
+        } else {
+          effectiveRunMode = 'shell'
+        }
+      }
+
       await createSessionWithOptions(
         selectedProfile,
         sessionName.trim(),
         command.trim(),
         cwd.trim(),
-        runMode,
-        runMode === 'host' ? selectedHostId : '',
+        effectiveRunMode,
+        effectiveHostId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},
@@ -1702,7 +1726,7 @@ function NewSessionModal({
                     <button
                       type="button"
                       onClick={() => {
-                        const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                        const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                         localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                         onClose()
                         onNavigate('profiles', { returnToNewSession: true })
@@ -1715,7 +1739,7 @@ function NewSessionModal({
                 </p>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1745,7 +1769,7 @@ function NewSessionModal({
                 </div>
                 <Button
                   onClick={() => {
-                    const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                    const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                     localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                     onClose()
                     onNavigate?.('profiles', { returnToNewSession: true })
@@ -1763,30 +1787,28 @@ function NewSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Start With</label>
-            <div className="grid gap-2 sm:grid-cols-4">
-	              {plugins.filter(p => {
-	                if (p.requires_host && inv.hosts.length === 0) return false
-	                if (p.id === 'codex' && codexConfigs.length === 0) return false
-	                if (p.id === 'docker' && dockerConfigs.length === 0) return false
-	                if (p.requires_plugin_config && !pluginConfigs.some(cfg => cfg.plugin_id === p.id)) return false
-	                return true
-	              }).map(p => (
-                <RunModeOption
-                  key={p.id}
-                  mode={p.id}
-                  labelKey={p.label_key}
-                  activeMode={runMode}
-                  onSelect={setRunMode}
-                />
-              ))}
+            <label className="block text-sm text-muted-foreground mb-2">{t('burrows.modal.execEnv')}</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RunModeOption
+                mode="local"
+                labelKey="burrows.runMode.local"
+                activeMode={execEnv}
+                onSelect={(mode) => setExecEnv(mode as 'local' | 'ssh')}
+              />
+              <RunModeOption
+                mode="ssh"
+                labelKey="burrows.runMode.ssh"
+                activeMode={execEnv}
+                onSelect={(mode) => setExecEnv(mode as 'local' | 'ssh')}
+                disabled={inv.hosts.length === 0}
+              />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {(() => { const p = plugins.find(pl => pl.id === runMode); return p ? t(p.hint_key) : '' })()}
+              {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
 
-          {runMode === 'host' && (
+          {execEnv === 'ssh' && (
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.sshHost')}</label>
               {inv.hosts.length === 0 ? (
@@ -1797,7 +1819,7 @@ function NewSessionModal({
                       <button
                         type="button"
                         onClick={() => {
-                          const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                          const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                           localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                           onClose()
                           onNavigate?.('hosts', { returnToNewSession: true })
@@ -1810,7 +1832,7 @@ function NewSessionModal({
                   </p>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1831,8 +1853,11 @@ function NewSessionModal({
                       onValueChange={value => {
                         setSelectedHostId(value)
                         const host = value ? hostMap.get(value) : null
-                        const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
-                        setCommand(nextCommand)
+                        // Only auto-fill command if it's empty or looks like auto-generated SSH command
+                        if (!command.trim() || command.trim().startsWith('ssh ')) {
+                          const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
+                          setCommand(nextCommand)
+                        }
                       }}
                     >
                       <SelectTrigger className="bg-background">
@@ -1849,7 +1874,7 @@ function NewSessionModal({
                   </div>
                   <Button
                     onClick={() => {
-                      const draft = { profileID: selectedProfile, runMode, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
+                      const draft = { profileID: selectedProfile, runMode, execEnv, hostID: selectedHostId, codexConfigID: selectedCodexConfigId, pluginConfigID: selectedPluginConfigId, pluginData, command, cwd, sessionName, den }
                       localStorage.setItem('mole:newSessionDraft', JSON.stringify(draft))
                       onClose()
                       onNavigate?.('hosts', { returnToNewSession: true })
@@ -1872,18 +1897,19 @@ function NewSessionModal({
             </div>
           )}
 
-          {runMode === 'custom' && (
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
-              <textarea
-                value={command}
-                onChange={e => setCommand(e.target.value)}
-                placeholder={t('burrows.modal.commandPlaceholder')}
-                rows={3}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
-              />
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
+            <textarea
+              value={command}
+              onChange={e => setCommand(e.target.value)}
+              placeholder={execEnv === 'ssh' ? t('burrows.modal.commandSshPlaceholder') : t('burrows.modal.commandPlaceholder')}
+              rows={3}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              {t('burrows.modal.commandHint')}
             </div>
-          )}
+          </div>
 
           {runMode === 'codex' && (
             <div>
@@ -2120,6 +2146,9 @@ function EditSessionModal({
   const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
+  const [execEnv, setExecEnv] = useState<'local' | 'ssh'>(
+    initialSession.run_mode === 'host' || initialSession.host_id ? 'ssh' : 'local'
+  )
   const [cwd, setCwd] = useState(initialSession.cwd || '')
   const [den, setDen] = useState(initialSession.den || '')
   const [pickingCwd, setPickingCwd] = useState(false)
@@ -2206,6 +2235,7 @@ function EditSessionModal({
 
     if (initialSession.run_mode === 'host' && initialSession.host_id) {
       setRunMode('host')
+      setExecEnv('ssh')
       setSelectedHostId(initialSession.host_id)
       const host = hostMap.get(initialSession.host_id)
       setCommand(host ? buildSSHCommand(host, inv.defaults, hostMap) : initialSession.command || '')
@@ -2214,6 +2244,7 @@ function EditSessionModal({
 
     if (initialSession.run_mode === 'codex' && initialSession.codex_config_id) {
       setRunMode('codex')
+      setExecEnv('local')
       setSelectedCodexConfigId(initialSession.codex_config_id)
       setCommand('')
       return
@@ -2221,6 +2252,7 @@ function EditSessionModal({
 
     if (initialSession.run_mode && isExternalPluginMode(initialSession.run_mode)) {
       setRunMode(initialSession.run_mode)
+      setExecEnv('local')
       setSelectedPluginConfigId(initialSession.plugin_config_id || '')
       setPluginData(initialSession.plugin_data || {})
       setCommand('')
@@ -2230,6 +2262,7 @@ function EditSessionModal({
     const matchingHostID = findHostIDForCommand(initialSession.command || '', inv, hostMap)
     if (matchingHostID) {
       setRunMode('host')
+      setExecEnv('ssh')
       setSelectedHostId(matchingHostID)
       setCommand(initialSession.command || '')
       return
@@ -2237,45 +2270,50 @@ function EditSessionModal({
 
     if ((initialSession.command || '').trim()) {
       setRunMode('custom')
+      setExecEnv('local')
       setCommand(initialSession.command || '')
       return
     }
 
     setRunMode('shell')
+    setExecEnv('local')
     setCommand('')
   }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, inv, hostMap])
 
   useEffect(() => {
-    if (runMode === 'shell') {
+    // When execEnv changes, update host selection and command accordingly
+    if (execEnv === 'local') {
+      // Clear SSH-related state when switching to local
       setSelectedHostId('')
-      setSelectedCodexConfigId('')
-      setSelectedPluginConfigId('')
-      setPluginData({})
-      setCommand('')
+      // Don't clear command - let user keep their custom command
       return
     }
 
-    if (runMode === 'host') {
-      setSelectedPluginConfigId('')
-      setPluginData({})
+    if (execEnv === 'ssh') {
+      // Auto-select first host if none selected
       if (!selectedHostId && inv.hosts.length > 0) {
         const firstHost = inv.hosts[0]
         setSelectedHostId(firstHost.id)
-        setCommand(buildSSHCommand(firstHost, inv.defaults, hostMap))
-        return
-      }
-
-      if (selectedHost && hostCommand) {
-        setCommand(hostCommand)
+        // If command is empty, generate SSH command; otherwise keep user's command
+        if (!command.trim()) {
+          const nextCommand = buildSSHCommand(firstHost, inv.defaults, hostMap)
+          setCommand(nextCommand)
+        }
+      } else if (selectedHost && hostCommand) {
+        // If command is empty, generate SSH command; otherwise keep user's command
+        if (!command.trim()) {
+          setCommand(hostCommand)
+        }
       }
       return
     }
+  }, [execEnv, inv.hosts, selectedHostId, selectedHost, hostCommand, inv.defaults, hostMap, command])
 
-    if (runMode === 'custom') {
-      setSelectedHostId('')
-      setSelectedCodexConfigId('')
-      setSelectedPluginConfigId('')
-      setPluginData({})
+  // Keep old runMode effect for plugin modes (codex, docker, etc.)
+  useEffect(() => {
+    if (runMode === 'shell' || runMode === 'host' || runMode === 'custom') {
+      // These are now handled by execEnv
+      return
     }
 
     if (runMode === 'codex') {
@@ -2310,7 +2348,7 @@ function EditSessionModal({
 
   const handleUpdate = async () => {
     if (!selectedProfile) return
-    if (runMode === 'host' && !selectedHostId) {
+    if (execEnv === 'ssh' && !selectedHostId) {
       setError(t('burrows.modal.selectHostRequiredEdit'))
       return
     }
@@ -2333,13 +2371,29 @@ function EditSessionModal({
     setUpdating(true)
     setError('')
     try {
+      // Determine the effective run mode based on execEnv and command
+      let effectiveRunMode = runMode
+      let effectiveHostId = ''
+
+      if (execEnv === 'ssh') {
+        effectiveRunMode = 'host'
+        effectiveHostId = selectedHostId
+      } else {
+        // execEnv === 'local'
+        if (command.trim()) {
+          effectiveRunMode = 'custom'
+        } else {
+          effectiveRunMode = 'shell'
+        }
+      }
+
       await updateSessionWithOptions(
         initialSession.id,
         selectedProfile,
         command.trim(),
         cwd.trim(),
-        runMode,
-        runMode === 'host' ? selectedHostId : '',
+        effectiveRunMode,
+        effectiveHostId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},
@@ -2416,30 +2470,28 @@ function EditSessionModal({
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-2">Start With</label>
-            <div className="grid gap-2 sm:grid-cols-4">
-	              {plugins.filter(p => {
-	                if (p.requires_host && inv.hosts.length === 0) return false
-	                if (p.id === 'codex' && codexConfigs.length === 0) return false
-	                if (p.id === 'docker' && dockerConfigs.length === 0) return false
-	                if (p.requires_plugin_config && !pluginConfigs.some(cfg => cfg.plugin_id === p.id)) return false
-	                return true
-	              }).map(p => (
-                <RunModeOption
-                  key={p.id}
-                  mode={p.id}
-                  labelKey={p.label_key}
-                  activeMode={runMode}
-                  onSelect={setRunMode}
-                />
-              ))}
+            <label className="block text-sm text-muted-foreground mb-2">{t('burrows.modal.execEnv')}</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RunModeOption
+                mode="local"
+                labelKey="burrows.runMode.local"
+                activeMode={execEnv}
+                onSelect={(mode) => setExecEnv(mode as 'local' | 'ssh')}
+              />
+              <RunModeOption
+                mode="ssh"
+                labelKey="burrows.runMode.ssh"
+                activeMode={execEnv}
+                onSelect={(mode) => setExecEnv(mode as 'local' | 'ssh')}
+                disabled={inv.hosts.length === 0}
+              />
             </div>
             <div className="mt-2 text-xs text-muted-foreground">
-              {(() => { const p = plugins.find(pl => pl.id === runMode); return p ? t(p.hint_key) : '' })()}
+              {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
 
-          {runMode === 'host' && (
+          {execEnv === 'ssh' && (
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.sshHost')}</label>
               {inv.hosts.length === 0 ? (
@@ -2450,8 +2502,11 @@ function EditSessionModal({
                   onValueChange={value => {
                     setSelectedHostId(value)
                     const host = hostMap.get(value)
-                    const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
-                    setCommand(nextCommand)
+                    // Only auto-fill command if it's empty or looks like auto-generated SSH command
+                    if (!command.trim() || command.trim().startsWith('ssh ')) {
+                      const nextCommand = host ? buildSSHCommand(host, inv.defaults, hostMap) : ''
+                      setCommand(nextCommand)
+                    }
                   }}
                 >
                   <SelectTrigger className="bg-background">
@@ -2475,18 +2530,19 @@ function EditSessionModal({
             </div>
           )}
 
-          {runMode === 'custom' && (
-            <div>
-              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
-              <textarea
-                value={command}
-                onChange={e => setCommand(e.target.value)}
-                placeholder={t('burrows.modal.commandPlaceholder')}
-                rows={3}
-                className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
-              />
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
+            <textarea
+              value={command}
+              onChange={e => setCommand(e.target.value)}
+              placeholder={execEnv === 'ssh' ? t('burrows.modal.commandSshPlaceholder') : t('burrows.modal.commandPlaceholder')}
+              rows={3}
+              className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring resize-y min-h-15 max-h-50"
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              {t('burrows.modal.commandHint')}
             </div>
-          )}
+          </div>
 
           {runMode === 'codex' && (
             <div>

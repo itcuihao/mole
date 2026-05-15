@@ -105,8 +105,12 @@ export const en: Record<string, string> = {
   'burrows.runMode.sshConfigHint': 'Connect to a Host from ~/.ssh/config.',
   'burrows.runMode.tmuxAttachHint': 'Attach to an existing local tmux session.',
   'burrows.runMode.remoteTmuxHint': 'Attach to a tmux session on a remote machine over SSH.',
+  'burrows.runMode.local': 'Local',
+  'burrows.runMode.ssh': 'SSH Host',
+  'burrows.runMode.localHint': 'Execute commands on the local machine.',
+  'burrows.runMode.sshHint': 'Execute commands on a remote host with custom command support.',
 
-  // Empty state
+  // Modal fields
   'burrows.empty.title': 'Burrow Setup',
   'burrows.empty.description': 'Mole works best when you move through setup in a clear order instead of guessing which tab comes first.',
   'burrows.empty.profileTitle': 'Create a profile',
@@ -139,7 +143,10 @@ export const en: Record<string, string> = {
   'burrows.modal.addOne': 'Add one',
   'burrows.modal.selectHost': 'Select a saved host',
   'burrows.modal.command': 'Command',
-  'burrows.modal.commandPlaceholder': 'e.g., claude\nor: npm run dev\nor: ssh -J jumphost deploy@target',
+  'burrows.modal.commandPlaceholder': 'Leave empty = open terminal\nEnter command = execute command',
+  'burrows.modal.commandSshPlaceholder': 'Leave empty = SSH connect and open terminal\nEnter command = SSH remote execute',
+  'burrows.modal.commandHint': 'Leave empty to open an interactive terminal. Enter a command to execute it in the selected environment.',
+  'burrows.modal.execEnv': 'Execution Environment',
   'burrows.modal.codexConfig': 'Codex Configuration',
   'burrows.modal.noCodex': 'No Codex configurations yet. Add one in Settings first.',
   'burrows.modal.selectCodex': 'Select a Codex configuration',
@@ -233,6 +240,7 @@ export const en: Record<string, string> = {
   'profiles.form.secretPlaceholder': 'secret value (hidden)',
   'profiles.form.valuePlaceholder': 'value',
   'profiles.form.fixErrors': 'Fix invalid or duplicate variable names before saving.',
+  'profiles.form.providerLink': 'Visit provider site',
 
   // Bulk import modal
   'profiles.bulkImport.title': 'Bulk Import Variables',

@@ -105,8 +105,12 @@ export const zh: Record<string, string> = {
   'burrows.runMode.sshConfigHint': '从 ~/.ssh/config 选择 Host 并连接。',
   'burrows.runMode.tmuxAttachHint': '附加到已有的本地 tmux session。',
   'burrows.runMode.remoteTmuxHint': '通过 SSH 附加到远程机器上的 tmux session。',
+  'burrows.runMode.local': '本地',
+  'burrows.runMode.ssh': 'SSH 主机',
+  'burrows.runMode.localHint': '在本地机器上执行命令。',
+  'burrows.runMode.sshHint': '在远程主机上执行命令，支持自定义命令。',
 
-  // Empty state
+  // Modal fields
   'burrows.empty.title': '窟设置',
   'burrows.empty.description': 'Mole 在你按清晰顺序完成设置时效果最好，而不是猜测哪个标签先操作。',
   'burrows.empty.profileTitle': '创建配置',
@@ -138,8 +142,11 @@ export const zh: Record<string, string> = {
   'burrows.modal.noHosts': '还没有主机。',
   'burrows.modal.addOne': '去添加',
   'burrows.modal.selectHost': '选择已保存的主机',
-  'burrows.modal.command': '命令',
-  'burrows.modal.commandPlaceholder': '例如: claude\n或: npm run dev\n或: ssh -J jumphost deploy@target',
+  'burrows.modal.command': '执行命令',
+  'burrows.modal.commandPlaceholder': '留空 = 打开终端\n输入 = 执行命令',
+  'burrows.modal.commandSshPlaceholder': '留空 = SSH 连接并打开终端\n输入 = SSH 远程执行命令',
+  'burrows.modal.commandHint': '留空将打开一个交互式终端。输入命令后，将在所选环境中执行该命令。',
+  'burrows.modal.execEnv': '执行环境',
   'burrows.modal.codexConfig': 'Codex 配置',
   'burrows.modal.noCodex': '还没有 Codex 配置，请先在设置中添加。',
   'burrows.modal.dockerConfig': 'Docker 配置',
@@ -233,6 +240,7 @@ export const zh: Record<string, string> = {
   'profiles.form.secretPlaceholder': '密钥值（隐藏）',
   'profiles.form.valuePlaceholder': '值',
   'profiles.form.fixErrors': '请先修复无效或重复的变量名再保存。',
+  'profiles.form.providerLink': '访问提供商网站',
 
   // Bulk import modal
   'profiles.bulkImport.title': '批量导入变量',
