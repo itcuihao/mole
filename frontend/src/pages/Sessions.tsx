@@ -246,7 +246,7 @@ const formatWorkspaceForCd = (workspace: string) => {
   if (trimmed === '~' || trimmed.startsWith('~/')) {
     return trimmed
   }
-  return shellQuote(trimmed)
+  return trimmed
 }
 
 const withWorkspace = (workspace: string, command: string, fallbackToShell: boolean) => {
