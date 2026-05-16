@@ -84,7 +84,7 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          wails build -clean -platform windows/amd64 -nsis -o Mole
+          wails build -clean -platform windows/amd64 -nsis -o Mole.exe
 
       - name: Package Windows artifact
         shell: pwsh
@@ -95,21 +95,23 @@ jobs:
             throw "Build output directory not found: $binDir"
           }
 
-          $allExe = Get-ChildItem -Path $binDir -Filter *.exe -File
-          if ($allExe.Count -eq 0) {
+          $allCandidates = Get-ChildItem -Path $binDir -Recurse -File | Where-Object {
+            $_.Extension -eq ".exe" -or $_.Name -ieq "Mole"
+          }
+          if ($allCandidates.Count -eq 0) {
             Get-ChildItem -Path $binDir -Recurse | Format-Table -AutoSize
-            throw "No .exe file found under $binDir"
+            throw "No Windows executable candidate found under $binDir"
           }
 
-          $portableExe = $allExe | Where-Object { $_.Name -notmatch 'installer|setup|uninstall' } | Select-Object -First 1
+          $portableExe = $allCandidates | Where-Object { $_.Name -notmatch 'installer|setup|uninstall' } | Select-Object -First 1
           if ($null -eq $portableExe) {
-            $portableExe = $allExe | Select-Object -First 1
+            $portableExe = $allCandidates | Select-Object -First 1
           }
 
           $portableZip = "dist/Mole-${{ github.ref_name }}-windows-amd64.zip"
           Compress-Archive -Path $portableExe.FullName -DestinationPath $portableZip -Force
 
-          $installerExe = $allExe | Where-Object { $_.Name -match 'installer|setup' } | Select-Object -First 1
+          $installerExe = $allCandidates | Where-Object { $_.Name -match 'installer|setup' } | Select-Object -First 1
           if ($null -ne $installerExe) {
             Copy-Item $installerExe.FullName "dist/$($installerExe.Name)" -Force
           }
