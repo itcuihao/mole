@@ -9,6 +9,8 @@ import (
 
 func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	switch terminal.ID {
+	case TerminalPwsh:
+		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-Command", spec.CommandText)
 	case TerminalPowerShell:
 		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-Command", spec.CommandText)
 	case TerminalCMD:

@@ -37,13 +37,13 @@
 
 - macOS：Terminal.app、iTerm2、Ghostty、Rio、Warp、Alacritty、Kitty
 - Linux：Ghostty、Kitty、Alacritty、Rio、GNOME Terminal、Konsole、xterm
-- Windows：PowerShell、Command Prompt
+- Windows：PowerShell 7（pwsh）、Windows PowerShell、Command Prompt
 
 ### 当前状态
 
 - macOS 仍然是目前最成熟、验证最充分的路径
 - Linux 已经具备平台化的终端检测和启动逻辑，但还需要更多真实机器验证
-- Windows 当前假设系统中已安装 WSL，且默认 WSL 发行版内已安装 `tmux`。这条路径已经落地，但验证深度还不如 macOS
+- Windows 当前假设系统中已安装 WSL，至少完成一个发行版初始化，且默认 WSL 发行版内已安装 `tmux`。这条路径已经落地，但验证深度还不如 macOS
 
 ## 存储模型说明
 
@@ -110,7 +110,10 @@ cd frontend && npx tsc --noEmit
 
 - macOS：需要安装 `tmux`，并确保它在 `PATH` 中可用
 - Linux：需要安装 `tmux`，并确保它在 `PATH` 中可用
-- Windows：需要系统可调用 `wsl.exe`，并且默认 WSL 发行版中已安装 `tmux`
+- Windows：
+  - 需要系统可调用 `wsl.exe`
+  - 需要至少初始化一个 WSL 发行版
+  - 默认 WSL 发行版中需要已安装 `tmux`
 
 示例：
 
@@ -123,6 +126,12 @@ sudo apt install tmux
 
 # WSL（进入 Linux shell 后执行）
 sudo apt install tmux
+```
+
+如果还没有初始化发行版：
+
+```bash
+wsl --install -d Ubuntu
 ```
 
 ## 使用流程
@@ -177,6 +186,14 @@ KEY=value
 export DATABASE_URL=postgresql://localhost/app
 {"API_BASE_URL": "https://example.com", "TOKEN": "dev-token"}
 ```
+
+## Release
+
+GitHub Actions 会在推送 `v*` tag 时自动构建并发布 Release。当前产物包括：
+
+- macOS ZIP（arm64 + amd64）
+- Windows ZIP（amd64）
+- 对应 SHA256 校验文件
 
 ## 仓库说明
 

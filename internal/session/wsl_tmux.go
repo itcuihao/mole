@@ -23,11 +23,17 @@ func WslAvailable() bool {
 
 func EnsureWslTmuxAvailable() error {
 	if !WslAvailable() {
-		return ErrWslUnavailable
+		return fmt.Errorf("%w. Install WSL first: `wsl --install`", ErrWslUnavailable)
 	}
+
+	if err := ensureWslDistroReady(); err != nil {
+		return err
+	}
+
 	if !WslTmuxAvailable() {
-		return ErrWslTmuxUnavailable
+		return fmt.Errorf("%w. Open WSL and install tmux, for example: `sudo apt update && sudo apt install -y tmux`", ErrWslTmuxUnavailable)
 	}
+
 	return nil
 }
 
@@ -37,6 +43,30 @@ func WslTmuxAvailable() bool {
 
 	cmd := exec.CommandContext(ctx, "wsl.exe", "sh", "-lc", "command -v tmux >/dev/null 2>&1")
 	return cmd.Run() == nil
+}
+
+func ensureWslDistroReady() error {
+	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "wsl.exe", "sh", "-lc", "echo ready")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(string(output))
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "wsl has no installed distributions") ||
+		strings.Contains(lower, "there is no distribution with the supplied name") ||
+		strings.Contains(lower, "windows subsystem for linux has no installed distributions") {
+		return fmt.Errorf("wsl is installed but no distro is initialized. Run `wsl --install -d Ubuntu` and open it once to finish setup")
+	}
+
+	if trimmed != "" {
+		return fmt.Errorf("wsl is not ready: %s", trimmed)
+	}
+	return fmt.Errorf("wsl is not ready: %w", err)
 }
 
 func SyncWslTmuxSessionEnv(name string, env map[string]string) error {

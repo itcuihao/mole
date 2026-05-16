@@ -35,5 +35,6 @@ const (
 	TerminalTerminator = "terminator"
 	TerminalFoot       = "foot"
 	TerminalPowerShell = "powershell"
+	TerminalPwsh       = "pwsh"
 	TerminalCMD        = "cmd"
 )

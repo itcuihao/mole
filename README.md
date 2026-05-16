@@ -51,7 +51,8 @@ Also: System Tray, Burrow Export/Import, Profile change auto-sync, bilingual UI,
 | Tilix | | Yes | |
 | Terminator | | Yes | |
 | Foot | | Yes | |
-| PowerShell | | | Yes |
+| PowerShell 7 (pwsh) | | | Yes |
+| PowerShell (Windows PowerShell) | | | Yes |
 | CMD | | | Yes |
 
 ### Den grouping support
@@ -68,7 +69,7 @@ For terminals that cannot accept a command programmatically (Warp, some generic 
 
 - macOS is the most mature path and the main day-to-day target.
 - Linux has platform-aware terminal detection and launch plumbing, but needs broader real-machine validation.
-- Windows assumes WSL is installed and `tmux` is available inside WSL. This path is implemented but not validated as heavily as macOS.
+- Windows assumes WSL is installed, one distro has been initialized, and `tmux` is available inside WSL. This path is implemented but not validated as heavily as macOS.
 
 ## Storage Model
 
@@ -138,7 +139,10 @@ cd frontend && npx tsc --noEmit
 
 - macOS: `tmux` must be installed and available in `PATH`
 - Linux: `tmux` must be installed and available in `PATH`
-- Windows: `wsl.exe` must be available, and `tmux` must be installed inside your default WSL distribution
+- Windows:
+  - `wsl.exe` must be available
+  - at least one WSL distro must be initialized
+  - `tmux` must be installed inside your default WSL distribution
 
 ```bash
 # macOS
@@ -149,6 +153,12 @@ sudo apt install tmux
 
 # WSL (inside the Linux shell)
 sudo apt install tmux
+```
+
+If no distro is initialized yet:
+
+```bash
+wsl --install -d Ubuntu
 ```
 
 ## Usage Flow
@@ -206,7 +216,7 @@ export DATABASE_URL=postgresql://localhost/app
 
 ## Release
 
-Releases are built via GitHub Actions on `v*` tag push. The workflow produces macOS ZIP archives (arm64 + amd64) with SHA256 checksums and publishes a GitHub Release with auto-generated notes.
+Releases are built via GitHub Actions on `v*` tag push. The workflow produces macOS ZIP archives (arm64 + amd64) and a Windows ZIP archive (amd64), along with SHA256 checksums, then publishes a GitHub Release with auto-generated notes.
 
 ```bash
 ./scripts/release.sh --version v0.1.3

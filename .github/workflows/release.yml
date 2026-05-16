@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release-macos:
+  build-macos:
     name: Build macOS release assets
     runs-on: macos-latest
 
@@ -43,13 +43,84 @@ jobs:
       - name: Build release archives
         run: ./scripts/release.sh --version "${GITHUB_REF_NAME}"
 
-      - name: Upload workflow artifacts
+      - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: mole-${{ github.ref_name }}-macos
           path: dist/*
 
-      - name: Publish GitHub Release assets
+  build-windows:
+    name: Build Windows release assets
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+          "$env:GOPATH\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          wails build -clean -platform windows/amd64 -nsis -o Mole
+
+      - name: Package Windows artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "build/bin/Mole.exe" -DestinationPath "dist/Mole-${{ github.ref_name }}-windows-amd64.zip" -Force
+          Get-FileHash "dist/Mole-${{ github.ref_name }}-windows-amd64.zip" -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } |
+            Out-File -FilePath "dist/SHA256SUMS-windows" -Encoding ascii
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mole-${{ github.ref_name }}-windows
+          path: dist/*
+
+  publish-release:
+    name: Publish GitHub Release assets
+    runs-on: ubuntu-latest
+    needs:
+      - build-macos
+      - build-windows
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Collect release files
+        run: |
+          mkdir -p dist
+          find release-assets -type f -maxdepth 3 -exec cp {} dist/ \;
+          ls -lah dist
+
+      - name: Publish assets to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
