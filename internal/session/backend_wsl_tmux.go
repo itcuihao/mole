@@ -51,6 +51,10 @@ func (WslTmuxBackend) IsAlive(name string) bool {
 	return IsWslTmuxSessionAlive(name)
 }
 
+func (WslTmuxBackend) IsHealthy(name string) bool {
+	return IsWslTmuxSessionAlive(name)
+}
+
 func (WslTmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncWslTmuxSessionEnv(name, env)
 }

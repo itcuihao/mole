@@ -84,7 +84,7 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          wails build -clean -platform windows/amd64 -nsis -o Mole.exe
+          wails build -platform windows/amd64 -nsis -o Mole.exe
 
       - name: Package Windows artifact
         shell: pwsh

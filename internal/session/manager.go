@@ -107,7 +107,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return fmt.Errorf("session name must contain only letters, digits, underscores, and dashes")
 	}
 
-	backend, err := m.defaultBackend()
+	backend, err := m.resolveBackend(req.BackendID)
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,16 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	}
 	sess.NormalizeRuntimeMetadata()
 
-	backend, err := m.backendForSession(sess)
+	currentBackend, err := m.backendForSession(sess)
+	if err != nil {
+		return err
+	}
+
+	targetBackendID := strings.TrimSpace(req.BackendID)
+	if targetBackendID == "" {
+		targetBackendID = sess.EffectiveBackendID()
+	}
+	targetBackend, err := m.resolveBackend(targetBackendID)
 	if err != nil {
 		return err
 	}
@@ -367,7 +376,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	if prof, profErr := m.profileMgr.Get(profileID); profErr == nil {
 		nextSession.ProfileUpdatedAt = prof.UpdatedAt
 	}
-	nextSession.BackendID = backend.ID()
+	nextSession.BackendID = targetBackend.ID()
 	nextSession.Command = launchCfg.Command
 	nextSession.RunMode = normalizedRunMode
 	nextSession.HostID = launchCfg.HostID
@@ -382,11 +391,11 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 		return err
 	}
 
-	if err := backend.EnsureAvailable(); err != nil {
+	if err := targetBackend.EnsureAvailable(); err != nil {
 		return err
 	}
 
-	isAlive := backend.IsAlive(sess.RuntimeName())
+	isAlive := currentBackend.IsAlive(sess.RuntimeName())
 	var rollbackEnv map[string]string
 	canRollback := false
 
@@ -398,7 +407,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	}
 
 	if isAlive {
-		if err := backend.Kill(sess.RuntimeName()); err != nil {
+		if err := currentBackend.Kill(sess.RuntimeName()); err != nil {
 			return fmt.Errorf("failed to kill existing session: %w", err)
 		}
 	}
@@ -406,9 +415,9 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	// Update session metadata
 	sess = nextSession
 
-	if err := backend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
+	if err := targetBackend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
+			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
@@ -418,9 +427,9 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 
 	// Save updated metadata
 	if err := m.store.Update(sess); err != nil {
-		_ = backend.Kill(sess.RuntimeName())
+		_ = targetBackend.Kill(sess.RuntimeName())
 		if isAlive && canRollback {
-			if rollbackErr := backend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
+			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
@@ -696,14 +705,14 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 	}
 
 	runtimeName := sess.RuntimeName()
-	if IsTmuxSessionHealthy(runtimeName) {
+	if m.backendHealthy(backend, runtimeName) {
 		if err := backend.SyncEnv(runtimeName, env); err != nil {
 			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
 		}
 	} else {
 		// Session is dead or all panes exited — kill stale session and restart
 		// before attaching so the terminal doesn't open only to show "exited".
-		if IsTmuxSessionAlive(runtimeName) {
+		if backend.IsAlive(runtimeName) {
 			_ = backend.Kill(runtimeName)
 		}
 		command, cmdErr := m.commandForSession(sess)
@@ -735,6 +744,19 @@ func (m *Manager) defaultBackend() (SessionBackend, error) {
 	return nil, fmt.Errorf("default session backend %q is not registered", m.defaultBackendID)
 }
 
+func (m *Manager) resolveBackend(requestedBackendID string) (SessionBackend, error) {
+	backendID := strings.TrimSpace(requestedBackendID)
+	if backendID == "" {
+		return m.defaultBackend()
+	}
+	if m.backends != nil {
+		if backend, ok := m.backends[backendID]; ok {
+			return backend, nil
+		}
+	}
+	return nil, fmt.Errorf("session backend %q is not registered", backendID)
+}
+
 func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
 	backendID := sess.EffectiveBackendID()
 	if m.backends != nil {
@@ -743,6 +765,13 @@ func (m *Manager) backendForSession(sess Session) (SessionBackend, error) {
 		}
 	}
 	return nil, fmt.Errorf("session backend %q is not registered", backendID)
+}
+
+func (m *Manager) backendHealthy(backend SessionBackend, runtimeName string) bool {
+	if healthAware, ok := backend.(SessionHealthBackend); ok {
+		return healthAware.IsHealthy(runtimeName)
+	}
+	return backend.IsAlive(runtimeName)
 }
 
 func (m *Manager) resolveLaunchConfig(req LaunchRequest) (LaunchConfig, string, error) {

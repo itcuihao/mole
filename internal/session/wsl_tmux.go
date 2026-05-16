@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -31,7 +32,16 @@ func EnsureWslTmuxAvailable() error {
 	}
 
 	if !WslTmuxAvailable() {
-		return fmt.Errorf("%w. Open WSL and install tmux, for example: `sudo apt update && sudo apt install -y tmux`", ErrWslTmuxUnavailable)
+		verifyCmd := "wsl.exe sh -lc \"command -v tmux && tmux -V\""
+		if distro := configuredWslDistro(); distro != "" {
+			verifyCmd = fmt.Sprintf("wsl.exe -d %s sh -lc \"command -v tmux && tmux -V\"", distro)
+		}
+		return fmt.Errorf(
+			"%w%s. Open WSL and install tmux, for example: `sudo apt update && sudo apt install -y tmux`. Verify with `%s`",
+			ErrWslTmuxUnavailable,
+			wslDistroHint(),
+			verifyCmd,
+		)
 	}
 
 	return nil
@@ -41,7 +51,7 @@ func WslTmuxAvailable() bool {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "wsl.exe", "sh", "-lc", "command -v tmux >/dev/null 2>&1")
+	cmd := wslCommandContext(ctx, "sh", "-lc", "command -v tmux >/dev/null 2>&1")
 	return cmd.Run() == nil
 }
 
@@ -49,7 +59,7 @@ func ensureWslDistroReady() error {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "wsl.exe", "sh", "-lc", "echo ready")
+	cmd := wslCommandContext(ctx, "sh", "-lc", "echo ready")
 	output, err := cmd.CombinedOutput()
 	if err == nil {
 		return nil
@@ -236,6 +246,29 @@ func runWslShellCommand(script string) ([]byte, error) {
 }
 
 func runWslShellCommandContext(ctx context.Context, script string) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "wsl.exe", "sh", "-lc", script)
+	// Feed script over stdin instead of argv to avoid Windows CreateProcess
+	// argument-length/encoding edge cases for large env payloads.
+	cmd := wslCommandContext(ctx, "sh", "-s")
+	cmd.Stdin = strings.NewReader(script)
 	return cmd.CombinedOutput()
+}
+
+func configuredWslDistro() string {
+	return strings.TrimSpace(os.Getenv("MOLE_WSL_DISTRO"))
+}
+
+func wslDistroHint() string {
+	if distro := configuredWslDistro(); distro != "" {
+		return fmt.Sprintf(" (target distro: %s)", distro)
+	}
+	return ""
+}
+
+func wslCommandContext(ctx context.Context, args ...string) *exec.Cmd {
+	cmdArgs := make([]string, 0, len(args)+2)
+	if distro := configuredWslDistro(); distro != "" {
+		cmdArgs = append(cmdArgs, "-d", distro)
+	}
+	cmdArgs = append(cmdArgs, args...)
+	return exec.CommandContext(ctx, "wsl.exe", cmdArgs...)
 }

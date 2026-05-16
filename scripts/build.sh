@@ -54,7 +54,7 @@ fi
 cleanup_stale_app_bundle
 
 # Build
-wails build -clean
+wails build
 
 echo ""
 echo -e "${GREEN}✓ Build complete!${NC}"

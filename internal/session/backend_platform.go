@@ -16,10 +16,11 @@ func NewPlatformManager(storePath string, profileMgr *profile.Manager, invMgr *i
 func platformBackends() (SessionBackend, []SessionBackend) {
 	tmuxBackend := NewTmuxBackend()
 	wslTmuxBackend := NewWslTmuxBackend()
+	powerShellBackend := NewPowerShellBackend()
 
 	switch runtime.GOOS {
 	case "windows":
-		return wslTmuxBackend, []SessionBackend{tmuxBackend}
+		return wslTmuxBackend, []SessionBackend{tmuxBackend, powerShellBackend}
 	default:
 		return tmuxBackend, []SessionBackend{wslTmuxBackend}
 	}

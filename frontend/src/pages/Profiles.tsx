@@ -418,50 +418,79 @@ function ProfileForm({
 
   const handleBulkImport = (text: string) => {
     const newEntries: EnvEntry[] = []
-    const lines = text.split('\n')
+    const normalizeValue = (raw: string) => {
+      let value = raw.trim()
+      value = value.replace(/,\s*$/, '')
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1)
+      }
+      return value
+    }
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
+    const isValidEnvKey = (key: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)
 
-      // Try JSON format: {"KEY": "value", ...}
-      if (trimmed.startsWith('{')) {
-        try {
-          const obj = JSON.parse(trimmed)
-          for (const [key, value] of Object.entries(obj)) {
-            if (typeof value === 'string') {
-              newEntries.push({ key, value, isSecret: false })
-            }
-          }
+    const appendJsonObjectEntries = (obj: unknown) => {
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false
+      let appended = false
+      for (const [rawKey, rawValue] of Object.entries(obj as Record<string, unknown>)) {
+        const key = rawKey.trim()
+        if (!isValidEnvKey(key)) continue
+        if (typeof rawValue === 'string') {
+          newEntries.push({ key, value: rawValue, isSecret: false })
+          appended = true
           continue
-        } catch {
-          // Not JSON, try other formats
+        }
+        if (typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+          newEntries.push({ key, value: String(rawValue), isSecret: false })
+          appended = true
         }
       }
+      return appended
+    }
 
-      // Try export format: export KEY=value or export KEY="value"
-      const exportMatch = trimmed.match(/^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
-      if (exportMatch) {
-        const key = exportMatch[1]
-        let value = exportMatch[2]
-        // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1)
+    const wholeText = text.trim()
+    if (wholeText) {
+      try {
+        const parsed = JSON.parse(wholeText)
+        if (appendJsonObjectEntries(parsed)) {
+          // JSON object parsed successfully, skip line-by-line fallback.
+        } else {
+          // Fallback to line parser when JSON shape is unsupported.
+          throw new Error('unsupported json shape')
         }
-        newEntries.push({ key, value, isSecret: false })
-        continue
-      }
+      } catch {
+        const lines = text.split('\n')
+        for (const line of lines) {
+          const trimmed = line.trim()
+          if (!trimmed || trimmed.startsWith('#') || trimmed === '{' || trimmed === '}') continue
 
-      // Try simple format: KEY=value or KEY="value"
-      const simpleMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
-      if (simpleMatch) {
-        const key = simpleMatch[1]
-        let value = simpleMatch[2]
-        // Remove quotes if present
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-          value = value.slice(1, -1)
+          // Try export format: export KEY=value or export KEY="value"
+          const exportMatch = trimmed.match(/^export\s+([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+          if (exportMatch) {
+            const key = exportMatch[1]
+            const value = normalizeValue(exportMatch[2])
+            newEntries.push({ key, value, isSecret: false })
+            continue
+          }
+
+          // Try simple format: KEY=value or KEY="value"
+          const simpleMatch = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+          if (simpleMatch) {
+            const key = simpleMatch[1]
+            const value = normalizeValue(simpleMatch[2])
+            newEntries.push({ key, value, isSecret: false })
+            continue
+          }
+
+          // Try colon format: KEY: value / "KEY": "value",
+          const colonMatch = trimmed.match(/^"?(?:([A-Za-z_][A-Za-z0-9_]*))"?\s*:\s*(.*)$/)
+          if (colonMatch) {
+            const key = colonMatch[1]
+            const value = normalizeValue(colonMatch[2])
+            newEntries.push({ key, value, isSecret: false })
+            continue
+          }
         }
-        newEntries.push({ key, value, isSecret: false })
       }
     }
 
@@ -786,6 +815,7 @@ function BulkImportModal({
         <div className="space-y-1 rounded-md bg-background px-3 py-2 font-mono text-xs text-foreground">
           <div>export KEY=value</div>
           <div>KEY=value</div>
+          <div>KEY: value</div>
           <div>KEY="quoted value"</div>
           <div>{`{"KEY": "value", "KEY2": "value2"}`}</div>
         </div>

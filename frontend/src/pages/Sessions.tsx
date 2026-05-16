@@ -30,6 +30,7 @@ type SessionRecord = session.SessionStatus & {
 
 type SessionDraft = {
   profileID: string
+  backendID?: string
   runMode: string
   hostID: string
   codexConfigID?: string
@@ -64,6 +65,8 @@ const SESSION_SORT_LABEL_KEYS: Record<SessionSortMode, string> = {
 
 const ALL_PROFILE_FILTER_VALUE = '__all_profiles__'
 const NO_DEN_FILTER_VALUE = '__no_den__'
+const BACKEND_WSL_TMUX = 'wsl-tmux'
+const BACKEND_POWERSHELL = 'powershell'
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
 const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', ...EXTERNAL_PLUGIN_IDS])
@@ -527,6 +530,7 @@ const saveLastWorkspace = (cwd: string) => {
 const createSessionWithOptions = (
   profileID: string,
   name: string,
+  backendID: string,
   command: string,
   cwd: string,
   runMode: string,
@@ -541,6 +545,7 @@ const createSessionWithOptions = (
     return v2Method({
       profile_id: profileID,
       name,
+      backend_id: backendID,
       command,
       cwd,
       run_mode: runMode,
@@ -561,6 +566,7 @@ const createSessionWithOptions = (
 const updateSessionWithOptions = (
   sessionID: string,
   profileID: string,
+  backendID: string,
   command: string,
   cwd: string,
   runMode: string,
@@ -575,6 +581,7 @@ const updateSessionWithOptions = (
     return v2Method({
       session_id: sessionID,
       profile_id: profileID,
+      backend_id: backendID,
       command,
       cwd,
       run_mode: runMode,
@@ -1021,6 +1028,7 @@ function Sessions({
   const handleDuplicateSession = useCallback((sess: SessionRecord) => {
     setDuplicateDraft({
       profileID: sess.profile_id,
+      backendID: sess.backend_id || '',
       runMode: normalizeRunMode(sess.run_mode, Boolean(sess.command)),
       hostID: sess.host_id || '',
       codexConfigID: sess.codex_config_id || '',
@@ -1595,6 +1603,7 @@ function NewSessionModal({
   const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialDraft?.pluginConfigID || '')
   const [pluginData, setPluginData] = useState<Record<string, string>>(initialDraft?.pluginData || {})
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
+  const [selectedBackend, setSelectedBackend] = useState<string>(initialDraft?.backendID || BACKEND_WSL_TMUX)
   const [execEnv, setExecEnv] = useState<'local' | 'ssh'>(initialDraft?.execEnv || 'local')
   const [commandMode, setCommandMode] = useState<'auto' | 'manual'>(initialDraft?.commandMode || (initialDraft?.command ? 'manual' : 'auto'))
   const [selectedScriptID, setSelectedScriptID] = useState(initialDraft?.scriptID || '')
@@ -1618,6 +1627,7 @@ function NewSessionModal({
         const draft = JSON.parse(saved)
         if (draft.profileID) setSelectedProfile(draft.profileID)
         if (draft.runMode) setRunMode(draft.runMode)
+        if (draft.backendID) setSelectedBackend(draft.backendID)
         if (draft.execEnv) setExecEnv(draft.execEnv)
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.codexConfigID) setSelectedCodexConfigId(draft.codexConfigID)
@@ -1896,6 +1906,7 @@ function NewSessionModal({
 
   const buildDraft = (): SessionDraft => ({
     profileID: selectedProfile,
+    backendID: selectedBackend,
     runMode,
     hostID: selectedHostId,
     codexConfigID: selectedCodexConfigId,
@@ -1962,6 +1973,7 @@ function NewSessionModal({
       await createSessionWithOptions(
         selectedProfile,
         sessionName.trim(),
+        runtimeScriptPlatform === 'windows' ? selectedBackend : '',
         persistedCommand.trim(),
         cwd.trim(),
         effectiveRunMode,
@@ -2129,6 +2141,26 @@ function NewSessionModal({
               {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
+
+          {runtimeScriptPlatform === 'windows' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.runtimeBackend')}</label>
+              <Select value={selectedBackend} onValueChange={setSelectedBackend}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder={t('burrows.modal.runtimeBackend')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BACKEND_WSL_TMUX}>{t('burrows.modal.backendWslTmux')}</SelectItem>
+                  <SelectItem value={BACKEND_POWERSHELL}>{t('burrows.modal.backendPowerShell')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedBackend === BACKEND_POWERSHELL
+                  ? t('burrows.modal.backendPowerShellHint')
+                  : t('burrows.modal.backendWslTmuxHint')}
+              </p>
+            </div>
+          )}
 
           {execEnv === 'ssh' && (
             <div>
@@ -2498,6 +2530,7 @@ function EditSessionModal({
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialSession.codex_config_id || '')
   const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialSession.plugin_config_id || '')
   const [pluginData, setPluginData] = useState<Record<string, string>>(initialSession.plugin_data || {})
+  const [selectedBackend, setSelectedBackend] = useState<string>(initialSession.backend_id || BACKEND_WSL_TMUX)
   const [runMode, setRunMode] = useState<string>(
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
@@ -2812,6 +2845,7 @@ function EditSessionModal({
       await updateSessionWithOptions(
         initialSession.id,
         selectedProfile,
+        runtimeScriptPlatform === 'windows' ? selectedBackend : '',
         command.trim(),
         cwd.trim(),
         effectiveRunMode,
@@ -2912,6 +2946,26 @@ function EditSessionModal({
               {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
+
+          {runtimeScriptPlatform === 'windows' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.runtimeBackend')}</label>
+              <Select value={selectedBackend} onValueChange={setSelectedBackend}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder={t('burrows.modal.runtimeBackend')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BACKEND_WSL_TMUX}>{t('burrows.modal.backendWslTmux')}</SelectItem>
+                  <SelectItem value={BACKEND_POWERSHELL}>{t('burrows.modal.backendPowerShell')}</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {selectedBackend === BACKEND_POWERSHELL
+                  ? t('burrows.modal.backendPowerShellHint')
+                  : t('burrows.modal.backendWslTmuxHint')}
+              </p>
+            </div>
+          )}
 
           {execEnv === 'ssh' && (
             <div>

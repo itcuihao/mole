@@ -164,7 +164,7 @@ build_target() {
 
 	log_info "Building ${target}"
 
-	build_args=(-clean -platform "${target}" -o "${APP_NAME}")
+	build_args=(-platform "${target}" -o "${APP_NAME}")
 	if [ "${skip_frontend}" = "1" ]; then
 		build_args=(-s "${build_args[@]}")
 	fi

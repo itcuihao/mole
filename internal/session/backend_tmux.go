@@ -55,6 +55,10 @@ func (TmuxBackend) IsAlive(name string) bool {
 	return IsTmuxSessionAlive(name)
 }
 
+func (TmuxBackend) IsHealthy(name string) bool {
+	return IsTmuxSessionHealthy(name)
+}
+
 func (TmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncTmuxSessionEnv(name, env)
 }

@@ -3,8 +3,9 @@ package session
 import "mole/internal/terminal"
 
 const (
-	BackendIDTmux    = "tmux"
-	BackendIDWslTmux = "wsl-tmux"
+	BackendIDTmux       = "tmux"
+	BackendIDWslTmux    = "wsl-tmux"
+	BackendIDPowerShell = "powershell"
 )
 
 // RuntimeSessionInfo describes live session state as reported by a backend.
@@ -28,4 +29,10 @@ type SessionBackend interface {
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
 	BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error)
+}
+
+// SessionHealthBackend optionally reports deeper runtime health than mere existence.
+// Backends that do not implement this are treated as healthy whenever IsAlive returns true.
+type SessionHealthBackend interface {
+	IsHealthy(name string) bool
 }

@@ -89,6 +89,7 @@ func (s Session) WorkspaceConfig() WorkspaceSession {
 type SessionLaunchRequest struct {
 	ProfileID      string            `json:"profile_id"`
 	Name           string            `json:"name"`
+	BackendID      string            `json:"backend_id,omitempty"`
 	Cwd            string            `json:"cwd,omitempty"`
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
@@ -103,6 +104,7 @@ type SessionLaunchRequest struct {
 type SessionUpdateRequest struct {
 	SessionID      string            `json:"session_id"`
 	ProfileID      string            `json:"profile_id"`
+	BackendID      string            `json:"backend_id,omitempty"`
 	Cwd            string            `json:"cwd,omitempty"`
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`

@@ -564,6 +564,7 @@ export namespace session {
 	export class SessionLaunchRequest {
 	    profile_id: string;
 	    name: string;
+	    backend_id?: string;
 	    cwd?: string;
 	    command?: string;
 	    run_mode?: string;
@@ -581,6 +582,7 @@ export namespace session {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.profile_id = source["profile_id"];
 	        this.name = source["name"];
+	        this.backend_id = source["backend_id"];
 	        this.cwd = source["cwd"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
@@ -648,6 +650,7 @@ export namespace session {
 	export class SessionUpdateRequest {
 	    session_id: string;
 	    profile_id: string;
+	    backend_id?: string;
 	    cwd?: string;
 	    command?: string;
 	    run_mode?: string;
@@ -665,6 +668,7 @@ export namespace session {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.session_id = source["session_id"];
 	        this.profile_id = source["profile_id"];
+	        this.backend_id = source["backend_id"];
 	        this.cwd = source["cwd"];
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
@@ -704,4 +708,3 @@ export namespace terminal {
 	}
 
 }
-
