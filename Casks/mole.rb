@@ -1,7 +1,7 @@
 cask "mole" do
   arch arm: "arm64", intel: "amd64"
 
-  version "0.1.8"
+  version "0.1.9"
   sha256 :no_check
 
   url "https://github.com/itcuihao/mole/releases/download/v#{version}/Mole-v#{version}-macos-#{arch}.zip"
