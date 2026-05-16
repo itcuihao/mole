@@ -105,6 +105,13 @@ brew tap itcuihao/mole https://github.com/itcuihao/mole.git
 brew install --cask itcuihao/mole/mole
 ```
 
+To upgrade after installation:
+
+```bash
+brew update
+brew upgrade --cask mole
+```
+
 `tmux` is required at runtime. If you do not already have it:
 
 ```bash

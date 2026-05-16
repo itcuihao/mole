@@ -90,10 +90,34 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Compress-Archive -Path "build/bin/Mole.exe" -DestinationPath "dist/Mole-${{ github.ref_name }}-windows-amd64.zip" -Force
-          Get-FileHash "dist/Mole-${{ github.ref_name }}-windows-amd64.zip" -Algorithm SHA256 |
-            ForEach-Object { "$($_.Hash.ToLower())  $($_.Path | Split-Path -Leaf)" } |
-            Out-File -FilePath "dist/SHA256SUMS-windows" -Encoding ascii
+          $binDir = "build/bin"
+          if (!(Test-Path $binDir)) {
+            throw "Build output directory not found: $binDir"
+          }
+
+          $allExe = Get-ChildItem -Path $binDir -Filter *.exe -File
+          if ($allExe.Count -eq 0) {
+            Get-ChildItem -Path $binDir -Recurse | Format-Table -AutoSize
+            throw "No .exe file found under $binDir"
+          }
+
+          $portableExe = $allExe | Where-Object { $_.Name -notmatch 'installer|setup|uninstall' } | Select-Object -First 1
+          if ($null -eq $portableExe) {
+            $portableExe = $allExe | Select-Object -First 1
+          }
+
+          $portableZip = "dist/Mole-${{ github.ref_name }}-windows-amd64.zip"
+          Compress-Archive -Path $portableExe.FullName -DestinationPath $portableZip -Force
+
+          $installerExe = $allExe | Where-Object { $_.Name -match 'installer|setup' } | Select-Object -First 1
+          if ($null -ne $installerExe) {
+            Copy-Item $installerExe.FullName "dist/$($installerExe.Name)" -Force
+          }
+
+          Get-ChildItem -Path dist -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Out-File -FilePath "dist/SHA256SUMS-windows" -Encoding ascii
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4

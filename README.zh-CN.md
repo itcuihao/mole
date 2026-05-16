@@ -74,6 +74,13 @@ brew tap itcuihao/mole https://github.com/itcuihao/mole.git
 brew install --cask itcuihao/mole/mole
 ```
 
+安装后更新命令：
+
+```bash
+brew update
+brew upgrade --cask mole
+```
+
 Mole 运行时依赖 `tmux`。如果系统里还没有：
 
 ```bash
