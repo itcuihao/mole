@@ -94,12 +94,15 @@ jobs:
           if (!(Test-Path $binDir)) {
             throw "Build output directory not found: $binDir"
           }
+          Write-Host "== [debug] Recursive files under $binDir =="
+          Get-ChildItem -Path $binDir -Recurse -File | Select-Object FullName,Name,Length | Format-Table -AutoSize
 
           $allCandidates = Get-ChildItem -Path $binDir -Recurse -File | Where-Object {
             $_.Extension -eq ".exe" -or $_.Name -ieq "Mole"
           }
+          Write-Host "== [debug] Windows executable candidates =="
+          $allCandidates | Select-Object FullName,Name,Length | Format-Table -AutoSize
           if ($allCandidates.Count -eq 0) {
-            Get-ChildItem -Path $binDir -Recurse | Format-Table -AutoSize
             throw "No Windows executable candidate found under $binDir"
           }
 
@@ -107,19 +110,29 @@ jobs:
           if ($null -eq $portableExe) {
             $portableExe = $allCandidates | Select-Object -First 1
           }
+          Write-Host "== [debug] Selected portable executable: $($portableExe.FullName)"
 
           $portableZip = "dist/Mole-${{ github.ref_name }}-windows-amd64.zip"
           Compress-Archive -Path $portableExe.FullName -DestinationPath $portableZip -Force
+          Write-Host "== [debug] Portable zip created: $portableZip"
 
           $installerExe = $allCandidates | Where-Object { $_.Name -match 'installer|setup' } | Select-Object -First 1
           if ($null -ne $installerExe) {
             Copy-Item $installerExe.FullName "dist/$($installerExe.Name)" -Force
+            Write-Host "== [debug] Installer copied: $($installerExe.FullName)"
+          } else {
+            Write-Host "== [debug] Installer candidate not found (this can be normal)"
           }
 
-          Get-ChildItem -Path dist -File | ForEach-Object {
+          $hashTargets = Get-ChildItem -Path dist -File | Where-Object { $_.Name -ne "SHA256SUMS-windows" }
+          Write-Host "== [debug] Files included in SHA256 generation =="
+          $hashTargets | Select-Object FullName,Name,Length | Format-Table -AutoSize
+          $hashTargets | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)"
           } | Out-File -FilePath "dist/SHA256SUMS-windows" -Encoding ascii
+          Write-Host "== [debug] Final files under dist =="
+          Get-ChildItem -Path dist -File | Select-Object Name,Length | Format-Table -AutoSize
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
