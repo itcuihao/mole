@@ -156,7 +156,6 @@ func (PowerShellBackend) BuildAttachSpec(name string, env map[string]string, den
 
 	shouldRunCommand := state.command != "" && (!state.opened || state.runCommand)
 	script := buildPowerShellAttachScript(state.env, state.cwd, state.command, shouldRunCommand)
-	commandText := fmt.Sprintf("powershell.exe -NoExit -Command %s", quotePowerShellArgument(script))
 
 	state.runCommand = false
 	state.opened = true
@@ -164,8 +163,8 @@ func (PowerShellBackend) BuildAttachSpec(name string, env map[string]string, den
 	powerShellRuntimes.set(name, state)
 
 	return terminal.LaunchSpec{
-		CommandText:   commandText,
-		ClipboardText: commandText,
+		CommandText:   script,
+		ClipboardText: script,
 		Den:           den,
 	}, nil
 }
