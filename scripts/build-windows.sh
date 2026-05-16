@@ -16,6 +16,7 @@ DIST_DIR="${ROOT_DIR}/dist"
 VERSION=""
 WITH_NSIS=1
 SKIP_NPM_CI=0
+USE_GIT_HASH=0
 
 usage() {
 	cat <<'EOF'
@@ -25,6 +26,7 @@ Build Windows artifacts on local machine (tested for macOS host).
 
 Options:
   --version <value>   Version in output filename (default: git describe / dev)
+  --git-hash          Use commit hash instead of tag for version (e.g. 0.1.10-abc1234)
   --no-nsis           Build without NSIS installer generation
   --skip-npm-ci       Skip frontend dependency install step
   --help              Show this help
@@ -74,7 +76,22 @@ resolve_version() {
 	fi
 
 	if git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-		VERSION="$(git -C "${ROOT_DIR}" describe --tags --always --dirty)"
+		if [ "${USE_GIT_HASH}" = "1" ]; then
+			# Use latest tag + commit count + short hash (e.g. 0.1.10-3-abc1234)
+			local tag
+			tag="$(git -C "${ROOT_DIR}" describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")"
+			local count
+			count="$(git -C "${ROOT_DIR}" rev-list --count "${tag}..HEAD" 2>/dev/null || echo "0")"
+			local hash
+			hash="$(git -C "${ROOT_DIR}" rev-parse --short HEAD)"
+			if [ "${count}" = "0" ]; then
+				VERSION="${tag}"
+			else
+				VERSION="${tag}-${count}-g${hash}"
+			fi
+		else
+			VERSION="$(git -C "${ROOT_DIR}" describe --tags --always --dirty)"
+		fi
 	else
 		VERSION="dev"
 	fi
@@ -212,6 +229,10 @@ parse_args() {
 				[ "$#" -ge 2 ] || log_error "--version requires a value"
 				VERSION="$2"
 				shift 2
+				;;
+			--git-hash)
+				USE_GIT_HASH=1
+				shift
 				;;
 			--no-nsis)
 				WITH_NSIS=0

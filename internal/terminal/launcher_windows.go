@@ -5,6 +5,7 @@ package terminal
 import (
 	"fmt"
 	"os/exec"
+	"syscall"
 )
 
 func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
@@ -22,6 +23,9 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 
 func startTerminalProcess(path string, args ...string) error {
 	cmd := exec.Command(path, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: 0x00000010, // CREATE_NEW_CONSOLE
+	}
 	return cmd.Start()
 }
 
