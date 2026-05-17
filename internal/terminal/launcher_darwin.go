@@ -431,12 +431,21 @@ func launchRio(spec LaunchSpec) error {
 func launchWarp(spec LaunchSpec) error {
 	log.Printf("🚀 Launching Warp with command: %s", spec.CommandText)
 
-	// Resolve tmux path from ExecArgs (index 2 is the shell command starting with the tmux path).
-	tmuxPath := "tmux"
-	if len(spec.ExecArgs) >= 3 {
-		if idx := strings.Index(spec.ExecArgs[2], " "); idx > 0 {
-			tmuxPath = spec.ExecArgs[2][:idx]
+	// Resolve tmux path: prefer LookPath, then common install locations, then bare "tmux".
+	tmuxPath := ""
+	if resolved, err := exec.LookPath("tmux"); err == nil {
+		tmuxPath = resolved
+	}
+	if tmuxPath == "" {
+		for _, candidate := range []string{"/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"} {
+			if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+				tmuxPath = candidate
+				break
+			}
 		}
+	}
+	if tmuxPath == "" {
+		tmuxPath = "tmux"
 	}
 
 	// Extract session name from ExecArgs — the last arg is shellQuoted(tmuxPath); the
@@ -462,21 +471,30 @@ func launchWarp(spec LaunchSpec) error {
 	go func() {
 		time.Sleep(800 * time.Millisecond)
 		cleanCmd := fmt.Sprintf("%s attach -d -t '%s'", tmuxPath, sessionName)
+		log.Printf("📋 Warp paste command: %s", cleanCmd)
 		escapedCmd := strings.ReplaceAll(cleanCmd, `\`, `\\`)
 		escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
 		script := fmt.Sprintf(`
 			set the clipboard to "%s"
 			delay 0.1
 			tell application "Warp" to activate
-			delay 0.2
+			delay 0.5
 			tell application "System Events"
+				set frontmost of process "Warp" to true
+				delay 0.2
 				key code 9 using command down
+				delay 0.3
+				keystroke return
+				delay 0.1
+				key code 36
 				delay 0.1
 				key code 36
 			end tell
 		`, escapedCmd)
 		if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
 			log.Printf("⚠️ Warp AppleScript paste failed: %v (%s)", err, strings.TrimSpace(string(out)))
+		} else {
+			log.Println("🎉 Warp paste and enter succeeded")
 		}
 	}()
 
