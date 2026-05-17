@@ -4,6 +4,7 @@ package terminal
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -11,9 +12,9 @@ import (
 func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	switch terminal.ID {
 	case TerminalPwsh:
-		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-Command", spec.CommandText)
+		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", spec.CommandText)
 	case TerminalPowerShell:
-		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-Command", spec.CommandText)
+		return startTerminalProcess(terminal.ExecPath, "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", spec.CommandText)
 	case TerminalCMD:
 		return startTerminalProcess(terminal.ExecPath, "/k", spec.CommandText)
 	default:
@@ -26,6 +27,10 @@ func startTerminalProcess(path string, args ...string) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: 0x00000010, // CREATE_NEW_CONSOLE
 	}
+	// 重定向到操作系统标准设备，确保能正常弹出独立窗口
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	return cmd.Start()
 }
 
