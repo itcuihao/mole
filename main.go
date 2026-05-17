@@ -26,6 +26,10 @@ func main() {
 		},
 		BackgroundColour:  &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		HideWindowOnClose: true,
+		OnBeforeClose: func(ctx context.Context) bool {
+			hideDockIcon()
+			return false
+		},
 		OnStartup: func(ctx context.Context) {
 			setApplicationIcon(appIconData)
 			app.startup(ctx)

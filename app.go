@@ -24,7 +24,7 @@ import (
 	"mole/internal/scriptcfg"
 	"mole/internal/session"
 	"mole/internal/terminal"
-	"mole/internal/tray"
+	"mole/internal/traymenu"
 	"mole/internal/workspace"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -606,12 +606,8 @@ func (a *App) startTray() {
 	}
 
 	a.trayOnce.Do(func() {
-		go tray.Run(tray.Callbacks{
+		go traymenu.Run(traymenu.Callbacks{
 			OnShowWindow: a.showWindow,
-			OnNewSession: func() {
-				a.showWindow()
-				runtime.EventsEmit(a.ctx, "tray:new-session")
-			},
 			OnAttach: func(sessionID string) {
 				if _, err := a.sessionMgr.Attach(sessionID); err != nil {
 					log.Printf("[Tray] Attach failed for %s: %v", sessionID, err)
@@ -630,12 +626,13 @@ func (a *App) showWindow() {
 		return
 	}
 
+	showDockIcon()
 	runtime.Show(a.ctx)
 	runtime.WindowShow(a.ctx)
 	runtime.WindowUnminimise(a.ctx)
 }
 
-func (a *App) traySessions() []tray.SessionInfo {
+func (a *App) traySessions() []traymenu.SessionInfo {
 	if a.sessionMgr == nil {
 		return nil
 	}
@@ -659,16 +656,26 @@ func (a *App) traySessions() []tray.SessionInfo {
 		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
 	})
 
-	result := make([]tray.SessionInfo, 0, len(sessions))
+	result := make([]traymenu.SessionInfo, 0, len(sessions))
 	for _, sess := range sessions {
-		result = append(result, tray.SessionInfo{
+		result = append(result, traymenu.SessionInfo{
 			SessionID:   sess.ID,
 			Name:        sess.Name,
 			ProfileName: sess.ProfileName,
+			Den:         sess.Den,
+			Terminal:    a.defaultTerminalID(),
 			Attached:    sess.Attached,
 			Alive:       sess.Alive,
 		})
 	}
 
 	return result
+}
+
+func (a *App) defaultTerminalID() string {
+	settings, err := config.LoadSettings()
+	if err != nil || settings.DefaultTerminal == "" {
+		return terminal.GetDefaultTerminal().ID
+	}
+	return settings.DefaultTerminal
 }

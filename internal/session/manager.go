@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"mole/internal/codex"
@@ -31,6 +32,8 @@ type Manager struct {
 	backends         map[string]SessionBackend
 	defaultBackendID string
 	plugins          *pluginRegistry
+	lastLaunchMu     sync.Mutex
+	lastLaunch       map[string]time.Time // debounce: session ID → last launch time
 }
 
 // NewManager creates a new session Manager.
@@ -64,6 +67,7 @@ func NewManagerWithBackends(storePath string, profileMgr *profile.Manager, invMg
 		backends:         registry,
 		defaultBackendID: defaultBackend.ID(),
 		plugins:          newPluginRegistry(),
+		lastLaunch:       make(map[string]time.Time),
 	}
 	m.registerBuiltinPlugins(invMgr)
 	return m
@@ -566,6 +570,10 @@ func (m *Manager) Restart(sessionID string) error {
 // Returns (profileChanged, error) where profileChanged indicates the profile was
 // modified since the session was last started.
 func (m *Manager) Attach(sessionID string) (bool, error) {
+	if m.isLaunchThrottled(sessionID) {
+		return false, nil
+	}
+
 	terminalID, err := m.defaultTerminalID()
 	if err != nil {
 		return false, err
@@ -598,6 +606,10 @@ func (m *Manager) Attach(sessionID string) (bool, error) {
 
 // AttachWithTerminal opens a specific terminal and attaches to a runtime session.
 func (m *Manager) AttachWithTerminal(sessionID, terminalID string) (bool, error) {
+	if m.isLaunchThrottled(sessionID) {
+		return false, nil
+	}
+
 	focused, focusErr := m.focusAttachedSession(sessionID, terminalID)
 	if focusErr != nil {
 		return false, focusErr
@@ -621,6 +633,18 @@ func (m *Manager) AttachWithTerminal(sessionID, terminalID string) (bool, error)
 		fmt.Printf("⚠️ failed to record session usage for [%s]: %v\n", sess.ID, touchErr)
 	}
 	return profileChanged, nil
+}
+
+// isLaunchThrottled returns true if this session was launched within the last 1.5s.
+func (m *Manager) isLaunchThrottled(sessionID string) bool {
+	m.lastLaunchMu.Lock()
+	defer m.lastLaunchMu.Unlock()
+	now := time.Now()
+	if last, ok := m.lastLaunch[sessionID]; ok && now.Sub(last) < 1500*time.Millisecond {
+		return true
+	}
+	m.lastLaunch[sessionID] = now
+	return false
 }
 
 func (m *Manager) focusAttachedSession(sessionID, terminalID string) (bool, error) {

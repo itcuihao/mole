@@ -469,33 +469,30 @@ func launchWarp(spec LaunchSpec) error {
 	}
 	_ = exec.Command("open", warpURI).Start()
 
-	// Step 2: After Warp opens, paste the command via clipboard + Cmd+V + double Enter.
-	go func() {
-		time.Sleep(1200 * time.Millisecond)
-
-		escapedCmd := strings.ReplaceAll(cleanAttachCmd, `\`, `\\`)
-		escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
-
-		script := fmt.Sprintf(`
-			set the clipboard to "%s"
-			delay 0.1
-			tell application "Warp" to activate
-			tell application "System Events"
+	// Step 2: Single-fire paste with try-wrapped AppleScript.
+	escapedCmd := strings.ReplaceAll(cleanAttachCmd, `\`, `\\`)
+	escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
+	pureScript := fmt.Sprintf(`
+		set the clipboard to "%s"
+		delay 0.1
+		tell application "Warp" to activate
+		tell application "System Events"
+			try
 				set frontmost of process "Warp" to true
-				delay 0.3
+				delay 0.2
 				key code 9 using command down
 				delay 0.6
 				keystroke return
 				delay 0.15
 				key code 36
-			end tell
-		`, escapedCmd)
+			end try
+		end tell
+	`, escapedCmd)
 
-		if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
-			log.Printf("⚠️ Warp AppleScript paste failed: %v (%s)", err, strings.TrimSpace(string(out)))
-		} else {
-			log.Println("🎉 Warp paste and enter succeeded")
-		}
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		_ = exec.Command("osascript", "-e", pureScript).Run()
+		log.Println("🎉 Warp paste and enter done")
 	}()
 
 	return nil
