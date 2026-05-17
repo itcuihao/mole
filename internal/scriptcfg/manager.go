@@ -21,6 +21,10 @@ func NewManager(storePath string) *Manager {
 	}
 }
 
+func (m *Manager) Get(id string) (Config, error) {
+	return m.store.Get(id)
+}
+
 func (m *Manager) List() ([]Config, error) {
 	configs, err := m.store.List()
 	if err != nil {

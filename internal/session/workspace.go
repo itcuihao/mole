@@ -10,6 +10,7 @@ type WorkspaceSession struct {
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`
+	ScriptID       string            `json:"script_id,omitempty"`
 	CodexConfigID  string            `json:"codex_config_id,omitempty"`
 	PluginConfigID string            `json:"plugin_config_id,omitempty"`
 	PluginData     map[string]string `json:"plugin_data,omitempty"`

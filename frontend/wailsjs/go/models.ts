@@ -569,6 +569,7 @@ export namespace session {
 	    command?: string;
 	    run_mode?: string;
 	    host_id?: string;
+	    script_id?: string;
 	    codex_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
@@ -587,6 +588,7 @@ export namespace session {
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
+	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
@@ -604,6 +606,7 @@ export namespace session {
 	    command: string;
 	    run_mode?: string;
 	    host_id?: string;
+	    script_id?: string;
 	    codex_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
@@ -633,6 +636,7 @@ export namespace session {
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
+	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
@@ -655,6 +659,7 @@ export namespace session {
 	    command?: string;
 	    run_mode?: string;
 	    host_id?: string;
+	    script_id?: string;
 	    codex_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
@@ -673,6 +678,7 @@ export namespace session {
 	        this.command = source["command"];
 	        this.run_mode = source["run_mode"];
 	        this.host_id = source["host_id"];
+	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
@@ -708,3 +714,4 @@ export namespace terminal {
 	}
 
 }
+

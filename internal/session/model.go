@@ -12,6 +12,7 @@ const (
 	RunModeK8sPod     = "k8s_pod"
 	RunModeTmuxAttach = "tmux_attach"
 	RunModeRemoteTmux = "remote_tmux"
+	RunModeScript     = "script"
 )
 
 // Session represents stored metadata for a runtime session.
@@ -26,6 +27,7 @@ type Session struct {
 	Command          string            `json:"command"` // Optional command to run (e.g., "claude")
 	RunMode          string            `json:"run_mode,omitempty"`
 	HostID           string            `json:"host_id,omitempty"`
+	ScriptID         string            `json:"script_id,omitempty"`
 	CodexConfigID    string            `json:"codex_config_id,omitempty"`
 	PluginConfigID   string            `json:"plugin_config_id,omitempty"`
 	PluginData       map[string]string `json:"plugin_data,omitempty"`
@@ -75,6 +77,7 @@ func (s Session) WorkspaceConfig() WorkspaceSession {
 		Command:        s.Command,
 		RunMode:        s.RunMode,
 		HostID:         s.HostID,
+		ScriptID:       s.ScriptID,
 		CodexConfigID:  s.CodexConfigID,
 		PluginConfigID: s.PluginConfigID,
 		PluginData:     s.PluginData,
@@ -92,6 +95,7 @@ type SessionLaunchRequest struct {
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`
+	ScriptID       string            `json:"script_id,omitempty"`
 	CodexConfigID  string            `json:"codex_config_id,omitempty"`
 	PluginConfigID string            `json:"plugin_config_id,omitempty"`
 	PluginData     map[string]string `json:"plugin_data,omitempty"`
@@ -107,6 +111,7 @@ type SessionUpdateRequest struct {
 	Command        string            `json:"command,omitempty"`
 	RunMode        string            `json:"run_mode,omitempty"`
 	HostID         string            `json:"host_id,omitempty"`
+	ScriptID       string            `json:"script_id,omitempty"`
 	CodexConfigID  string            `json:"codex_config_id,omitempty"`
 	PluginConfigID string            `json:"plugin_config_id,omitempty"`
 	PluginData     map[string]string `json:"plugin_data,omitempty"`

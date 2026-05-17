@@ -13,6 +13,7 @@ import (
 	"mole/internal/inventory"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
+	"mole/internal/scriptcfg"
 	"mole/internal/terminal"
 
 	"github.com/google/uuid"
@@ -85,6 +86,11 @@ func (m *Manager) SetPluginConfigManager(pluginConfigMgr *pluginconfig.Manager) 
 	m.registerPresetPlugins(pluginConfigMgr)
 }
 
+// SetScriptManager wires the script config manager and registers the script plugin.
+func (m *Manager) SetScriptManager(scriptMgr *scriptcfg.Manager) {
+	m.plugins.register(NewScriptPlugin(scriptMgr))
+}
+
 // Create creates a new runtime session with the environment from a profile.
 func (m *Manager) Create(profileID, sessionName, command, runMode, hostID, codexConfigID, den, cwd string) error {
 	return m.CreateWithRequest(SessionLaunchRequest{
@@ -125,6 +131,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		Command:        req.Command,
 		RunMode:        req.RunMode,
 		HostID:         req.HostID,
+		ScriptID:       req.ScriptID,
 		CodexConfigID:  req.CodexConfigID,
 		PluginConfigID: req.PluginConfigID,
 		PluginData:     req.PluginData,
@@ -159,6 +166,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		Command:          launchCfg.Command,
 		RunMode:          normalizedRunMode,
 		HostID:           launchCfg.HostID,
+		ScriptID:         launchCfg.ScriptID,
 		CodexConfigID:    launchCfg.CodexConfigID,
 		PluginConfigID:   launchCfg.PluginConfigID,
 		PluginData:       launchCfg.PluginData,
@@ -354,6 +362,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 		Command:        req.Command,
 		RunMode:        req.RunMode,
 		HostID:         req.HostID,
+		ScriptID:       req.ScriptID,
 		CodexConfigID:  req.CodexConfigID,
 		PluginConfigID: req.PluginConfigID,
 		PluginData:     req.PluginData,
@@ -380,6 +389,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	nextSession.Command = launchCfg.Command
 	nextSession.RunMode = normalizedRunMode
 	nextSession.HostID = launchCfg.HostID
+	nextSession.ScriptID = launchCfg.ScriptID
 	nextSession.CodexConfigID = launchCfg.CodexConfigID
 	nextSession.PluginConfigID = launchCfg.PluginConfigID
 	nextSession.PluginData = launchCfg.PluginData
@@ -778,12 +788,13 @@ func (m *Manager) resolveLaunchConfig(req LaunchRequest) (LaunchConfig, string, 
 	normalizedRunMode := strings.TrimSpace(req.RunMode)
 	req.Command = strings.TrimSpace(req.Command)
 	req.HostID = strings.TrimSpace(req.HostID)
+	req.ScriptID = strings.TrimSpace(req.ScriptID)
 	req.CodexConfigID = strings.TrimSpace(req.CodexConfigID)
 	req.PluginConfigID = strings.TrimSpace(req.PluginConfigID)
 	req.PluginData = trimStringMap(req.PluginData)
 
 	if normalizedRunMode == "" {
-		normalizedRunMode = m.inferRunMode(req.Command, req.HostID, req.CodexConfigID)
+		normalizedRunMode = m.inferRunMode(req.Command, req.HostID, req.CodexConfigID, req.ScriptID)
 	}
 
 	plugin, ok := m.plugins.get(normalizedRunMode)
@@ -954,12 +965,13 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		command := strings.TrimSpace(cfg.Command)
 		runMode := strings.TrimSpace(cfg.RunMode)
 		hostID := strings.TrimSpace(cfg.HostID)
+		scriptID := strings.TrimSpace(cfg.ScriptID)
 		codexConfigID := strings.TrimSpace(cfg.CodexConfigID)
 		pluginConfigID := strings.TrimSpace(cfg.PluginConfigID)
 		pluginData := trimStringMap(cfg.PluginData)
 
 		if runMode == "" {
-			runMode = m.inferRunMode(command, hostID, codexConfigID)
+			runMode = m.inferRunMode(command, hostID, codexConfigID, scriptID)
 		}
 
 		plugin, ok := m.plugins.get(runMode)
@@ -979,6 +991,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 				Command:        command,
 				RunMode:        runMode,
 				HostID:         hostID,
+				ScriptID:       scriptID,
 				CodexConfigID:  codexConfigID,
 				PluginConfigID: pluginConfigID,
 				PluginData:     pluginData,
@@ -988,6 +1001,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			}
 			command = launchCfg.Command
 			hostID = launchCfg.HostID
+			scriptID = launchCfg.ScriptID
 			codexConfigID = launchCfg.CodexConfigID
 			pluginConfigID = launchCfg.PluginConfigID
 			pluginData = launchCfg.PluginData
@@ -1019,6 +1033,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			Command:         command,
 			RunMode:         runMode,
 			HostID:          hostID,
+			ScriptID:        scriptID,
 			CodexConfigID:   codexConfigID,
 			PluginConfigID:  pluginConfigID,
 			PluginData:      pluginData,
@@ -1137,8 +1152,10 @@ func (m *Manager) registerPresetPlugins(resolver pluginConfigResolver) {
 	m.plugins.register(NewRemoteTmuxPlugin(resolver))
 }
 
-func (m *Manager) inferRunMode(command, hostID, codexConfigID string) string {
+func (m *Manager) inferRunMode(command, hostID, codexConfigID, scriptID string) string {
 	switch {
+	case scriptID != "":
+		return RunModeScript
 	case codexConfigID != "":
 		return RunModeCodex
 	case hostID != "":

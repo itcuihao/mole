@@ -19,6 +19,7 @@ type SessionSortMode = 'most_used' | 'name' | 'profile'
 type SessionRecord = session.SessionStatus & {
   run_mode?: string
   host_id?: string
+  script_id?: string
   codex_config_id?: string
   plugin_config_id?: string
   plugin_data?: Record<string, string>
@@ -69,7 +70,7 @@ const BACKEND_WSL_TMUX = 'wsl-tmux'
 const BACKEND_POWERSHELL = 'powershell'
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
-const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', ...EXTERNAL_PLUGIN_IDS])
+const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', 'script', ...EXTERNAL_PLUGIN_IDS])
 const isExternalPluginMode = (mode: string) => EXTERNAL_PLUGIN_IDS.includes(mode)
 
 const pluginConfigSummary = (pluginID: string, cfg?: pluginconfig.Config | null) => {
@@ -532,6 +533,7 @@ const createSessionWithOptions = (
   cwd: string,
   runMode: string,
   hostID: string,
+  scriptID: string,
   codexConfigID: string,
   pluginConfigID: string,
   pluginData: Record<string, string>,
@@ -547,6 +549,7 @@ const createSessionWithOptions = (
       cwd,
       run_mode: runMode,
       host_id: hostID,
+      script_id: scriptID,
       codex_config_id: codexConfigID,
       plugin_config_id: pluginConfigID,
       plugin_data: pluginData,
@@ -568,6 +571,7 @@ const updateSessionWithOptions = (
   cwd: string,
   runMode: string,
   hostID: string,
+  scriptID: string,
   codexConfigID: string,
   pluginConfigID: string,
   pluginData: Record<string, string>,
@@ -583,6 +587,7 @@ const updateSessionWithOptions = (
       cwd,
       run_mode: runMode,
       host_id: hostID,
+      script_id: scriptID,
       codex_config_id: codexConfigID,
       plugin_config_id: pluginConfigID,
       plugin_data: pluginData,
@@ -1028,6 +1033,7 @@ function Sessions({
       backendID: sess.backend_id || '',
       runMode: normalizeRunMode(sess.run_mode, Boolean(sess.command)),
       hostID: sess.host_id || '',
+      scriptID: sess.script_id || '',
       codexConfigID: sess.codex_config_id || '',
       pluginConfigID: sess.plugin_config_id || '',
       pluginData: sess.plugin_data || {},
@@ -1954,10 +1960,14 @@ function NewSessionModal({
       // Determine the effective run mode based on execEnv and command
       let effectiveRunMode = runMode
       let effectiveHostId = ''
+      let effectiveScriptId = ''
 
       if (execEnv === 'ssh') {
         effectiveRunMode = 'host'
         effectiveHostId = selectedHostId
+      } else if (selectedScriptID && execEnv === 'local') {
+        effectiveRunMode = 'script'
+        effectiveScriptId = selectedScriptID
       } else {
         // execEnv === 'local'
         if (persistedCommand.trim()) {
@@ -1975,6 +1985,7 @@ function NewSessionModal({
         cwd.trim(),
         effectiveRunMode,
         effectiveHostId,
+        effectiveScriptId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},
@@ -2535,7 +2546,7 @@ function EditSessionModal({
     normalizeRunMode(initialSession.run_mode, Boolean(initialSession.command))
   )
   const [commandMode, setCommandMode] = useState<'auto' | 'manual'>(
-    initialSession.run_mode === 'custom' ? 'manual' : 'auto'
+    initialSession.run_mode === 'custom' || initialSession.run_mode === 'script' ? 'manual' : 'auto'
   )
   const [selectedScriptID, setSelectedScriptID] = useState('')
   const [scriptFallback, setScriptFallback] = useState<{ command: string; mode: 'auto' | 'manual' } | null>(null)
@@ -2677,6 +2688,15 @@ function EditSessionModal({
       return
     }
 
+    if (initialSession.run_mode === 'script' && initialSession.script_id) {
+      setRunMode('custom')
+      setExecEnv('local')
+      setSelectedScriptID(initialSession.script_id)
+      setCommandMode('manual')
+      setCommand(initialSession.command || '')
+      return
+    }
+
     if (initialSession.run_mode === 'codex' && initialSession.codex_config_id) {
       setRunMode('codex')
       setExecEnv('local')
@@ -2723,7 +2743,7 @@ function EditSessionModal({
     setCommandMode('auto')
     setSelectedScriptID('')
     setCommand('')
-  }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, inv, hostMap, scriptConfigs])
+  }, [hydrated, initialSession.command, initialSession.host_id, initialSession.run_mode, initialSession.script_id, inv, hostMap, scriptConfigs])
 
   useEffect(() => {
     // Edit flow: keep the stored host selection; do not auto-pick the first
@@ -2829,10 +2849,14 @@ function EditSessionModal({
       // Determine the effective run mode based on execEnv and command
       let effectiveRunMode = runMode
       let effectiveHostId = ''
+      let effectiveScriptId = ''
 
       if (execEnv === 'ssh') {
         effectiveRunMode = 'host'
         effectiveHostId = selectedHostId
+      } else if (selectedScriptID && execEnv === 'local') {
+        effectiveRunMode = 'script'
+        effectiveScriptId = selectedScriptID
       } else {
         // execEnv === 'local'
         if (command.trim()) {
@@ -2850,6 +2874,7 @@ function EditSessionModal({
         cwd.trim(),
         effectiveRunMode,
         effectiveHostId,
+        effectiveScriptId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},

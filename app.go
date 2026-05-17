@@ -71,6 +71,7 @@ func (a *App) startup(ctx context.Context) {
 	a.sessionMgr.SetCodexManager(a.codexMgr)
 	a.sessionMgr.SetDockerManager(a.dockerMgr)
 	a.sessionMgr.SetPluginConfigManager(a.pluginConfigMgr)
+	a.sessionMgr.SetScriptManager(a.scriptMgr)
 }
 
 // domReady wires desktop integrations that rely on the frontend runtime being available.
