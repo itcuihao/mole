@@ -275,7 +275,8 @@ const buildResolvedCommand = ({
   const normalizedHostCommand = hostCommand.trim()
 
   if (execEnv === 'local') {
-    return withWorkspace(workspace, normalizedStartup, true)
+    // Backend sets working directory via tmux -c; no need to prepend cd.
+    return normalizedStartup
   }
 
   if (!normalizedHostCommand) {

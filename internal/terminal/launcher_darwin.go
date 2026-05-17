@@ -431,16 +431,79 @@ func launchRio(spec LaunchSpec) error {
 func launchWarp(spec LaunchSpec) error {
 	log.Printf("🚀 Launching Warp with command: %s", spec.CommandText)
 
-	// Try Warp URI scheme first — opens a new window reliably.
-	uri := "warp://action/new_window"
-	cmd := exec.Command("open", uri)
-	if err := cmd.Run(); err == nil {
-		log.Printf("✅ Warp launched via URI scheme")
+	// Resolve tmux path from ExecArgs (index 2 is the shell command starting with the tmux path).
+	tmuxPath := "tmux"
+	if len(spec.ExecArgs) >= 3 {
+		if idx := strings.Index(spec.ExecArgs[2], " "); idx > 0 {
+			tmuxPath = spec.ExecArgs[2][:idx]
+		}
+	}
+
+	// Extract session name from ExecArgs — the last arg is shellQuoted(tmuxPath); the
+	// attach target follows "attach -d -t" in the shell command (ExecArgs[2]).
+	sessionName := extractSessionFromShellCommand(spec.ExecArgs)
+	if sessionName == "" {
+		// Fallback: try URI scheme + clipboard so user can paste manually.
+		log.Printf("⚠️ Warp: could not extract session name, using clipboard fallback")
+		_ = exec.Command("open", "warp://action/new_window").Run()
+		copyToClipboard(spec.ClipboardText)
 		return nil
 	}
 
-	log.Printf("⚠️ Warp URI scheme failed, falling back to temp script")
-	return launchWithScript("Warp", spec)
+	// Step 1: Open a new Warp window via URI scheme.
+	if err := exec.Command("open", "warp://action/new_window").Run(); err != nil {
+		log.Printf("⚠️ Warp URI scheme failed, falling back to temp script: %v", err)
+		return launchWithScript("Warp", spec)
+	}
+	log.Printf("✅ Warp opened via URI scheme")
+
+	// Step 2: After Warp opens, send a clean tmux attach command via AppleScript.
+	// Warp does not accept commands via open --args; use keystroke injection instead.
+	go func() {
+		time.Sleep(800 * time.Millisecond)
+		cleanCmd := fmt.Sprintf("%s attach -d -t '%s'", tmuxPath, sessionName)
+		escapedCmd := strings.ReplaceAll(cleanCmd, `\`, `\\`)
+		escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
+		script := fmt.Sprintf(`
+			tell application "Warp" to activate
+			delay 0.3
+			tell application "System Events"
+				keystroke "%s"
+				key code 36
+			end tell
+		`, escapedCmd)
+		if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
+			log.Printf("⚠️ Warp AppleScript keystroke failed: %v (%s)", err, strings.TrimSpace(string(out)))
+		}
+	}()
+
+	return nil
+}
+
+// extractSessionFromShellCommand parses the tmux session name from ExecArgs.
+// ExecArgs layout: [runnerShell, runnerFlag, shellCommand, shellQuote(tmuxPath)]
+// shellCommand contains "... attach -d -t 'session'".
+func extractSessionFromShellCommand(args []string) string {
+	if len(args) < 3 {
+		return ""
+	}
+	shellCmd := args[2]
+	// Look for " attach -d -t " or " attach -t " marker.
+	for _, marker := range []string{" attach -d -t ", " attach -t "} {
+		_, rest, found := strings.Cut(shellCmd, marker)
+		if !found {
+			continue
+		}
+		rest = strings.TrimSpace(rest)
+		// Session name is shellQuoted: 'name' or 'name'\''s'
+		if len(rest) >= 2 && rest[0] == '\'' {
+			end := strings.Index(rest[1:], "'")
+			if end >= 0 {
+				return rest[1 : end+1]
+			}
+		}
+	}
+	return ""
 }
 
 func launchGeneric(appPath, commandText string) error {
