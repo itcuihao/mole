@@ -27,6 +27,7 @@ import (
 	"mole/internal/traymenu"
 	"mole/internal/workspace"
 
+	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -62,6 +63,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
+	a.seedDefaultProfiles()
 	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
 	a.dockerMgr = docker.NewManager(config.DockerConfigsPath())
 	a.scriptMgr = scriptcfg.NewManager(config.ScriptConfigsPath())
@@ -74,9 +76,32 @@ func (a *App) startup(ctx context.Context) {
 	a.sessionMgr.SetScriptManager(a.scriptMgr)
 }
 
+// seedDefaultProfiles creates the built-in maxx-free-claude profile when no profiles exist.
+func (a *App) seedDefaultProfiles() {
+	profiles, err := a.profileMgr.List()
+	if err != nil || len(profiles) > 0 {
+		return
+	}
+
+	p := profile.Profile{
+		ID:             uuid.New().String(),
+		Name:           "maxx-free-claude",
+		Description:    "Free Claude Code via Maxx proxy",
+		DefaultCommand: "claude",
+		EnvVars: map[string]string{
+			"ANTHROPIC_AUTH_TOKEN": "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9",
+			"ANTHROPIC_BASE_URL":  "https://maxx-direct.cloverstd.com/project/haoc/",
+		},
+		SecretKeys: []string{"ANTHROPIC_AUTH_TOKEN"},
+		CreatedAt:  time.Now().Format(time.RFC3339Nano),
+	}
+	if err := a.profileMgr.Save(p, nil); err != nil {
+		log.Printf("Failed to seed default profile: %v", err)
+	}
+}
+
 // domReady wires desktop integrations that rely on the frontend runtime being available.
 func (a *App) domReady(ctx context.Context) {
-	a.startTray()
 }
 
 // GetProviderPresets returns all built-in provider preset templates.
@@ -626,7 +651,6 @@ func (a *App) showWindow() {
 		return
 	}
 
-	showDockIcon()
 	runtime.Show(a.ctx)
 	runtime.WindowShow(a.ctx)
 	runtime.WindowUnminimise(a.ctx)
