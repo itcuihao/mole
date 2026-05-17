@@ -8,9 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
@@ -24,7 +22,6 @@ import (
 	"mole/internal/scriptcfg"
 	"mole/internal/session"
 	"mole/internal/terminal"
-	"mole/internal/traymenu"
 	"mole/internal/workspace"
 
 	"github.com/google/uuid"
@@ -41,7 +38,6 @@ type App struct {
 	pluginConfigMgr *pluginconfig.Manager
 	sessionMgr      *session.Manager
 	invMgr          *inventory.Manager
-	trayOnce        sync.Once
 }
 
 // NewApp creates a new App instance.
@@ -76,11 +72,16 @@ func (a *App) startup(ctx context.Context) {
 	a.sessionMgr.SetScriptManager(a.scriptMgr)
 }
 
-// seedDefaultProfiles creates the built-in maxx-free-claude profile when no profiles exist.
+// seedDefaultProfiles creates the built-in maxx-free-claude profile if it doesn't already exist.
 func (a *App) seedDefaultProfiles() {
 	profiles, err := a.profileMgr.List()
-	if err != nil || len(profiles) > 0 {
+	if err != nil {
 		return
+	}
+	for _, p := range profiles {
+		if p.Name == "maxx-free-claude" {
+			return
+		}
 	}
 
 	p := profile.Profile{
@@ -623,77 +624,6 @@ func expandUserHome(path string) string {
 		return filepath.Join(home, path[2:])
 	}
 	return path
-}
-
-func (a *App) startTray() {
-	if a.ctx == nil || a.sessionMgr == nil {
-		return
-	}
-
-	a.trayOnce.Do(func() {
-		go traymenu.Run(traymenu.Callbacks{
-			OnShowWindow: a.showWindow,
-			OnAttach: func(sessionID string) {
-				if _, err := a.sessionMgr.Attach(sessionID); err != nil {
-					log.Printf("[Tray] Attach failed for %s: %v", sessionID, err)
-				}
-			},
-			OnQuit: func() {
-				runtime.Quit(a.ctx)
-			},
-			GetSessions: a.traySessions,
-		})
-	})
-}
-
-func (a *App) showWindow() {
-	if a.ctx == nil {
-		return
-	}
-
-	runtime.Show(a.ctx)
-	runtime.WindowShow(a.ctx)
-	runtime.WindowUnminimise(a.ctx)
-}
-
-func (a *App) traySessions() []traymenu.SessionInfo {
-	if a.sessionMgr == nil {
-		return nil
-	}
-
-	sessions, err := a.sessionMgr.ListWithStatus()
-	if err != nil {
-		log.Printf("[Tray] Failed to list sessions: %v", err)
-		return nil
-	}
-
-	sort.SliceStable(sessions, func(i, j int) bool {
-		left := sessions[i]
-		right := sessions[j]
-
-		if left.Attached != right.Attached {
-			return left.Attached
-		}
-		if left.Alive != right.Alive {
-			return left.Alive
-		}
-		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
-	})
-
-	result := make([]traymenu.SessionInfo, 0, len(sessions))
-	for _, sess := range sessions {
-		result = append(result, traymenu.SessionInfo{
-			SessionID:   sess.ID,
-			Name:        sess.Name,
-			ProfileName: sess.ProfileName,
-			Den:         sess.Den,
-			Terminal:    a.defaultTerminalID(),
-			Attached:    sess.Attached,
-			Alive:       sess.Alive,
-		})
-	}
-
-	return result
 }
 
 func (a *App) defaultTerminalID() string {

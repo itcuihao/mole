@@ -9,5 +9,10 @@
   "author": {
     "name": "haoc",
     "email": "haoc@opera.com"
+  },
+  "mac": {
+    "infoPlist": {
+      "LSUIElement": "true"
+    }
   }
 }

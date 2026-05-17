@@ -5,7 +5,6 @@ go 1.22.0
 toolchain go1.24.1
 
 require (
-	fyne.io/systray v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/wailsapp/wails/v2 v2.12.0
 )
