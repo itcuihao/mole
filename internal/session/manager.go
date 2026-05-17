@@ -738,6 +738,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 	if err != nil {
 		return Session{}, terminal.LaunchSpec{}, false, err
 	}
+	launchSpec.Cwd = sess.Cwd
 
 	return sess, launchSpec, profileChanged, nil
 }

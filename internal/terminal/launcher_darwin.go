@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -452,45 +453,44 @@ func launchWarp(spec LaunchSpec) error {
 	// attach target follows "attach -d -t" in the shell command (ExecArgs[2]).
 	sessionName := extractSessionFromShellCommand(spec.ExecArgs)
 	if sessionName == "" {
-		// Fallback: try URI scheme + clipboard so user can paste manually.
 		log.Printf("⚠️ Warp: could not extract session name, using clipboard fallback")
-		_ = exec.Command("open", "warp://action/new_window").Run()
+		_ = exec.Command("open", "-n", "-a", "Warp").Start()
 		copyToClipboard(spec.ClipboardText)
 		return nil
 	}
 
-	// Step 1: Open a new Warp window via URI scheme.
-	if err := exec.Command("open", "warp://action/new_window").Run(); err != nil {
-		log.Printf("⚠️ Warp URI scheme failed, falling back to temp script: %v", err)
-		return launchWithScript("Warp", spec)
-	}
-	log.Printf("✅ Warp opened via URI scheme")
+	// Step 1: Open Warp via URI scheme with workspace path.
+	cleanAttachCmd := fmt.Sprintf("%s attach -d -t '%s'", tmuxPath, sessionName)
+	log.Printf("📋 Warp paste command: %s", cleanAttachCmd)
 
-	// Step 2: After Warp opens, paste the command via clipboard + Cmd+V.
-	// Using clipboard paste instead of keystroke avoids Chinese IME interception.
+	warpURI := "warp://action/new_window"
+	if spec.Cwd != "" {
+		warpURI = "warp://action/new_window?" + url.Values{"path": {spec.Cwd}}.Encode()
+	}
+	_ = exec.Command("open", warpURI).Start()
+
+	// Step 2: After Warp opens, paste the command via clipboard + Cmd+V + double Enter.
 	go func() {
-		time.Sleep(800 * time.Millisecond)
-		cleanCmd := fmt.Sprintf("%s attach -d -t '%s'", tmuxPath, sessionName)
-		log.Printf("📋 Warp paste command: %s", cleanCmd)
-		escapedCmd := strings.ReplaceAll(cleanCmd, `\`, `\\`)
+		time.Sleep(1200 * time.Millisecond)
+
+		escapedCmd := strings.ReplaceAll(cleanAttachCmd, `\`, `\\`)
 		escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
+
 		script := fmt.Sprintf(`
 			set the clipboard to "%s"
 			delay 0.1
 			tell application "Warp" to activate
-			delay 0.5
 			tell application "System Events"
 				set frontmost of process "Warp" to true
-				delay 0.2
-				key code 9 using command down
 				delay 0.3
+				key code 9 using command down
+				delay 0.6
 				keystroke return
-				delay 0.1
-				key code 36
-				delay 0.1
+				delay 0.15
 				key code 36
 			end tell
 		`, escapedCmd)
+
 		if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
 			log.Printf("⚠️ Warp AppleScript paste failed: %v (%s)", err, strings.TrimSpace(string(out)))
 		} else {
