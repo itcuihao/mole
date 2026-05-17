@@ -3,12 +3,17 @@
 package terminal
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -50,9 +55,9 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	case TerminalWarp:
 		return launchWarp(spec)
 	case TerminalAlacritty:
-		return launchOpenApp("Alacritty", append([]string{"-e"}, spec.ExecArgs...)...)
+		return launchWithScript("Alacritty", spec)
 	case TerminalKitty:
-		return launchOpenApp("kitty", spec.ExecArgs...)
+		return launchWithScript("kitty", spec)
 	default:
 		return launchGeneric(terminal.AppPath, spec.CommandText)
 	}
@@ -101,6 +106,74 @@ func escapeAppleScript(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return s
+}
+
+// writeTempLaunchScript writes commandText to a temp .sh file in the mole config dir
+// and returns its path. The file is created with executable permission.
+func writeTempLaunchScript(commandText string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home dir: %w", err)
+	}
+	dir := filepath.Join(home, ".config", "mole")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("cannot create config dir: %w", err)
+	}
+
+	b := make([]byte, 6)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("cannot generate random name: %w", err)
+	}
+	name := fmt.Sprintf(".mole-launch-%s.sh", hex.EncodeToString(b))
+	path := filepath.Join(dir, name)
+
+	content := "#!/bin/sh\n" + commandText + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
+		return "", fmt.Errorf("cannot write launch script: %w", err)
+	}
+	return path, nil
+}
+
+// cleanupOldLaunchScripts removes .mole-launch-*.sh files older than 1 hour.
+func cleanupOldLaunchScripts() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, ".config", "mole")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().Add(-1 * time.Hour)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), ".mole-launch-") || !strings.HasSuffix(e.Name(), ".sh") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+}
+
+// launchWithScript writes a temp script and opens the app with -e /bin/bash <script>.
+func launchWithScript(appName string, spec LaunchSpec) error {
+	cleanupOldLaunchScripts()
+
+	scriptPath, err := writeTempLaunchScript(spec.CommandText)
+	if err != nil {
+		return fmt.Errorf("%s: failed to write launch script: %w", appName, err)
+	}
+
+	cmd := exec.Command("open", "-n", "-a", appName, "--args", "-e", "/bin/bash", scriptPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s failed: %s: %w", appName, string(output), err)
+	}
+	return nil
 }
 
 func launchTerminalApp(commandText string) error {
@@ -352,62 +425,22 @@ func launchGhostty(spec LaunchSpec) error {
 
 func launchRio(spec LaunchSpec) error {
 	log.Printf("🚀 Launching Rio with command: %s", spec.CommandText)
-	return launchOpenAppNewInstance("Rio", append([]string{"-e"}, spec.ExecArgs...)...)
-}
-
-func launchOpenAppNewInstance(appName string, terminalArgs ...string) error {
-	args := []string{"-n", "-a", appName}
-	if len(terminalArgs) > 0 {
-		args = append(args, "--args")
-		args = append(args, terminalArgs...)
-	}
-	cmd := exec.Command("open", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s failed: %s: %w", appName, string(output), err)
-	}
-	return nil
-}
-
-func launchOpenApp(appName string, terminalArgs ...string) error {
-	args := []string{"-a", appName}
-	if len(terminalArgs) > 0 {
-		args = append(args, "--args")
-		args = append(args, terminalArgs...)
-	}
-	cmd := exec.Command("open", args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%s failed: %s: %w", appName, string(output), err)
-	}
-	return nil
+	return launchWithScript("Rio", spec)
 }
 
 func launchWarp(spec LaunchSpec) error {
 	log.Printf("🚀 Launching Warp with command: %s", spec.CommandText)
 
-	args := append([]string{"-a", "Warp", "--args", "-e"}, spec.ExecArgs...)
-	cmd := exec.Command("open", args...)
+	// Try Warp URI scheme first — opens a new window reliably.
+	uri := "warp://action/new_window"
+	cmd := exec.Command("open", uri)
 	if err := cmd.Run(); err == nil {
-		log.Printf("✅ Warp launched via method 1 (-e flag)")
+		log.Printf("✅ Warp launched via URI scheme")
 		return nil
 	}
 
-	cmd = exec.Command("open", "-a", "Warp", "--args", "--command", spec.CommandText)
-	if err := cmd.Run(); err == nil {
-		log.Printf("✅ Warp launched via method 2 (--command flag)")
-		return nil
-	}
-
-	log.Printf("⚠️ Warp direct execution failed, falling back to clipboard")
-	copyToClipboard(clipboardText(spec))
-
-	cmd = exec.Command("open", "-a", "Warp")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Printf("❌ Warp error: %v | Output: %s", err, string(output))
-		return fmt.Errorf("Warp failed: %s: %w", string(output), err)
-	}
-
-	log.Printf("💡 Command copied to clipboard for manual paste")
-	return nil
+	log.Printf("⚠️ Warp URI scheme failed, falling back to temp script")
+	return launchWithScript("Warp", spec)
 }
 
 func launchGeneric(appPath, commandText string) error {
