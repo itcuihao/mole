@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -202,6 +203,21 @@ func TmuxAvailable() bool {
 	return err == nil
 }
 
+// TmuxSessionCwd returns the current working directory of the first pane in the session.
+func TmuxSessionCwd(name string) string {
+	tmuxPath, err := tmuxExecutable()
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, tmuxPath, "display-message", "-t", name, "-p", "#{pane_current_path}").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // CreateTmuxSession creates a new detached tmux session with environment variables.
 // If command is non-empty and runCommand is true, auto-runs the startup command;
 // if runCommand is false, defers execution until the user explicitly opens the session.
@@ -246,6 +262,8 @@ func CreateTmuxSession(name string, env map[string]string, command string, cwd s
 
 	shellCmd := fmt.Sprintf(". %s; exec %s", shellQuote(envScriptPath), shellQuote(userShell))
 	startDir := resolveSessionWorkingDir(cwd)
+
+	log.Printf("🏗️ tmux new-session: name=%s cwd=%q resolvedCwd=%q command=%q userShell=%s", name, cwd, startDir, command, userShell)
 
 	// Use a stable default working directory instead of inheriting Mole's process
 	// cwd, which is often the repo root in development.

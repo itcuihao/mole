@@ -28,6 +28,7 @@ func (unsupportedPowerShellBackend) Kill(string) error                          
 func (unsupportedPowerShellBackend) Detach(string) error                                { return nil }
 func (unsupportedPowerShellBackend) IsAlive(string) bool                                { return false }
 func (unsupportedPowerShellBackend) SyncEnv(string, map[string]string) error            { return nil }
-func (unsupportedPowerShellBackend) BuildAttachSpec(string, map[string]string, string) (terminal.LaunchSpec, error) {
+func (unsupportedPowerShellBackend) BuildAttachSpec(string, map[string]string, string, string) (terminal.LaunchSpec, error) {
 	return terminal.LaunchSpec{}, fmt.Errorf("powershell backend is only available on Windows")
 }
+func (unsupportedPowerShellBackend) SessionCwd(string) string { return "" }

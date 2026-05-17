@@ -3,6 +3,9 @@ package session
 import (
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -398,7 +401,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	nextSession.PluginConfigID = launchCfg.PluginConfigID
 	nextSession.PluginData = launchCfg.PluginData
 	nextSession.Den = strings.TrimSpace(req.Den)
-	nextSession.Cwd = strings.TrimSpace(req.Cwd)
+	nextSession.Cwd = expandTilde(strings.TrimSpace(req.Cwd))
 
 	newEnv, nextSession.Command, err = m.prepareLaunchEnv(nextSession, newEnv, nextSession.Command)
 	if err != nil {
@@ -592,9 +595,10 @@ func (m *Manager) Attach(sessionID string) (bool, error) {
 		return false, err
 	}
 
+	log.Printf("🚀 Attach: terminal=%s session=%s cwd=%q den=%q commandText=%q", terminalID, sess.Name, sess.Cwd, sess.Den, launchSpec.CommandText)
+
 	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
-		// Log error for debugging
 		fmt.Printf("❌ Attach error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
 		return false, err
 	}
@@ -623,9 +627,10 @@ func (m *Manager) AttachWithTerminal(sessionID, terminalID string) (bool, error)
 		return false, err
 	}
 
+	log.Printf("🚀 AttachWithTerminal: terminal=%s session=%s cwd=%q den=%q commandText=%q", terminalID, sess.Name, sess.Cwd, sess.Den, launchSpec.CommandText)
+
 	err = terminal.Launch(terminalID, launchSpec)
 	if err != nil {
-		// Log error for debugging
 		fmt.Printf("❌ AttachWithTerminal error [terminal=%s, session=%s]: %v\n", terminalID, sess.RuntimeName(), err)
 		return false, err
 	}
@@ -719,6 +724,10 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session not found: %w", err)
 	}
 	sess.NormalizeRuntimeMetadata()
+	sess.Cwd = expandTilde(sess.Cwd)
+
+	log.Printf("🔍 resolveAttachLaunchSpec: session=%s runMode=%s cwd=%q profile=%q den=%q",
+		sess.Name, sess.RunMode, sess.Cwd, sess.ProfileID, sess.Den)
 
 	// Detect profile changes since session was last started
 	profileChanged := false
@@ -740,25 +749,44 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 
 	runtimeName := sess.RuntimeName()
 	if m.backendHealthy(backend, runtimeName) {
-		if err := backend.SyncEnv(runtimeName, env); err != nil {
-			fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
+		// If the session's working directory changed (e.g. user edited the session),
+		// kill and recreate so the tmux pane starts in the right place.
+		liveCwd := backend.SessionCwd(runtimeName)
+		if liveCwd != "" && sess.Cwd != "" && filepath.Clean(liveCwd) != filepath.Clean(sess.Cwd) {
+			log.Printf("🔄 Session %s cwd changed (%s → %s), recreating", runtimeName, liveCwd, sess.Cwd)
+			_ = backend.Kill(runtimeName)
+			command, cmdErr := m.commandForSession(sess)
+			if cmdErr != nil {
+				return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
+			}
+			log.Printf("📦 Create session: name=%s cwd=%q command=%q envVars=%d", runtimeName, sess.Cwd, command, len(env))
+			if createErr := backend.Create(runtimeName, env, command, sess.Cwd, true); createErr != nil {
+				return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session recreate failed: %w", createErr)
+			}
+		} else {
+			log.Printf("✓ Session %s healthy, liveCwd=%q expectedCwd=%q, syncing env (%d vars)", runtimeName, liveCwd, sess.Cwd, len(env))
+			if err := backend.SyncEnv(runtimeName, env); err != nil {
+				fmt.Printf("⚠️ failed to refresh backend env for [%s]: %v\n", runtimeName, err)
+			}
 		}
 	} else {
 		// Session is dead or all panes exited — kill stale session and restart
 		// before attaching so the terminal doesn't open only to show "exited".
 		if backend.IsAlive(runtimeName) {
+			log.Printf("♻️ Session %s alive but unhealthy, killing for restart", runtimeName)
 			_ = backend.Kill(runtimeName)
 		}
 		command, cmdErr := m.commandForSession(sess)
 		if cmdErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 		}
+		log.Printf("📦 Create session: name=%s cwd=%q command=%q envVars=%d", runtimeName, sess.Cwd, command, len(env))
 		if createErr := backend.Create(runtimeName, env, command, sess.Cwd, true); createErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
 
-	launchSpec, err := backend.BuildAttachSpec(runtimeName, env, sess.Den)
+	launchSpec, err := backend.BuildAttachSpec(runtimeName, env, sess.Den, sess.Cwd)
 	if err != nil {
 		return Session{}, terminal.LaunchSpec{}, false, err
 	}
@@ -1190,4 +1218,18 @@ func (m *Manager) inferRunMode(command, hostID, codexConfigID, scriptID string) 
 	default:
 		return RunModeShell
 	}
+}
+
+func expandTilde(path string) string {
+	if path == "" {
+		return path
+	}
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home + path[1:]
+	}
+	return path
 }

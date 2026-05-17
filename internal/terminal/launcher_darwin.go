@@ -177,6 +177,7 @@ func launchWithScript(appName string, spec LaunchSpec) error {
 	return nil
 }
 
+
 func launchTerminalApp(commandText string) error {
 	log.Printf("🚀 Launching Terminal.app with command: %s", commandText)
 	output, err := runOsaScriptWithArg([]string{

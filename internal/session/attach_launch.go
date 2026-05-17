@@ -59,7 +59,7 @@ func buildTmuxAttachShellCommand(tmuxPath, session, envScriptPath string) string
 	return fmt.Sprintf(". %s && %s", shellQuote(envScriptPath), attachCommand)
 }
 
-func buildTmuxAttachLaunchSpec(session string, env map[string]string, den string) (terminal.LaunchSpec, error) {
+func buildTmuxAttachLaunchSpec(session string, env map[string]string, den string, _ string) (terminal.LaunchSpec, error) {
 	tmuxPath, err := tmuxExecutable()
 	if err != nil {
 		return terminal.LaunchSpec{}, err

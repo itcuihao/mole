@@ -63,6 +63,10 @@ func (TmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncTmuxSessionEnv(name, env)
 }
 
-func (TmuxBackend) BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error) {
-	return buildTmuxAttachLaunchSpec(name, env, den)
+func (TmuxBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
+	return buildTmuxAttachLaunchSpec(name, env, den, cwd)
+}
+
+func (TmuxBackend) SessionCwd(name string) string {
+	return TmuxSessionCwd(name)
 }

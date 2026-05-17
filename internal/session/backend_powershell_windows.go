@@ -144,7 +144,9 @@ func (PowerShellBackend) SyncEnv(name string, env map[string]string) error {
 	return nil
 }
 
-func (PowerShellBackend) BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error) {
+func (PowerShellBackend) SessionCwd(string) string { return "" }
+
+func (PowerShellBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
 	state, ok := powerShellRuntimes.get(name)
 	if !ok {
 		return terminal.LaunchSpec{}, fmt.Errorf("powershell runtime %q not found", name)

@@ -59,6 +59,8 @@ func (WslTmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncWslTmuxSessionEnv(name, env)
 }
 
-func (WslTmuxBackend) BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error) {
+func (WslTmuxBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
 	return buildWslTmuxAttachLaunchSpec(name, env)
 }
+
+func (WslTmuxBackend) SessionCwd(string) string { return "" }

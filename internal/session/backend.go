@@ -28,7 +28,9 @@ type SessionBackend interface {
 	Detach(name string) error
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
-	BuildAttachSpec(name string, env map[string]string, den string) (terminal.LaunchSpec, error)
+	BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error)
+	// SessionCwd returns the live working directory of the session, or "" if unknown.
+	SessionCwd(name string) string
 }
 
 // SessionHealthBackend optionally reports deeper runtime health than mere existence.
