@@ -278,7 +278,7 @@ foreach ($key in @("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_
 if ($envMap.Count -gt 0) { $settings."claude-code.environmentVariables" = $envMap } else { $settings.Remove("claude-code.environmentVariables") }
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
-code -n $Workspace
+Start-Process "code" -ArgumentList "-n $Workspace"
 `
 
 func quoteShellArg(value string) string {

@@ -7,4 +7,4 @@ if (!(Test-Path $ConfigFile)) { Write-Error "缺少配置: $ConfigFile"; exit 1 
 Set-Location $ProjectDir
 if (!(Test-Path ".claude")) { New-Item -ItemType Directory -Path ".claude" | Out-Null }
 
-code $ProjectDir
+Start-Process "code" -ArgumentList "-n $ProjectDir"
