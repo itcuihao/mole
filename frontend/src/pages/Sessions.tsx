@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { cn } from "@/lib/utils"
 import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from "@/lib/mascot-events"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -2270,16 +2270,19 @@ function NewSessionModal({
           </div>
 
           <div>
-            {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && (
-              <div className="mb-3">
-                <label className="mb-1 block text-sm text-muted-foreground">{t('burrows.modal.scriptPreset')}</label>
-                {sortedScriptConfigs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t('burrows.modal.scriptPresetEmpty')}</p>
-                ) : (
-                  <Select
-                    value={selectedScriptID || '__none__'}
-                    onValueChange={value => {
-                      if (value === '__none__') {
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-muted-foreground">{t('burrows.modal.command')}</label>
+              {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && sortedScriptConfigs.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      {selectedScriptID ? sortedScriptConfigs.find(c => c.id === selectedScriptID)?.name || t('burrows.modal.fromPreset') : t('burrows.modal.fromPreset')}
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onSelect={() => {
                         if (scriptFallback) {
                           setCommand(scriptFallback.command)
                           setCommandMode(scriptFallback.mode)
@@ -2288,33 +2291,33 @@ function NewSessionModal({
                         }
                         setScriptFallback(null)
                         setSelectedScriptID('')
-                        return
-                      }
-                      if (!selectedScriptID) {
-                        setScriptFallback({ command, mode: commandMode })
-                      }
-                      const selectedScript = sortedScriptConfigs.find(item => item.id === value)
-                      setSelectedScriptID(value)
-                      if (selectedScript?.command) {
-                        setCommandMode('manual')
-                        setCommand(selectedScript.command)
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder={t('burrows.modal.scriptPresetPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t('common.none')}</SelectItem>
-                      {sortedScriptConfigs.map(cfg => (
-                        <SelectItem key={cfg.id} value={cfg.id}>{cfg.name || cfg.id}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
-            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
+                      }}
+                    >
+                      {!selectedScriptID && <Check className="h-3.5 w-3.5 mr-2" />}
+                      <span className={!selectedScriptID ? '' : 'ml-[1.375rem]'}>{t('common.none')}</span>
+                    </DropdownMenuItem>
+                    {sortedScriptConfigs.map(cfg => (
+                      <DropdownMenuItem
+                        key={cfg.id}
+                        onSelect={() => {
+                          if (!selectedScriptID) {
+                            setScriptFallback({ command, mode: commandMode })
+                          }
+                          setSelectedScriptID(cfg.id)
+                          if (cfg.command) {
+                            setCommandMode('manual')
+                            setCommand(cfg.command)
+                          }
+                        }}
+                      >
+                        {selectedScriptID === cfg.id && <Check className="h-3.5 w-3.5 mr-2" />}
+                        <span className={selectedScriptID === cfg.id ? '' : 'ml-[1.375rem]'}>{cfg.name || cfg.id}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             <textarea
               value={command}
               onChange={e => {
@@ -3022,16 +3025,19 @@ function EditSessionModal({
           </div>
 
           <div>
-            {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && (
-              <div className="mb-3">
-                <label className="mb-1 block text-sm text-muted-foreground">{t('burrows.modal.scriptPreset')}</label>
-                {sortedScriptConfigs.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t('burrows.modal.scriptPresetEmpty')}</p>
-                ) : (
-                  <Select
-                    value={selectedScriptID || '__none__'}
-                    onValueChange={value => {
-                      if (value === '__none__') {
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-muted-foreground">{t('burrows.modal.command')}</label>
+              {execEnv === 'local' && (runMode === 'shell' || runMode === 'custom' || runMode === 'host') && sortedScriptConfigs.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      {selectedScriptID ? sortedScriptConfigs.find(c => c.id === selectedScriptID)?.name || t('burrows.modal.fromPreset') : t('burrows.modal.fromPreset')}
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      onSelect={() => {
                         if (scriptFallback) {
                           setCommand(scriptFallback.command)
                           setCommandMode(scriptFallback.mode)
@@ -3040,33 +3046,33 @@ function EditSessionModal({
                         }
                         setScriptFallback(null)
                         setSelectedScriptID('')
-                        return
-                      }
-                      if (!selectedScriptID) {
-                        setScriptFallback({ command, mode: commandMode })
-                      }
-                      const selectedScript = sortedScriptConfigs.find(item => item.id === value)
-                      setSelectedScriptID(value)
-                      if (selectedScript?.command) {
-                        setCommandMode('manual')
-                        setCommand(selectedScript.command)
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder={t('burrows.modal.scriptPresetPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t('common.none')}</SelectItem>
-                      {sortedScriptConfigs.map(cfg => (
-                        <SelectItem key={cfg.id} value={cfg.id}>{cfg.name || cfg.id}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
-            <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.command')}</label>
+                      }}
+                    >
+                      {!selectedScriptID && <Check className="h-3.5 w-3.5 mr-2" />}
+                      <span className={!selectedScriptID ? '' : 'ml-[1.375rem]'}>{t('common.none')}</span>
+                    </DropdownMenuItem>
+                    {sortedScriptConfigs.map(cfg => (
+                      <DropdownMenuItem
+                        key={cfg.id}
+                        onSelect={() => {
+                          if (!selectedScriptID) {
+                            setScriptFallback({ command, mode: commandMode })
+                          }
+                          setSelectedScriptID(cfg.id)
+                          if (cfg.command) {
+                            setCommandMode('manual')
+                            setCommand(cfg.command)
+                          }
+                        }}
+                      >
+                        {selectedScriptID === cfg.id && <Check className="h-3.5 w-3.5 mr-2" />}
+                        <span className={selectedScriptID === cfg.id ? '' : 'ml-[1.375rem]'}>{cfg.name || cfg.id}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             <textarea
               value={command}
               onChange={e => {

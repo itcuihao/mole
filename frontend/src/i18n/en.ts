@@ -145,6 +145,7 @@ export const en: Record<string, string> = {
   'burrows.modal.scriptPreset': 'Script Preset (Optional)',
   'burrows.modal.scriptPresetPlaceholder': 'Choose a preset to fill command',
   'burrows.modal.scriptPresetEmpty': 'No script presets yet. Create one in Settings > Scripts first.',
+  'burrows.modal.fromPreset': 'From preset',
   'burrows.modal.command': 'Command',
   'burrows.modal.commandPlaceholder': 'Leave empty = open terminal\nEnter command = execute command',
   'burrows.modal.commandSshPlaceholder': 'Leave empty = SSH connect and open terminal\nEnter command = SSH remote execute',

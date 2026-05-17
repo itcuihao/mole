@@ -145,6 +145,7 @@ export const zh: Record<string, string> = {
   'burrows.modal.scriptPreset': '脚本预设（可选）',
   'burrows.modal.scriptPresetPlaceholder': '选择一个脚本并填充命令',
   'burrows.modal.scriptPresetEmpty': '还没有脚本预设，请先到 Settings > 脚本 创建。',
+  'burrows.modal.fromPreset': '从预设填充',
   'burrows.modal.command': '执行命令',
   'burrows.modal.commandPlaceholder': '留空 = 打开终端\n输入 = 执行命令',
   'burrows.modal.commandSshPlaceholder': '留空 = SSH 连接并打开终端\n输入 = SSH 远程执行命令',
