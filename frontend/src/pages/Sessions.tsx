@@ -255,7 +255,8 @@ const withWorkspace = (workspace: string, command: string, fallbackToShell: bool
   const workspaceArg = formatWorkspaceForCd(normalizedWorkspace)
   if (normalizedCommand) return `cd ${workspaceArg} && ${normalizedCommand}`
   if (!fallbackToShell) return ''
-  return `cd ${workspaceArg} && exec $SHELL -l`
+  // Backend handles working directory via tmux -c; no need to emit cd/exec here.
+  return ''
 }
 
 const buildResolvedCommand = ({
