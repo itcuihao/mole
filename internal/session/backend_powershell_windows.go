@@ -192,7 +192,11 @@ func buildPowerShellAttachScript(env map[string]string, cwd, command string, inc
 		commands = append(commands, command)
 	}
 
-	return strings.Join(commands, "; ")
+	// 使用 & { ... } 包裹命令块，防止特殊字符解析错误
+	if len(commands) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("& { %s }", strings.Join(commands, "; "))
 }
 
 func quotePowerShellArgument(value string) string {
