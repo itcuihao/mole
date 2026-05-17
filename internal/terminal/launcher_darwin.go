@@ -457,23 +457,26 @@ func launchWarp(spec LaunchSpec) error {
 	}
 	log.Printf("✅ Warp opened via URI scheme")
 
-	// Step 2: After Warp opens, send a clean tmux attach command via AppleScript.
-	// Warp does not accept commands via open --args; use keystroke injection instead.
+	// Step 2: After Warp opens, paste the command via clipboard + Cmd+V.
+	// Using clipboard paste instead of keystroke avoids Chinese IME interception.
 	go func() {
 		time.Sleep(800 * time.Millisecond)
 		cleanCmd := fmt.Sprintf("%s attach -d -t '%s'", tmuxPath, sessionName)
 		escapedCmd := strings.ReplaceAll(cleanCmd, `\`, `\\`)
 		escapedCmd = strings.ReplaceAll(escapedCmd, `"`, `\"`)
 		script := fmt.Sprintf(`
+			set the clipboard to "%s"
+			delay 0.1
 			tell application "Warp" to activate
-			delay 0.3
+			delay 0.2
 			tell application "System Events"
-				keystroke "%s"
+				key code 9 using command down
+				delay 0.1
 				key code 36
 			end tell
 		`, escapedCmd)
 		if out, err := exec.Command("osascript", "-e", script).CombinedOutput(); err != nil {
-			log.Printf("⚠️ Warp AppleScript keystroke failed: %v (%s)", err, strings.TrimSpace(string(out)))
+			log.Printf("⚠️ Warp AppleScript paste failed: %v (%s)", err, strings.TrimSpace(string(out)))
 		}
 	}()
 

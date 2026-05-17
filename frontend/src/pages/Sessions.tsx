@@ -693,7 +693,7 @@ function Sessions({
   }
 
   const showAttachHint = (terminalID: string, wasRestarted = false) => {
-    const needsManualPaste = ['warp', 'alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
+    const needsManualPaste = ['alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
 
     if (needsManualPaste) {
       showTimedInfo(
