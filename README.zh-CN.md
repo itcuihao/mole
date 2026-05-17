@@ -13,12 +13,12 @@
 </p>
 
 <p align="center">
-  9 种运行模式 · iTerm2/Ghostty 窗口分组 · 可复用环境配置 · SSH 主机库存
+  7 种运行模式 · iTerm2/Ghostty 窗口分组 · 可复用环境配置 · SSH 主机库存
 </p>
 
 ## 功能概览
 
-- **Burrows** — 9 种运行模式启动终端会话（Shell / SSH / Command / Codex / Docker / K8s / Conda / SSH Config / Tmux） → [配置指南](docs/guides/burrows.md)
+- **Burrows** — 7 种运行模式启动终端会话（Shell / SSH / Command / Codex / Docker / K8s / Tmux） → [配置指南](docs/guides/burrows.md)
 - **Dens** — 同组 Burrow 共享终端窗口（iTerm2 Tab / Ghostty Window） → [配置指南](docs/guides/dens.md)
 - **Profiles** — 可复用环境配置 + Provider 预设模板（Claude / DeepSeek / GLM / Maxx） → [配置指南](docs/guides/profiles.md)
 - **Hosts** — SSH 主机库存、分组、堡垒机/JumpHost → [配置指南](docs/guides/hosts.md)

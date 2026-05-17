@@ -10,8 +10,6 @@ const (
 	RunModeCustom     = "custom"
 	RunModeCodex      = "codex"
 	RunModeK8sPod     = "k8s_pod"
-	RunModeConda      = "conda"
-	RunModeSSHConfig  = "ssh_config"
 	RunModeTmuxAttach = "tmux_attach"
 	RunModeRemoteTmux = "remote_tmux"
 )

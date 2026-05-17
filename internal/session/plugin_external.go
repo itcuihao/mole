@@ -83,26 +83,6 @@ func NewK8sPodPlugin(resolver pluginConfigResolver) LaunchPlugin {
 	}
 }
 
-func NewCondaPlugin(resolver pluginConfigResolver) LaunchPlugin {
-	return &presetPlugin{
-		id:       RunModeConda,
-		labelKey: "burrows.runMode.conda",
-		hintKey:  "burrows.runMode.condaHint",
-		resolver: resolver,
-		build:    buildCondaCommand,
-	}
-}
-
-func NewSSHConfigPlugin(resolver pluginConfigResolver) LaunchPlugin {
-	return &presetPlugin{
-		id:       RunModeSSHConfig,
-		labelKey: "burrows.runMode.sshConfig",
-		hintKey:  "burrows.runMode.sshConfigHint",
-		resolver: resolver,
-		build:    buildSSHConfigCommand,
-	}
-}
-
 func NewTmuxAttachPlugin(resolver pluginConfigResolver) LaunchPlugin {
 	return &presetPlugin{
 		id:       RunModeTmuxAttach,
@@ -158,23 +138,6 @@ func buildK8sPodCommand(cfg pluginconfig.Config, req LaunchRequest) (string, map
 		shellQuote(podShell),
 	)
 	return command, map[string]string{"pod_query": podQuery}, nil
-}
-
-func buildCondaCommand(cfg pluginconfig.Config, _ LaunchRequest) (string, map[string]string, error) {
-	env := strings.TrimSpace(cfg.Settings["env"])
-	if env == "" {
-		return "", nil, fmt.Errorf("conda mode requires an environment name or path")
-	}
-	command := fmt.Sprintf("if [ -f \"$HOME/miniconda3/etc/profile.d/conda.sh\" ]; then . \"$HOME/miniconda3/etc/profile.d/conda.sh\"; elif [ -f \"$HOME/anaconda3/etc/profile.d/conda.sh\" ]; then . \"$HOME/anaconda3/etc/profile.d/conda.sh\"; else eval \"$(conda shell.bash hook)\"; fi; conda activate %s && exec \"${SHELL:-/bin/bash}\"", shellQuote(env))
-	return command, nil, nil
-}
-
-func buildSSHConfigCommand(cfg pluginconfig.Config, _ LaunchRequest) (string, map[string]string, error) {
-	host := strings.TrimSpace(cfg.Settings["host"])
-	if host == "" {
-		return "", nil, fmt.Errorf("ssh config mode requires a host")
-	}
-	return "exec ssh -t " + shellQuote(host), nil, nil
 }
 
 func buildTmuxAttachCommand(cfg pluginconfig.Config, _ LaunchRequest) (string, map[string]string, error) {

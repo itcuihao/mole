@@ -68,7 +68,7 @@ const NO_DEN_FILTER_VALUE = '__no_den__'
 const BACKEND_WSL_TMUX = 'wsl-tmux'
 const BACKEND_POWERSHELL = 'powershell'
 
-const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
+const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
 const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', ...EXTERNAL_PLUGIN_IDS])
 const isExternalPluginMode = (mode: string) => EXTERNAL_PLUGIN_IDS.includes(mode)
 
@@ -76,8 +76,6 @@ const pluginConfigSummary = (pluginID: string, cfg?: pluginconfig.Config | null)
   const settings = cfg?.settings || {}
   if (!cfg) return '-'
   if (pluginID === 'k8s_pod') return `${settings.kubeconfig_path || '~/.kube/config'} · ${settings.namespace || 'default'} · ${settings.shell || '/bin/sh'}`
-  if (pluginID === 'conda') return settings.env || '-'
-  if (pluginID === 'ssh_config') return settings.host || '-'
   if (pluginID === 'tmux_attach') return settings.session_name || '-'
   if (pluginID === 'remote_tmux') return `${settings.ssh_target || '-'} · ${settings.session_name || '-'}`
   return Object.values(settings).filter(Boolean).join(' · ') || '-'
@@ -93,8 +91,6 @@ const buildPluginCommandPreview = (mode: string, cfg?: pluginconfig.Config | nul
     const kubeconfig = settings.kubeconfig_path ? `KUBECONFIG=${settings.kubeconfig_path} ` : ''
     return `${kubeconfig}kubectl -n ${namespace} exec -it <first:${query}> -- ${shell}`
   }
-  if (mode === 'conda') return `conda activate ${settings.env || '<env>'}`
-  if (mode === 'ssh_config') return `ssh -t ${settings.host || '<host>'}`
   if (mode === 'tmux_attach') return `TMUX= tmux attach -t ${settings.session_name || '<session>'}`
   if (mode === 'remote_tmux') return `ssh -t ${settings.ssh_target || '<target>'} 'tmux attach -t ${settings.session_name || '<session>'}'`
   return '-'

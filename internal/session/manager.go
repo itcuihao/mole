@@ -1133,8 +1133,6 @@ func (m *Manager) registerBuiltinPlugins(invMgr *inventory.Manager) {
 
 func (m *Manager) registerPresetPlugins(resolver pluginConfigResolver) {
 	m.plugins.register(NewK8sPodPlugin(resolver))
-	m.plugins.register(NewCondaPlugin(resolver))
-	m.plugins.register(NewSSHConfigPlugin(resolver))
 	m.plugins.register(NewTmuxAttachPlugin(resolver))
 	m.plugins.register(NewRemoteTmuxPlugin(resolver))
 }

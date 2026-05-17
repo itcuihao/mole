@@ -36,7 +36,7 @@ type ScriptSaveRequest = {
 type ScriptPlatform = 'macos' | 'windows'
 type RuntimeScriptPlatform = ScriptPlatform | 'other'
 
-const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'conda', 'ssh_config', 'tmux_attach', 'remote_tmux']
+const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
 const SETTINGS_PLUGIN_IDS = ['codex', 'docker', ...EXTERNAL_PLUGIN_IDS]
 
 const PLUGIN_CONFIG_FIELDS: Record<string, { key: string; labelKey: string; placeholderKey: string; required?: boolean }[]> = {
@@ -44,12 +44,6 @@ const PLUGIN_CONFIG_FIELDS: Record<string, { key: string; labelKey: string; plac
     { key: 'kubeconfig_path', labelKey: 'pluginConfig.k8s.kubeconfig', placeholderKey: 'pluginConfig.k8s.kubeconfigPlaceholder' },
     { key: 'namespace', labelKey: 'pluginConfig.k8s.namespace', placeholderKey: 'pluginConfig.k8s.namespacePlaceholder', required: true },
     { key: 'shell', labelKey: 'pluginConfig.k8s.shell', placeholderKey: 'pluginConfig.k8s.shellPlaceholder', required: true },
-  ],
-  conda: [
-    { key: 'env', labelKey: 'pluginConfig.conda.env', placeholderKey: 'pluginConfig.conda.envPlaceholder', required: true },
-  ],
-  ssh_config: [
-    { key: 'host', labelKey: 'pluginConfig.sshConfig.host', placeholderKey: 'pluginConfig.sshConfig.hostPlaceholder', required: true },
   ],
   tmux_attach: [
     { key: 'session_name', labelKey: 'pluginConfig.tmux.sessionName', placeholderKey: 'pluginConfig.tmux.sessionNamePlaceholder', required: true },
@@ -138,6 +132,14 @@ if ($envMap.Count -gt 0) { $settings."claude-code.environmentVariables" = $envMa
 $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
 code -n $Workspace`,
+  'vscode-claude-wsl': `#!/usr/bin/env bash
+set -euo pipefail
+WORKSPACE="\${MOLE_WORKSPACE:-$HOME}"
+
+cd "$WORKSPACE"
+mkdir -p .claude
+
+code .`,
 }
 
 const normalizeScriptPlatform = (value?: string): ScriptPlatform | '' => {
@@ -1119,8 +1121,6 @@ function pluginConfigSummary(pluginID: string, cfg: pluginconfig.Config) {
     const kubeconfig = settings.kubeconfig_path || '~/.kube/config'
     return `${kubeconfig} · ${settings.namespace || 'default'} · ${settings.shell || '/bin/sh'}`
   }
-  if (pluginID === 'conda') return settings.env || '-'
-  if (pluginID === 'ssh_config') return settings.host || '-'
   if (pluginID === 'tmux_attach') return settings.session_name || '-'
   if (pluginID === 'remote_tmux') return `${settings.ssh_target || '-'} · ${settings.session_name || '-'}`
   return Object.values(settings).filter(Boolean).join(' · ') || '-'

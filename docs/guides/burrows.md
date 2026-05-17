@@ -12,8 +12,6 @@ Burrow 是 Mole 的核心概念——一个带名字的终端会话。每个 Bur
 | Codex | OpenAI Codex CLI 独立环境 | Codex Config + Profile |
 | Docker | 进入容器 shell | Docker Config + Profile（可选） |
 | K8s Pod | kubectl exec 进入 Pod | Plugin Preset + Profile（可选） |
-| Conda | 激活 Conda 环境 | Plugin Preset + Profile（可选） |
-| SSH Config | 连接 ~/.ssh/config 中的 Host | Plugin Preset + Profile（可选） |
 | Tmux Attach / Remote Tmux | 接入已有 tmux 会话 | Plugin Preset + Profile（可选） |
 
 Shell、SSH Host、Command 是内置模式，直接在新建 Burrow 时配置。其余模式需要先在 Settings > Plugins 创建对应的 Plugin Preset，然后在新建 Burrow 时引用。
@@ -65,7 +63,7 @@ Shell、SSH Host、Command 是内置模式，直接在新建 Burrow 时配置。
 
 选择一个 Docker Config（在 Settings > Docker 中创建），指定镜像，Mole 生成 `docker run` 命令并进入容器 shell。
 
-### K8s Pod / Conda / SSH Config / Tmux 模式
+### K8s Pod / Tmux 模式
 
 ![Plugin 模式配置](screenshots/burrow-plugin.png)
 

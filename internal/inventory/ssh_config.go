@@ -403,7 +403,7 @@ func resolveProxyJumpChain(alias, raw string, aliases map[string]sshConfigAlias,
 			continue
 		}
 		if strings.ContainsAny(token, "@:%") {
-			return nil, fmt.Errorf("SSH alias %q uses unsupported inline ProxyJump target %q; use the ssh_config plugin instead", alias, token)
+			return nil, fmt.Errorf("SSH alias %q uses unsupported inline ProxyJump target %q; use the ssh_config burrow mode instead", alias, token)
 		}
 		if _, ok := aliases[token]; !ok {
 			return nil, fmt.Errorf("SSH alias %q references ProxyJump alias %q that was not found", alias, token)

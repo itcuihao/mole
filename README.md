@@ -13,12 +13,12 @@
 </p>
 
 <p align="center">
-  9 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
+  7 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
 </p>
 
 ## Features
 
-- **Burrows** — Launch terminal sessions across 9 run modes (Shell / SSH / Command / Codex / Docker / K8s / Conda / SSH Config / Tmux) → [Setup Guide](docs/guides/burrows.md)
+- **Burrows** — Launch terminal sessions across 7 run modes (Shell / SSH / Command / Codex / Docker / K8s / Tmux) → [Setup Guide](docs/guides/burrows.md)
 - **Dens** — Group Burrows into the same terminal window (iTerm2 tabs / Ghostty windows) → [Setup Guide](docs/guides/dens.md)
 - **Profiles** — Reusable environment configs + Provider presets (Claude / DeepSeek / GLM / Maxx) → [Setup Guide](docs/guides/profiles.md)
 - **Hosts** — SSH host inventory, groups, bastion/JumpHost → [Setup Guide](docs/guides/hosts.md)
@@ -29,9 +29,16 @@ Also: System Tray, Burrow Export/Import, Profile change auto-sync, bilingual UI,
 
 ### Runtime backend
 
-- macOS: local `tmux`
-- Linux: local `tmux`
-- Windows: `WSL + tmux`
+| Platform | Backends |
+|----------|----------|
+| macOS | `tmux` (local) |
+| Linux | `tmux` (local) |
+| Windows | `WSL + tmux` (default) · `PowerShell` (native, no WSL/tmux required) |
+
+On Windows, each Burrow can choose its runtime backend:
+
+- **WSL + tmux** — runs sessions inside WSL via tmux. Requires `wsl.exe`, a WSL distro, and `tmux` installed in the distro.
+- **PowerShell (native)** — runs sessions directly in PowerShell without WSL or tmux. Sessions are in-memory and open in a standalone console window.
 
 ### Terminal detection
 
@@ -69,7 +76,7 @@ For terminals that cannot accept a command programmatically (Warp, some generic 
 
 - macOS is the most mature path and the main day-to-day target.
 - Linux has platform-aware terminal detection and launch plumbing, but needs broader real-machine validation.
-- Windows assumes WSL is installed, one distro has been initialized, and `tmux` is available inside WSL. This path is implemented but not validated as heavily as macOS.
+- Windows supports two runtime backends: **WSL + tmux** (default, requires WSL + tmux setup) and **PowerShell** (native, works out of the box with no extra dependencies). Both paths are implemented but not validated as heavily as macOS.
 
 ## Storage Model
 
@@ -83,7 +90,8 @@ Mole stores its app data as JSON files under `~/.config/mole/`:
 | `settings.json` | Settings (default terminal) |
 | `codex_configs.json` | Codex configuration definitions |
 | `docker_configs.json` | Docker configuration definitions |
-| `plugin_configs.json` | Plugin preset definitions (for K8s Pod, Conda, SSH Config, Tmux Attach, Remote Tmux) |
+| `plugin_configs.json` | Plugin preset definitions (for K8s Pod, Tmux Attach, Remote Tmux) |
+| `script_configs.json` | Script preset definitions (built-in VS Code + Claude scripts, user scripts) |
 | `ai/codex/<id>/` | Isolated Codex home directories (config.toml, auth.json) |
 
 `secret_keys` only tells the UI which values should be masked. The values themselves still live in `profiles.json`, so avoid using real production credentials in local dev data.
@@ -93,7 +101,7 @@ Mole stores its app data as JSON files under `~/.config/mole/`:
 - Backend: Go + Wails v2
 - Frontend: React 19 + TypeScript + Vite
 - UI: Tailwind CSS v4 + Radix primitives
-- Runtime backend: local `tmux` on macOS/Linux, `WSL + tmux` on Windows
+- Runtime backend: local `tmux` on macOS/Linux, `WSL + tmux` or `PowerShell` on Windows
 - System tray: `fyne.io/systray` (macOS, requires CGO)
 
 ## Install
@@ -146,10 +154,12 @@ cd frontend && npx tsc --noEmit
 
 - macOS: `tmux` must be installed and available in `PATH`
 - Linux: `tmux` must be installed and available in `PATH`
-- Windows:
+- Windows (WSL + tmux backend):
   - `wsl.exe` must be available
   - at least one WSL distro must be initialized
   - `tmux` must be installed inside your default WSL distribution
+- Windows (PowerShell backend):
+  - No extra dependencies — works with the built-in PowerShell or PowerShell 7
 
 ```bash
 # macOS
@@ -177,12 +187,13 @@ wsl --install -d Ubuntu
 
 Mole stores workspace metadata separately from the live runtime backend. A saved workspace can still appear in the UI even if the backend process is gone, and **Restore** recreates it from stored settings.
 
-## One-click VS Code + Claude (macOS / Windows)
+## One-click VS Code + Claude (macOS / Windows / WSL)
 
-This repo includes two script templates for simple one-click startup:
+Built-in script presets are available in **Settings > Scripts** (auto-provisioned on first run). You can also use the standalone scripts in this repo:
 
-- `scripts/vscode-claude/start_vscode_claude_mac.sh`
-- `scripts/vscode-claude/start_vscode_claude_win.ps1`
+- `scripts/vscode-claude/start_vscode_claude_mac.sh` — macOS
+- `scripts/vscode-claude/start_vscode_claude_win.ps1` — Windows (PowerShell backend)
+- `scripts/vscode-claude/start_vscode_claude_wsl.sh` — Windows (WSL + tmux backend)
 
 ### 1) Configure profile environment variables
 

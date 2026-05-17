@@ -39,22 +39,6 @@ func TestExternalPluginCommandGeneration(t *testing.T) {
 			},
 		},
 		{
-			name:     "conda",
-			plugin:   NewCondaPlugin(resolver),
-			configID: "conda",
-			wantContains: []string{
-				"conda activate 'dev'",
-			},
-		},
-		{
-			name:     "ssh config",
-			plugin:   NewSSHConfigPlugin(resolver),
-			configID: "ssh",
-			wantContains: []string{
-				"exec ssh -t 'prod'",
-			},
-		},
-		{
 			name:     "tmux attach",
 			plugin:   NewTmuxAttachPlugin(resolver),
 			configID: "tmux",
@@ -92,7 +76,7 @@ func TestExternalPluginCommandGeneration(t *testing.T) {
 }
 
 func TestExternalPluginRequiresConfig(t *testing.T) {
-	plugin := NewSSHConfigPlugin(newTestPluginConfigResolver(t))
+	plugin := NewTmuxAttachPlugin(newTestPluginConfigResolver(t))
 	if _, err := plugin.Resolve(LaunchRequest{}); err == nil {
 		t.Fatal("Resolve() returned nil error for missing config")
 	}
@@ -103,8 +87,6 @@ func newTestPluginConfigResolver(t *testing.T) *pluginconfig.Manager {
 	mgr := pluginconfig.NewManager(filepath.Join(t.TempDir(), "plugin_configs.json"))
 	requests := []pluginconfig.SaveRequest{
 		{ID: "k8s", Name: "K8s", PluginID: RunModeK8sPod, Settings: map[string]string{"kubeconfig_path": "/tmp/kubeconfig", "namespace": "default", "shell": "/bin/sh"}},
-		{ID: "conda", Name: "Conda", PluginID: RunModeConda, Settings: map[string]string{"env": "dev"}},
-		{ID: "ssh", Name: "SSH", PluginID: RunModeSSHConfig, Settings: map[string]string{"host": "prod"}},
 		{ID: "tmux", Name: "Tmux", PluginID: RunModeTmuxAttach, Settings: map[string]string{"session_name": "dev"}},
 		{ID: "remote", Name: "Remote", PluginID: RunModeRemoteTmux, Settings: map[string]string{"ssh_target": "prod", "session_name": "dev"}},
 	}
