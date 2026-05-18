@@ -65,6 +65,37 @@ copy_app_icon() {
 	if [ -f "${ROOT_DIR}/assets/appicon.png" ]; then
 		mkdir -p "${ROOT_DIR}/build"
 		cp "${ROOT_DIR}/assets/appicon.png" "${ROOT_DIR}/build/appicon.png"
+
+		# Regenerate Windows icon.ico from source PNG
+		if command -v magick >/dev/null 2>&1; then
+			log_info "Generating build/windows/icon.ico from appicon.png (ImageMagick)"
+			mkdir -p "${ROOT_DIR}/build/windows"
+			magick "${ROOT_DIR}/assets/appicon.png" \
+				\( -clone 0 -resize 256x256 \) \
+				\( -clone 0 -resize 128x128 \) \
+				\( -clone 0 -resize 64x64 \) \
+				\( -clone 0 -resize 48x48 \) \
+				\( -clone 0 -resize 32x32 \) \
+				\( -clone 0 -resize 16x16 \) \
+				-delete 0 \
+				"${ROOT_DIR}/build/windows/icon.ico"
+			log_success "Generated build/windows/icon.ico"
+		elif command -v convert >/dev/null 2>&1; then
+			log_info "Generating build/windows/icon.ico from appicon.png (ImageMagick legacy)"
+			mkdir -p "${ROOT_DIR}/build/windows"
+			convert "${ROOT_DIR}/assets/appicon.png" \
+				\( -clone 0 -resize 256x256 \) \
+				\( -clone 0 -resize 128x128 \) \
+				\( -clone 0 -resize 64x64 \) \
+				\( -clone 0 -resize 48x48 \) \
+				\( -clone 0 -resize 32x32 \) \
+				\( -clone 0 -resize 16x16 \) \
+				-delete 0 \
+				"${ROOT_DIR}/build/windows/icon.ico"
+			log_success "Generated build/windows/icon.ico"
+		else
+			log_warn "ImageMagick not found; using existing icon.ico if present"
+		fi
 	else
 		log_warn "assets/appicon.png not found; using existing build icon if present"
 	fi
