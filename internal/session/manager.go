@@ -169,7 +169,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		ProfileUpdatedAt: profileUpdatedAt,
 		BackendID:        backend.ID(),
 		TmuxSessionName:  tmuxName,
-		Cwd:              strings.TrimSpace(req.Cwd),
+		Cwd:              expandTilde(strings.TrimSpace(req.Cwd)),
 		Command:          launchCfg.Command,
 		RunMode:          normalizedRunMode,
 		HostID:           launchCfg.HostID,
@@ -434,6 +434,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 
 	if err := targetBackend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
 		if isAlive && canRollback {
+			sess.BackendID = currentBackend.ID()
 			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
@@ -445,6 +446,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	// Save updated metadata
 	if err := m.store.Update(sess); err != nil {
 		_ = targetBackend.Kill(sess.RuntimeName())
+		sess.BackendID = currentBackend.ID()
 		if isAlive && canRollback {
 			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
@@ -528,6 +530,7 @@ func (m *Manager) Restart(sessionID string) error {
 		return fmt.Errorf("session not found: %w", err)
 	}
 	sess.NormalizeRuntimeMetadata()
+	sess.Cwd = expandTilde(sess.Cwd)
 
 	backend, err := m.backendForSession(sess)
 	if err != nil {

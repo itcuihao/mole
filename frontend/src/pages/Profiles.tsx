@@ -483,7 +483,7 @@ function ProfileForm({
           }
 
           // Try colon format: KEY: value / "KEY": "value",
-          const colonMatch = trimmed.match(/^"?(?:([A-Za-z_][A-Za-z0-9_]*))"?\s*:\s*(.*)$/)
+          const colonMatch = trimmed.match(/^"?([A-Za-z_][A-Za-z0-9_]*)"?\s*:\s*(.*)$/)
           if (colonMatch) {
             const key = colonMatch[1]
             const value = normalizeValue(colonMatch[2])
