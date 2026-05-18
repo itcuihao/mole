@@ -111,6 +111,16 @@ func (m *Manager) ReplaceAll(profiles []Profile) error {
 	return m.store.ReplaceAll(profiles)
 }
 
+// GetDefaultCommand returns the default startup command for a profile.
+// Returns ("", nil) if the profile has no default command or does not exist.
+func (m *Manager) GetDefaultCommand(profileID string) (string, error) {
+	p, err := m.store.Get(profileID)
+	if err != nil {
+		return "", nil
+	}
+	return strings.TrimSpace(p.DefaultCommand), nil
+}
+
 // GetFullEnv returns all environment variables for a profile.
 // All values are stored in EnvVars (no Keychain), SecretKeys is just a UI hint.
 func (m *Manager) GetFullEnv(profileID string) (map[string]string, error) {

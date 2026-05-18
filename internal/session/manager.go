@@ -868,14 +868,32 @@ func (m *Manager) resolveLaunchConfig(req LaunchRequest) (LaunchConfig, string, 
 }
 
 func (m *Manager) commandForSession(sess Session) (string, error) {
+	var command string
+	var err error
+
 	if sess.RunMode == "" {
-		return strings.TrimSpace(sess.Command), nil
+		command = strings.TrimSpace(sess.Command)
+	} else {
+		plugin, ok := m.plugins.get(sess.RunMode)
+		if !ok {
+			command = strings.TrimSpace(sess.Command)
+		} else {
+			command, err = plugin.Command(sess)
+			if err != nil {
+				return "", err
+			}
+		}
 	}
-	plugin, ok := m.plugins.get(sess.RunMode)
-	if !ok {
-		return strings.TrimSpace(sess.Command), nil
+
+	// Fallback: session command empty + not shell mode → use profile DefaultCommand.
+	// Shell mode is an explicit "no auto-run" choice and must be respected.
+	if strings.TrimSpace(command) == "" && sess.RunMode != RunModeShell {
+		if defaultCmd, profErr := m.profileMgr.GetDefaultCommand(sess.ProfileID); profErr == nil && defaultCmd != "" {
+			command = defaultCmd
+		}
 	}
-	return plugin.Command(sess)
+
+	return command, nil
 }
 
 func (m *Manager) environmentForSession(sess Session) (map[string]string, error) {
