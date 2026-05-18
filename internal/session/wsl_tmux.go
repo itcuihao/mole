@@ -178,18 +178,18 @@ func CreateWslTmuxSession(name string, env map[string]string, command string, cw
 		fmt.Printf("⚠️ failed to enable WSL tmux mouse for %s: %v\n", name, err)
 	}
 
-	if command != "" {
-		if runCommand {
-			fmt.Printf("✅ Startup command will auto-run on first WSL shell: %s\n", command)
-		} else {
-			_ = SyncWslTmuxSessionEnv(name, map[string]string{"MOLE_CMD_RAN": "1"})
-			fmt.Printf("⏸️  Startup command deferred: %s\n", command)
+		if command != "" {
+			if runCommand {
+				fmt.Printf("✅ Startup command will auto-run on first WSL shell: %s\n", command)
+			} else {
+				// Don't pre-set MOLE_CMD_RAN — the env script's own guard will
+				// run the command once on first attach, then set MOLE_CMD_RAN itself.
+				fmt.Printf("⏸️  Startup command deferred until first attach: %s\n", command)
+			}
 		}
+
+		return nil
 	}
-
-	return nil
-}
-
 func ListWslTmuxSessions() ([]TmuxSessionInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()

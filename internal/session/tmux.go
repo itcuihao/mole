@@ -287,10 +287,9 @@ func CreateTmuxSession(name string, env map[string]string, command string, cwd s
 		if runCommand {
 			fmt.Printf("✅ Startup command will auto-run on first shell: %s\n", command)
 		} else {
-			// Mark as already ran so the startup command is deferred.
-			// It will run on next restart or explicit open.
-			_ = SyncTmuxSessionEnv(name, map[string]string{"MOLE_CMD_RAN": "1"})
-			fmt.Printf("⏸️  Startup command deferred: %s\n", command)
+			// Don't pre-set MOLE_CMD_RAN — the env script's own guard will
+			// run the command once on first attach, then set MOLE_CMD_RAN itself.
+			fmt.Printf("⏸️  Startup command deferred until first attach: %s\n", command)
 		}
 	}
 
