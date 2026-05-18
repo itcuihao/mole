@@ -67,6 +67,9 @@ func buildAppMenu(app *App) *menu.Menu {
 		}
 	})
 
+	// native macOS Edit menu (Undo/Redo/Cut/Copy/Paste/Select All) via AppKit responder chain
+	appMenu.Append(menu.EditMenu())
+
 	return appMenu
 }
 

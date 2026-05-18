@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="build/appicon.png" alt="mole logo" width="128" height="128">
+  <img src="docs/appicon.png" alt="mole logo" width="128" height="128">
 </p>
 
 <h1 align="center">Mole</h1>
@@ -14,6 +14,10 @@
 
 <p align="center">
   7 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
+</p>
+
+<p align="center">
+  <img src="docs/hero.png" alt="Mole screenshot" width="720">
 </p>
 
 ## Features
@@ -182,10 +186,10 @@ wsl --install -d Ubuntu
 
 1. Create a profile in **Profiles**.
 2. Optionally save hosts and groups in **Hosts**.
-3. Create a workspace in **Burrows** — pick a run mode, configure it, optionally assign a den.
-4. Use **Open** for live workspaces or **Restore** for saved-but-dead workspaces.
+3. Create a Burrow in **Burrows** — pick a run mode, configure it, optionally assign a Den.
+4. Use **Open** for live Burrows or **Restore** for saved-but-dead Burrows.
 
-Mole stores workspace metadata separately from the live runtime backend. A saved workspace can still appear in the UI even if the backend process is gone, and **Restore** recreates it from stored settings.
+Mole stores Burrow metadata separately from the live runtime backend. A saved Burrow can still appear in the UI even if the backend process is gone, and **Restore** recreates it from stored settings.
 
 ## One-click VS Code + Claude (macOS / Windows / WSL)
 
