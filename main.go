@@ -7,10 +7,12 @@ import (
 
 	"mole/internal/config"
 	"mole/internal/session"
+	// "mole/internal/statusbar"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	// "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -35,6 +37,8 @@ func main() {
 		OnStartup: func(ctx context.Context) {
 			setApplicationIcon(appIconData)
 			app.startup(ctx)
+			// TODO: NSStatusItem via cgo — code preserved in internal/statusbar/
+			// initStatusBar(app)
 		},
 		OnDomReady: func(ctx context.Context) {
 			app.domReady(ctx)
