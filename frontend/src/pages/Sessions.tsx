@@ -693,17 +693,10 @@ function Sessions({
   }
 
   const showAttachHint = (terminalID: string, wasRestarted = false) => {
-    const needsManualPaste = ['alacritty', 'kitty', 'rio', 'ghostty'].includes(terminalID)
-
-    if (needsManualPaste) {
-      showTimedInfo(
-        wasRestarted
-          ? t('burrows.info.restoredPaste')
-          : t('burrows.info.clipboardPaste')
-      )
+    if (terminalID === 'warp') {
+      showTimedInfo(t('burrows.info.warpEnter'))
       return
     }
-
     if (wasRestarted) {
       showTimedInfo(t('burrows.info.restored'))
     }
@@ -1038,7 +1031,7 @@ function Sessions({
       codexConfigID: sess.codex_config_id || '',
       pluginConfigID: sess.plugin_config_id || '',
       pluginData: sess.plugin_data || {},
-      commandMode: sess.run_mode === 'custom' ? 'manual' : 'auto',
+      commandMode: sess.run_mode === 'custom' || sess.run_mode === 'script' ? 'manual' : 'auto',
       command: sess.command || '',
       cwd: sess.cwd || '',
       den: sess.den || '',

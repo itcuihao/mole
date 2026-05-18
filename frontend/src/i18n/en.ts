@@ -209,8 +209,7 @@ export const en: Record<string, string> = {
   'burrows.edit.noHostsInline': 'No hosts yet. Add one in the Hosts tab first.',
 
   // Info messages
-  'burrows.info.clipboardPaste': 'Terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.',
-  'burrows.info.restoredPaste': 'Burrow restored and terminal opened. Command copied to clipboard. Press Cmd+V, then Enter.',
+  'burrows.info.warpEnter': 'Warp opened. Press Enter to attach.',
   'burrows.info.restored': 'Burrow restored and opened.',
   'burrows.info.offlineRemoved': 'Offline burrow removed.',
   'burrows.info.detached': 'Closed terminal views for this burrow. The burrow is still running.',

@@ -209,8 +209,7 @@ export const zh: Record<string, string> = {
   'burrows.edit.noHostsInline': '还没有主机，请先在主机页面添加。',
 
   // Info messages
-  'burrows.info.clipboardPaste': '终端已打开，命令已复制到剪贴板。按 Cmd+V 然后回车。',
-  'burrows.info.restoredPaste': '窟已恢复并打开，命令已复制到剪贴板。按 Cmd+V 然后回车。',
+  'burrows.info.warpEnter': 'Warp 已打开，按回车进入。',
   'burrows.info.restored': '窟已恢复并打开。',
   'burrows.info.offlineRemoved': '离线窟已移除。',
   'burrows.info.detached': '已关闭该窟的终端视图，窟本体仍在运行。',
