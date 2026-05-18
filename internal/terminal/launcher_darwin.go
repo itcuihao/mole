@@ -50,7 +50,7 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	case TerminalITerm2:
 		return launchITerm2(spec)
 	case TerminalGhostty:
-		return launchGhostty(spec)
+		return launchGhostty(terminal, spec)
 	case TerminalRio:
 		return launchRio(spec)
 	case TerminalWarp:
@@ -399,26 +399,25 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 	return true, nil
 }
 
-func launchGhostty(spec LaunchSpec) error {
+func launchGhostty(terminal TerminalApp, spec LaunchSpec) error {
 	group := strings.TrimSpace(spec.Den)
 	log.Printf("🚀 Launching Ghostty (group=%q) with command: %s", group, spec.CommandText)
 
-	if group == "" {
-		// No den — new instance (existing behavior)
-		args := []string{"-n", "-a", "Ghostty", "--args", "-e"}
-		args = append(args, spec.ExecArgs...)
-		cmd := exec.Command("open", args...)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
+	// Launch Ghostty binary directly instead of going through `open --args`,
+	// which splits long shell commands into separate tokens (causing extra tabs).
+	ghosttyBin := filepath.Join(terminal.AppPath, "Contents", "MacOS", "ghostty")
+	if _, err := os.Stat(ghosttyBin); err != nil {
+		// Fallback: try PATH lookup for non-standard installs (e.g. Homebrew).
+		if found, lookErr := exec.LookPath("ghostty"); lookErr == nil {
+			ghosttyBin = found
+		} else {
+			return fmt.Errorf("Ghostty binary not found at %s and not in PATH: %w", ghosttyBin, err)
 		}
-		return nil
 	}
 
-	// Den set — target the same window via --window-id
-	windowID := "mole-" + group
-	args := []string{"-a", "Ghostty", "--args", "--window-id=" + windowID, "-e"}
+	args := []string{"-e"}
 	args = append(args, spec.ExecArgs...)
-	cmd := exec.Command("open", args...)
+	cmd := exec.Command(ghosttyBin, args...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
 	}
