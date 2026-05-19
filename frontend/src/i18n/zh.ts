@@ -453,7 +453,7 @@ export const zh: Record<string, string> = {
 
   // Settings > Plugins
   'settings.plugins.title': '插件',
-  'settings.plugins.desc': '管理窟启动插件及其配置。',
+  'settings.plugins.desc': '管理启动插件、配置及外部集成。',
   'settings.plugins.builtin': '内置',
   'settings.plugins.codexName': 'Codex',
   'settings.plugins.codexDesc': '使用隔离的 CODEX_HOME 启动 Codex，用于 AI 辅助编码。',
@@ -545,4 +545,20 @@ export const zh: Record<string, string> = {
 
   // Theme toggle
   'theme.toggle': '切换主题',
+
+  // Settings > Integrations
+    'settings.integrations.title': '菜单栏集成',
+  'settings.integrations.desc': '通过 SwiftBar 或 xbar 在 macOS 菜单栏中查看和管理 Mole 会话。',
+  'settings.integrations.installed': '已安装',
+  'settings.integrations.notInstalled': '未安装',
+  'settings.integrations.pluginDeployed': '插件已部署',
+  'settings.integrations.install': '安装',
+  'settings.integrations.installing': '安装中...',
+  'settings.integrations.installSuccess': '{{name}} 已安装',
+  'settings.integrations.deployPlugin': '部署插件',
+  'settings.integrations.deploySuccess': '{{name}} 插件已部署',
+  'settings.integrations.removePlugin': '移除插件',
+  'settings.integrations.removeSuccess': '{{name}} 插件已移除',
+  'settings.integrations.open': '打开',
+  'settings.integrations.noBrew': 'Homebrew 未安装。Mole 将打开下载页面而非使用 brew 安装。',
 }

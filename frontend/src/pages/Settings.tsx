@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useTranslation, type Language } from "@/i18n/context"
-import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info } from "lucide-react"
+import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info, ExternalLink, Plug, Loader2 } from "lucide-react"
 
 type SettingsTab = 'general' | 'terminal' | 'import' | 'scripts' | 'plugins' | 'about'
 type PluginConfigModalState = { mode: 'new' | 'edit'; pluginID: string; config?: pluginconfig.Config }
@@ -35,6 +35,14 @@ type ScriptSaveRequest = {
 
 type ScriptPlatform = 'macos' | 'windows'
 type RuntimeScriptPlatform = ScriptPlatform | 'other'
+
+type IntegrationStatus = {
+  id: string
+  name: string
+  installed: boolean
+  plugin_ready: boolean
+  brew_available: boolean
+}
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
 const SETTINGS_PLUGIN_IDS = ['codex', 'docker', ...EXTERNAL_PLUGIN_IDS]
@@ -192,6 +200,8 @@ function Settings({
   const [selectedPluginId, setSelectedPluginId] = useState<string>('')
   const [pluginConfigs, setPluginConfigs] = useState<pluginconfig.Config[]>([])
   const [pluginConfigModal, setPluginConfigModal] = useState<PluginConfigModalState | null>(null)
+  const [integrationStatuses, setIntegrationStatuses] = useState<IntegrationStatus[]>([])
+  const [integrationBusy, setIntegrationBusy] = useState<string | null>(null)
 
   useEffect(() => {
     loadSettings()
@@ -305,7 +315,17 @@ function Settings({
     loadScriptConfigs()
     loadPluginConfigs()
     loadPlugins()
+    loadIntegrationStatuses()
   }, [])
+
+  const loadIntegrationStatuses = async () => {
+    const method = getAppMethod('ListIntegrationStatuses')
+    if (typeof method !== 'function') return
+    try {
+      const statuses: IntegrationStatus[] = await method()
+      setIntegrationStatuses(statuses || [])
+    } catch { /* integration unavailable */ }
+  }
 
   const handleSave = async (terminalID: string) => {
     setSaving(true)
@@ -964,6 +984,151 @@ function Settings({
                   </div>
                 )
               })()}
+            </div>
+          </div>
+
+          {/* Integrations section inside plugins tab */}
+          <div className="border-t border-border mt-8 pt-8">
+            <h2 className="text-lg font-semibold text-foreground mb-1">{t('settings.integrations.title')}</h2>
+            <p className="text-sm text-muted-foreground mb-6">{t('settings.integrations.desc')}</p>
+
+            {!integrationStatuses.some(s => s.brew_available) && (
+              <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
+                <div className="flex items-start gap-3">
+                  <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                  <div>{t('settings.integrations.noBrew')}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {integrationStatuses.map(status => (
+                <div key={status.id} className="breathing-card rounded-2xl border border-border/70 bg-muted/20 p-4 transition-all">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
+                        <Plug className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-foreground">{status.name}</span>
+                          {status.installed && (
+                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                              {t('settings.integrations.installed')}
+                            </span>
+                          )}
+                          {!status.installed && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                              {t('settings.integrations.notInstalled')}
+                            </span>
+                          )}
+                        </div>
+                        {status.plugin_ready && (
+                          <div className="mt-1 text-xs text-primary">{t('settings.integrations.pluginDeployed')}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {!status.installed && (
+                        <Button
+                          size="sm"
+                          disabled={integrationBusy === status.id}
+                          onClick={async () => {
+                            setIntegrationBusy(status.id)
+                            setMessage(null)
+                            try {
+                              const method = getAppMethod('InstallIntegration')
+                              if (typeof method !== 'function') return
+                              await method(status.id)
+                              await loadIntegrationStatuses()
+                              setMessage({ type: 'success', text: t('settings.integrations.installSuccess', { name: status.name }) })
+                              setTimeout(() => setMessage(null), 3000)
+                            } catch (err) {
+                              setMessage({ type: 'error', text: String(err) })
+                            } finally {
+                              setIntegrationBusy(null)
+                            }
+                          }}
+                        >
+                          {integrationBusy === status.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                          {integrationBusy === status.id ? t('settings.integrations.installing') : t('settings.integrations.install')}
+                        </Button>
+                      )}
+                      {status.installed && !status.plugin_ready && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={integrationBusy === status.id}
+                          onClick={async () => {
+                            setIntegrationBusy(status.id)
+                            setMessage(null)
+                            try {
+                              const method = getAppMethod('DeployIntegrationPlugin')
+                              if (typeof method !== 'function') return
+                              await method(status.id)
+                              await loadIntegrationStatuses()
+                              setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: status.name }) })
+                              setTimeout(() => setMessage(null), 3000)
+                            } catch (err) {
+                              setMessage({ type: 'error', text: String(err) })
+                            } finally {
+                              setIntegrationBusy(null)
+                            }
+                          }}
+                        >
+                          {t('settings.integrations.deployPlugin')}
+                        </Button>
+                      )}
+                      {status.plugin_ready && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          disabled={integrationBusy === status.id}
+                          onClick={async () => {
+                            setIntegrationBusy(status.id)
+                            setMessage(null)
+                            try {
+                              const method = getAppMethod('RemoveIntegrationPlugin')
+                              if (typeof method !== 'function') return
+                              await method(status.id)
+                              await loadIntegrationStatuses()
+                              setMessage({ type: 'success', text: t('settings.integrations.removeSuccess', { name: status.name }) })
+                              setTimeout(() => setMessage(null), 3000)
+                            } catch (err) {
+                              setMessage({ type: 'error', text: String(err) })
+                            } finally {
+                              setIntegrationBusy(null)
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {t('settings.integrations.removePlugin')}
+                        </Button>
+                      )}
+                      {status.installed && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const method = getAppMethod('OpenIntegration')
+                              if (typeof method !== 'function') return
+                              await method(status.id)
+                            } catch (err) {
+                              setMessage({ type: 'error', text: String(err) })
+                            }
+                          }}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          {t('settings.integrations.open')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -453,7 +453,7 @@ export const en: Record<string, string> = {
 
   // Settings > Plugins
   'settings.plugins.title': 'Plugins',
-  'settings.plugins.desc': 'Manage burrow launch plugins and their configurations.',
+  'settings.plugins.desc': 'Manage launch plugins, configurations, and external integrations.',
   'settings.plugins.builtin': 'Built-in',
   'settings.plugins.codexName': 'Codex',
   'settings.plugins.codexDesc': 'Launch Codex with an isolated CODEX_HOME for AI-powered coding.',
@@ -545,4 +545,20 @@ export const en: Record<string, string> = {
 
   // Theme toggle
   'theme.toggle': 'Toggle theme',
+
+  // Settings > Integrations
+    'settings.integrations.title': 'Menu Bar Integrations',
+  'settings.integrations.desc': 'View and manage Mole sessions in your macOS menu bar with SwiftBar or xbar.',
+  'settings.integrations.installed': 'Installed',
+  'settings.integrations.notInstalled': 'Not installed',
+  'settings.integrations.pluginDeployed': 'Plugin deployed',
+  'settings.integrations.install': 'Install',
+  'settings.integrations.installing': 'Installing...',
+  'settings.integrations.installSuccess': '{{name}} installed successfully',
+  'settings.integrations.deployPlugin': 'Deploy Plugin',
+  'settings.integrations.deploySuccess': '{{name}} plugin deployed',
+  'settings.integrations.removePlugin': 'Remove Plugin',
+  'settings.integrations.removeSuccess': '{{name}} plugin removed',
+  'settings.integrations.open': 'Open',
+  'settings.integrations.noBrew': 'Homebrew is not installed. Mole will open the download page instead of using brew.',
 }
