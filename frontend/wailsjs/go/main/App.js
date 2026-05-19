@@ -50,8 +50,8 @@ export function DeleteScriptConfig(arg1) {
   return window['go']['main']['App']['DeleteScriptConfig'](arg1);
 }
 
-export function DeployIntegrationPlugin(arg1) {
-  return window['go']['main']['App']['DeployIntegrationPlugin'](arg1);
+export function DeployIntegrationPluginWithOptions(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeployIntegrationPluginWithOptions'](arg1, arg2, arg3);
 }
 
 export function DetachSession(arg1) {

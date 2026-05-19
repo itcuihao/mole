@@ -1,73 +1,105 @@
 package integration
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
+
+// Embedded template scripts — guaranteed to be available at runtime.
+var (
+	//go:embed template-compact.sh
+	templateCompact []byte
+	//go:embed template-detailed.sh
+	templateDetailed []byte
+	//go:embed template-minimal.sh
+	templateMinimal []byte
+)
+
+var embeddedTemplates = map[string][]byte{
+	"compact":  templateCompact,
+	"detailed": templateDetailed,
+	"minimal":  templateMinimal,
+}
 
 // Integration represents an external tool that Mole can install and configure.
 type Integration struct {
-	ID          string   // "swiftbar", "xbar"
-	Name        string   // "SwiftBar", "xbar"
-	Description string   // Human-readable description
-	PluginDir   string   // Plugin install directory (may contain ~)
-	InstallCmd  string   // Homebrew cask name, e.g. "swiftbar"
-	DetectPaths []string // App paths to check for installation
-	ScriptName  string   // Plugin script filename, e.g. "mole.30s.sh"
+	ID                string   // "swiftbar", "xbar"
+	Name              string   // "SwiftBar", "xbar"
+	Description       string   // Human-readable description
+	PluginDir         string   // Plugin install directory (may contain ~)
+	InstallCmd        string   // Homebrew cask name, e.g. "swiftbar"
+	DetectPaths       []string // App paths to check for installation
+	Templates         []string // Available template names: "compact", "detailed", "minimal"
+	DefaultTemplate   string   // Default template name
+	DefaultInterval   int      // Default refresh interval in seconds
+	AvailableIntervals []int   // Available refresh intervals: 10, 20, 30, 60
 }
 
 // IntegrationStatus is the JSON-serializable status returned to the frontend.
 type IntegrationStatus struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Installed     bool   `json:"installed"`      // Tool app is present
-	PluginReady   bool   `json:"plugin_ready"`   // Mole plugin script is deployed
-	BrewAvailable bool   `json:"brew_available"`  // Homebrew is on this machine
-	PluginDir     string `json:"plugin_dir"`      // Where plugin scripts are stored
-	ScriptName    string `json:"script_name"`     // Deployed script filename, e.g. "mole.30s.sh"
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Installed         bool   `json:"installed"`
+	PluginReady       bool   `json:"plugin_ready"`
+	BrewAvailable     bool   `json:"brew_available"`
+	PluginDir         string `json:"plugin_dir"`
+	Template          string `json:"template"`
+	Interval          int    `json:"interval"`
+	AvailableTemplates []string `json:"available_templates"`
+	AvailableIntervals []int `json:"available_intervals"`
 }
 
 // Manager manages external tool integrations.
 type Manager struct {
 	integrations []Integration
-	scriptSource string // Path to the embedded plugin script template
 	configDir    string // ~/.config/mole/
+}
+
+// scriptName computes the xbar/SwiftBar filename from interval.
+// Format: mole.{interval}s.sh (e.g. mole.30s.sh)
+func scriptName(interval int) string {
+	return fmt.Sprintf("mole.%ds.sh", interval)
 }
 
 // NewManager creates a Manager with builtin integrations.
 func NewManager(configDir string) *Manager {
 	home, _ := os.UserHomeDir()
 
+	templates := []string{"compact", "detailed", "minimal"}
+	intervals := []int{10, 20, 30, 60}
+
 	integrations := []Integration{
 		{
-			ID:          "swiftbar",
-			Name:        "SwiftBar",
-			Description: "Menu bar tool for macOS (xbar successor, actively maintained)",
-			PluginDir:   filepath.Join(home, "Library", "Application Support", "SwiftBar", "plugins"),
-			InstallCmd:  "swiftbar",
-			DetectPaths: []string{"/Applications/SwiftBar.app"},
-			ScriptName:  "mole.30s.sh",
+			ID:                "swiftbar",
+			Name:              "SwiftBar",
+			Description:       "Menu bar tool for macOS (xbar successor, actively maintained)",
+			PluginDir:         filepath.Join(home, "Library", "Application Support", "SwiftBar", "plugins"),
+			InstallCmd:        "swiftbar",
+			DetectPaths:       []string{"/Applications/SwiftBar.app"},
+			Templates:         templates,
+			DefaultTemplate:   "compact",
+			DefaultInterval:   30,
+			AvailableIntervals: intervals,
 		},
 		{
-			ID:          "xbar",
-			Name:        "xbar",
-			Description: "Menu bar plugin runner for macOS (BitBar successor)",
-			PluginDir:   filepath.Join(home, "Library", "Application Support", "xbar", "plugins"),
-			InstallCmd:  "xbar",
-			DetectPaths: []string{"/Applications/xbar.app"},
-			ScriptName:  "mole.30s.sh",
+			ID:                "xbar",
+			Name:              "xbar",
+			Description:       "Menu bar plugin runner for macOS (BitBar successor)",
+			PluginDir:         filepath.Join(home, "Library", "Application Support", "xbar", "plugins"),
+			InstallCmd:        "xbar",
+			DetectPaths:       []string{"/Applications/xbar.app"},
+			Templates:         templates,
+			DefaultTemplate:   "compact",
+			DefaultInterval:   30,
+			AvailableIntervals: intervals,
 		},
 	}
 
-	// scriptSource points to the xbar plugin script bundled with Mole.
-	// When running as a Wails app, the working directory is the app bundle,
-	// so we fall back to a relative path from configDir as well.
-	scriptSource := filepath.Join(configDir, "..", "..", "scripts", "xbar", "mole.30s.sh")
-
 	return &Manager{
 		integrations: integrations,
-		scriptSource: scriptSource,
 		configDir:    configDir,
 	}
 }
@@ -79,36 +111,52 @@ func (m *Manager) ListStatuses() []IntegrationStatus {
 
 	for _, integ := range m.integrations {
 		installed := detectApp(integ.DetectPaths)
-		pluginReady := m.isPluginDeployed(integ)
+		template, interval := m.detectDeployedConfig(integ)
+		pluginReady := template != ""
 		statuses = append(statuses, IntegrationStatus{
-			ID:            integ.ID,
-			Name:          integ.Name,
-			Installed:     installed,
-			PluginReady:   pluginReady,
-			BrewAvailable: brewAvailable,
-			PluginDir:     integ.PluginDir,
-			ScriptName:    integ.ScriptName,
+			ID:                integ.ID,
+			Name:              integ.Name,
+			Installed:         installed,
+			PluginReady:       pluginReady,
+			BrewAvailable:     brewAvailable,
+			PluginDir:         integ.PluginDir,
+			Template:          template,
+			Interval:          interval,
+			AvailableTemplates: integ.Templates,
+			AvailableIntervals: integ.AvailableIntervals,
 		})
 	}
 
 	return statuses
 }
 
-// InstallTool installs an external tool via Homebrew (or opens download page as fallback).
+// InstallTool installs an external tool via Homebrew (or opens download page as fallback),
+// then auto-deploys the plugin with default template and interval.
 func (m *Manager) InstallTool(id string) error {
 	integ, err := m.findIntegration(id)
 	if err != nil {
 		return err
 	}
 
-	return installToolApp(integ)
+	if err := installToolApp(integ); err != nil {
+		return err
+	}
+
+	// Auto-deploy after successful install.
+	return m.DeployPluginWithOptions(id, integ.DefaultTemplate, strconv.Itoa(integ.DefaultInterval))
 }
 
-// DeployPlugin copies the Mole plugin script to the integration's plugin directory.
-func (m *Manager) DeployPlugin(id string) error {
+// DeployPluginWithOptions deploys the plugin with the specified template and interval.
+func (m *Manager) DeployPluginWithOptions(id, template, interval string) error {
 	integ, err := m.findIntegration(id)
 	if err != nil {
 		return err
+	}
+
+	templateFile := template
+	scriptContent, err := m.readSourceFile(templateFile)
+	if err != nil {
+		return fmt.Errorf("failed to read template %s: %w", template, err)
 	}
 
 	// Ensure the plugin directory exists.
@@ -116,14 +164,16 @@ func (m *Manager) DeployPlugin(id string) error {
 		return fmt.Errorf("failed to create plugin directory: %w", err)
 	}
 
-	// Read the source script.
-	scriptContent, err := m.readSourceScript()
-	if err != nil {
-		return fmt.Errorf("failed to read source script: %w", err)
-	}
+	// Remove any previously deployed mole scripts.
+	m.cleanupOldScripts(integ)
 
-	// Write to the target plugin directory.
-	destPath := filepath.Join(integ.PluginDir, integ.ScriptName)
+	// Compute the target filename from interval.
+	intervalInt, err := strconv.Atoi(interval)
+	if err != nil {
+		return fmt.Errorf("invalid interval: %w", err)
+	}
+	destName := scriptName(intervalInt)
+	destPath := filepath.Join(integ.PluginDir, destName)
 	if err := os.WriteFile(destPath, scriptContent, 0755); err != nil {
 		return fmt.Errorf("failed to write plugin script: %w", err)
 	}
@@ -131,18 +181,14 @@ func (m *Manager) DeployPlugin(id string) error {
 	return nil
 }
 
-// RemovePlugin deletes the deployed plugin script from the integration's plugin directory.
+// RemovePlugin deletes all deployed mole plugin scripts from the integration's plugin directory.
 func (m *Manager) RemovePlugin(id string) error {
 	integ, err := m.findIntegration(id)
 	if err != nil {
 		return err
 	}
 
-	destPath := filepath.Join(integ.PluginDir, integ.ScriptName)
-	if err := os.Remove(destPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to remove plugin script: %w", err)
-	}
-
+	m.cleanupOldScripts(integ)
 	return nil
 }
 
@@ -167,47 +213,67 @@ func (m *Manager) findIntegration(id string) (Integration, error) {
 	return Integration{}, fmt.Errorf("unknown integration: %s", id)
 }
 
-func (m *Manager) isPluginDeployed(integ Integration) bool {
-	path := filepath.Join(integ.PluginDir, integ.ScriptName)
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
+// detectDeployedConfig scans the plugin directory for existing mole scripts
+// and returns the template name and interval. Returns ("", 0) if not deployed.
+func (m *Manager) detectDeployedConfig(integ Integration) (string, int) {
+	for _, interval := range integ.AvailableIntervals {
+		name := scriptName(interval)
+		path := filepath.Join(integ.PluginDir, name)
+		info, err := os.Stat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		// Read the script to detect which template it uses.
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		template := m.detectTemplateFromContent(data)
+		if template != "" {
+			return template, interval
+		}
+		// Fallback: assume compact if we can't detect template.
+		return "compact", interval
 	}
-	return !info.IsDir()
+	return "", 0
 }
 
-func (m *Manager) readSourceScript() ([]byte, error) {
-	// Try the configured scriptSource first.
-	data, err := os.ReadFile(m.scriptSource)
-	if err == nil {
-		return data, nil
+// detectTemplateFromContent reads script content and determines the template name.
+func (m *Manager) detectTemplateFromContent(data []byte) string {
+	content := string(data)
+	if containsSubstring(content, "# Mole detailed template") {
+		return "detailed"
 	}
+	if containsSubstring(content, "# Mole minimal template") {
+		return "minimal"
+	}
+	if containsSubstring(content, "# Mole compact template") {
+		return "compact"
+	}
+	return ""
+}
 
-	// Fallback: try relative to the executable's directory.
-	exePath, exeErr := os.Executable()
-	if exeErr == nil {
-		exeDir := filepath.Dir(exePath)
-		fallback := filepath.Join(exeDir, "scripts", "xbar", "mole.30s.sh")
-		data, err = os.ReadFile(fallback)
-		if err == nil {
-			return data, nil
+func containsSubstring(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
 		}
 	}
+	return false
+}
 
-	// Fallback: try well-known config-relative path.
-	home, _ := os.UserHomeDir()
-	fallback2 := filepath.Join(home, ".config", "mole", "scripts", "xbar", "mole.30s.sh")
-	data, err = os.ReadFile(fallback2)
-	if err == nil {
+// cleanupOldScripts removes all mole.*s.sh files from the plugin directory.
+func (m *Manager) cleanupOldScripts(integ Integration) {
+	for _, interval := range integ.AvailableIntervals {
+		name := scriptName(interval)
+		path := filepath.Join(integ.PluginDir, name)
+		os.Remove(path) // Ignore errors, file may not exist
+	}
+}
+
+func (m *Manager) readSourceFile(templateName string) ([]byte, error) {
+	if data, ok := embeddedTemplates[templateName]; ok {
 		return data, nil
 	}
-
-	// Final fallback: try the project repo path (for dev mode).
-	fallback3 := filepath.Join(home, "mycode", "ch", "mole", "scripts", "xbar", "mole.30s.sh")
-	data, err = os.ReadFile(fallback3)
-	if err == nil {
-		return data, nil
-	}
-
-	return nil, fmt.Errorf("cannot find source plugin script: tried %s and fallbacks", m.scriptSource)
+	return nil, fmt.Errorf("unknown template: %s", templateName)
 }

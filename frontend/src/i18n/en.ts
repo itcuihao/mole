@@ -567,4 +567,12 @@ export const en: Record<string, string> = {
   'settings.integrations.removeSuccess': '{{name}} plugin removed',
   'settings.integrations.open': 'Open',
   'settings.integrations.noBrew': 'Homebrew is not installed. Mole will open the download page instead of using brew.',
+  'settings.integrations.template': 'Template',
+  'settings.integrations.templateCompact': 'Compact',
+  'settings.integrations.templateDetailed': 'Detailed',
+  'settings.integrations.templateMinimal': 'Minimal',
+  'settings.integrations.refreshInterval': 'Refresh Interval',
+  'settings.integrations.redeploy': 'Redeploy',
+  'settings.integrations.deployedInfo': 'Deployed with {{template}} @ {{interval}}s',
+  'settings.integrations.autoDeployed': 'Auto-deployed',
 }

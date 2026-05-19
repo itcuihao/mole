@@ -647,9 +647,9 @@ func (a *App) InstallIntegration(id string) error {
 	return a.integrationMgr.InstallTool(id)
 }
 
-// DeployIntegrationPlugin deploys the Mole plugin script to the tool's plugin directory.
-func (a *App) DeployIntegrationPlugin(id string) error {
-	return a.integrationMgr.DeployPlugin(id)
+// DeployIntegrationPluginWithOptions deploys the Mole plugin with the specified template and interval.
+func (a *App) DeployIntegrationPluginWithOptions(id, template, interval string) error {
+	return a.integrationMgr.DeployPluginWithOptions(id, template, interval)
 }
 
 // RemoveIntegrationPlugin removes the deployed plugin script from the tool's plugin directory.

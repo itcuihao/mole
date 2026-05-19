@@ -4,21 +4,27 @@ import (
 	"context"
 	"embed"
 	"log"
+	"os"
 
+	"mole/cmd/cli"
 	"mole/internal/config"
 	"mole/internal/session"
-	// "mole/internal/statusbar"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	// "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	// If arguments are provided, run in CLI mode.
+	if len(os.Args) > 1 {
+		cli.Execute()
+		return
+	}
+
 	log.Println("🦔 [Mole Main] 启动 Wails 原生菜单架构...")
 	app := NewApp()
 

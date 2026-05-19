@@ -35,7 +35,7 @@ export function DeleteProfile(arg1:string):Promise<void>;
 
 export function DeleteScriptConfig(arg1:string):Promise<void>;
 
-export function DeployIntegrationPlugin(arg1:string):Promise<void>;
+export function DeployIntegrationPluginWithOptions(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function DetachSession(arg1:string):Promise<void>;
 

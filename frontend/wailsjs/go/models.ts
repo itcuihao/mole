@@ -99,7 +99,10 @@ export namespace integration {
 	    plugin_ready: boolean;
 	    brew_available: boolean;
 	    plugin_dir: string;
-	    script_name: string;
+	    template: string;
+	    interval: number;
+	    available_templates: string[];
+	    available_intervals: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new IntegrationStatus(source);
@@ -113,7 +116,10 @@ export namespace integration {
 	        this.plugin_ready = source["plugin_ready"];
 	        this.brew_available = source["brew_available"];
 	        this.plugin_dir = source["plugin_dir"];
-	        this.script_name = source["script_name"];
+	        this.template = source["template"];
+	        this.interval = source["interval"];
+	        this.available_templates = source["available_templates"];
+	        this.available_intervals = source["available_intervals"];
 	    }
 	}
 

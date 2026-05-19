@@ -567,4 +567,12 @@ export const zh: Record<string, string> = {
   'settings.integrations.removeSuccess': '{{name}} 插件已移除',
   'settings.integrations.open': '打开',
   'settings.integrations.noBrew': 'Homebrew 未安装。Mole 将打开下载页面而非使用 brew 安装。',
+  'settings.integrations.template': '模板',
+  'settings.integrations.templateCompact': '紧凑',
+  'settings.integrations.templateDetailed': '详细',
+  'settings.integrations.templateMinimal': '极简',
+  'settings.integrations.refreshInterval': '刷新间隔',
+  'settings.integrations.redeploy': '重新部署',
+  'settings.integrations.deployedInfo': '已部署 {{template}} 模板，{{interval}}秒刷新',
+  'settings.integrations.autoDeployed': '自动部署完成',
 }
