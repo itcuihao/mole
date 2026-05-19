@@ -4,6 +4,7 @@ import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
+import { useToast } from "@/components/ui/toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -188,7 +189,7 @@ function Settings({
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
   const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const toast = useToast()
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [burrowBuffer, setBurrowBuffer] = useState('')
@@ -239,7 +240,7 @@ function Settings({
       setTerminals(installed || [])
       setDefaultTerminal(current === '' ? 'auto' : current)
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     }
   }
 
@@ -252,7 +253,7 @@ function Settings({
       const configs = await method()
       setCodexConfigs(configs || [])
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     }
   }
 
@@ -311,7 +312,7 @@ function Settings({
       const configs: ScriptConfig[] = await method()
       setScriptConfigs(configs || [])
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     }
   }
 
@@ -338,15 +339,13 @@ function Settings({
 
   const handleSave = async (terminalID: string) => {
     setSaving(true)
-    setMessage(null)
     try {
       const value = terminalID === 'auto' ? '' : terminalID
       await SetDefaultTerminal(value)
       setDefaultTerminal(terminalID)
-      setMessage({ type: 'success', text: t('settings.terminal.updated') })
-      setTimeout(() => setMessage(null), 3000)
+      toast({ type: 'success', text: t('settings.terminal.updated') })
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     } finally {
       setSaving(false)
     }
@@ -355,18 +354,17 @@ function Settings({
   const handleExportBurrow = async () => {
     const method = getAppMethod('ExportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: t('settings.importExport.exportUnavailable') })
+      toast({ type: 'error', text: t('settings.importExport.exportUnavailable') })
       return
     }
 
     setBurrowBusy('export')
-    setMessage(null)
     try {
       const raw = await method()
       setBurrowBuffer(String(raw || ''))
       setShowExportModal(true)
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     } finally {
       setBurrowBusy(null)
     }
@@ -375,21 +373,19 @@ function Settings({
   const handleImportBurrow = async () => {
     const method = getAppMethod('ImportBurrow')
     if (typeof method !== 'function') {
-      setMessage({ type: 'error', text: t('settings.importExport.importUnavailable') })
+      toast({ type: 'error', text: t('settings.importExport.importUnavailable') })
       return
     }
 
     setBurrowBusy('import')
-    setMessage(null)
     try {
       await method(burrowBuffer)
       setShowImportModal(false)
       setBurrowBuffer('')
       onBurrowImported?.()
-      setMessage({ type: 'success', text: t('settings.importExport.imported') })
-      setTimeout(() => setMessage(null), 4000)
+      toast({ type: 'success', text: t('settings.importExport.imported') })
     } catch (err) {
-      setMessage({ type: 'error', text: String(err) })
+      toast({ type: 'error', text: String(err) })
     } finally {
       setBurrowBusy(null)
     }
@@ -435,16 +431,6 @@ function Settings({
           })}
         </div>
       </div>
-
-      {message && (
-        <div className={`surface-panel rounded-2xl border px-4 py-3 text-sm ${
-          message.type === 'success'
-            ? 'bg-green-500/10 border-green-500/50 text-green-600 dark:text-green-400'
-            : 'bg-destructive/10 border-destructive/50 text-destructive'
-        }`}>
-          {message.text}
-        </div>
-      )}
 
       <div className="app-scroll min-h-0 flex-1 overflow-auto pr-1">
       {activeTab === 'general' && (
@@ -703,10 +689,9 @@ function Settings({
                                 try {
                                   await method(selectedScriptConfig.id)
                                   await loadScriptConfigs()
-                                  setMessage({ type: 'success', text: t('settings.scripts.removed') })
-                                  setTimeout(() => setMessage(null), 3000)
+                                  toast({ type: 'success', text: t('settings.scripts.removed') })
                                 } catch (err) {
-                                  setMessage({ type: 'error', text: String(err) })
+                                  toast({ type: 'error', text: String(err) })
                                 }
                               }}
                             >
@@ -848,10 +833,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadCodexConfigs()
-                                        setMessage({ type: 'success', text: t('settings.codex.removed') })
-                                        setTimeout(() => setMessage(null), 3000)
+                                        toast({ type: 'success', text: t('settings.codex.removed') })
                                       } catch (err) {
-                                        setMessage({ type: 'error', text: String(err) })
+                                        toast({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -910,10 +894,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadDockerConfigs()
-                                        setMessage({ type: 'success', text: t('settings.docker.removed') })
-                                        setTimeout(() => setMessage(null), 3000)
+                                        toast({ type: 'success', text: t('settings.docker.removed') })
                                       } catch (err) {
-                                        setMessage({ type: 'error', text: String(err) })
+                                        toast({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -973,10 +956,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadPluginConfigs()
-                                        setMessage({ type: 'success', text: t('settings.pluginConfigs.removed') })
-                                        setTimeout(() => setMessage(null), 3000)
+                                        toast({ type: 'success', text: t('settings.pluginConfigs.removed') })
                                       } catch (err) {
-                                        setMessage({ type: 'error', text: String(err) })
+                                        toast({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -1078,16 +1060,14 @@ function Settings({
                                 disabled={busy}
                                 onClick={async () => {
                                   setIntegrationBusy(selected.id)
-                                  setMessage(null)
                                   try {
                                     const method = getAppMethod('InstallIntegration')
                                     if (typeof method !== 'function') return
                                     await method(selected.id)
                                     await loadIntegrationStatuses()
-                                    setMessage({ type: 'success', text: t('settings.integrations.installSuccess', { name: selected.name }) })
-                                    setTimeout(() => setMessage(null), 3000)
+                                    toast({ type: 'success', text: t('settings.integrations.installSuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    setMessage({ type: 'error', text: String(err) })
+                                    toast({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1124,7 +1104,7 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id)
                                   } catch (err) {
-                                    setMessage({ type: 'error', text: String(err) })
+                                    toast({ type: 'error', text: String(err) })
                                   }
                                 }}
                               >
@@ -1155,16 +1135,14 @@ function Settings({
                               disabled={busy}
                               onClick={async () => {
                                 setIntegrationBusy(selected.id)
-                                setMessage(null)
                                 try {
                                   const method = getAppMethod('RemoveIntegrationPlugin')
                                   if (typeof method !== 'function') return
                                   await method(selected.id)
                                   await loadIntegrationStatuses()
-                                  setMessage({ type: 'success', text: t('settings.integrations.removeSuccess', { name: selected.name }) })
-                                  setTimeout(() => setMessage(null), 3000)
+                                  toast({ type: 'success', text: t('settings.integrations.removeSuccess', { name: selected.name }) })
                                 } catch (err) {
-                                  setMessage({ type: 'error', text: String(err) })
+                                  toast({ type: 'error', text: String(err) })
                                 } finally {
                                   setIntegrationBusy(null)
                                 }
@@ -1181,16 +1159,14 @@ function Settings({
                                 disabled={busy}
                                 onValueChange={async (newTemplate) => {
                                   setIntegrationBusy(selected.id)
-                                  setMessage(null)
                                   try {
                                     const method = getAppMethod('DeployIntegrationPluginWithOptions')
                                     if (typeof method !== 'function') return
                                     await method(selected.id, newTemplate, String(currentInterval))
                                     await loadIntegrationStatuses()
-                                    setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
-                                    setTimeout(() => setMessage(null), 3000)
+                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    setMessage({ type: 'error', text: String(err) })
+                                    toast({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1215,16 +1191,14 @@ function Settings({
                                 disabled={busy}
                                 onValueChange={async (newInterval) => {
                                   setIntegrationBusy(selected.id)
-                                  setMessage(null)
                                   try {
                                     const method = getAppMethod('DeployIntegrationPluginWithOptions')
                                     if (typeof method !== 'function') return
                                     await method(selected.id, currentTemplate, newInterval)
                                     await loadIntegrationStatuses()
-                                    setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
-                                    setTimeout(() => setMessage(null), 3000)
+                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    setMessage({ type: 'error', text: String(err) })
+                                    toast({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1249,16 +1223,14 @@ function Settings({
                               disabled={busy}
                               onClick={async () => {
                                 setIntegrationBusy(selected.id)
-                                setMessage(null)
                                 try {
                                   const method = getAppMethod('DeployIntegrationPluginWithOptions')
                                   if (typeof method !== 'function') return
                                   await method(selected.id, currentTemplate, String(currentInterval))
                                   await loadIntegrationStatuses()
-                                  setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
-                                  setTimeout(() => setMessage(null), 3000)
+                                  toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                 } catch (err) {
-                                  setMessage({ type: 'error', text: String(err) })
+                                  toast({ type: 'error', text: String(err) })
                                 } finally {
                                   setIntegrationBusy(null)
                                 }
@@ -1371,8 +1343,7 @@ function Settings({
           onSaved={async () => {
             setCodexModal(null)
             await loadCodexConfigs()
-            setMessage({ type: 'success', text: t('settings.codex.saved') })
-            setTimeout(() => setMessage(null), 3000)
+            toast({ type: 'success', text: t('settings.codex.saved') })
           }}
         />
       )}
@@ -1385,8 +1356,7 @@ function Settings({
           onSaved={async () => {
             setDockerModal(null)
             await loadDockerConfigs()
-            setMessage({ type: 'success', text: t('settings.docker.saved') })
-            setTimeout(() => setMessage(null), 3000)
+            toast({ type: 'success', text: t('settings.docker.saved') })
           }}
         />
       )}
@@ -1399,8 +1369,7 @@ function Settings({
           onSaved={async () => {
             setScriptModal(null)
             await loadScriptConfigs()
-            setMessage({ type: 'success', text: t('settings.scripts.saved') })
-            setTimeout(() => setMessage(null), 3000)
+            toast({ type: 'success', text: t('settings.scripts.saved') })
           }}
         />
       )}
@@ -1415,8 +1384,7 @@ function Settings({
           onSaved={async () => {
             setPluginConfigModal(null)
             await loadPluginConfigs()
-            setMessage({ type: 'success', text: t('settings.pluginConfigs.saved') })
-            setTimeout(() => setMessage(null), 3000)
+            toast({ type: 'success', text: t('settings.pluginConfigs.saved') })
           }}
         />
       )}

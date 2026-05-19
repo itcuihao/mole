@@ -5,6 +5,7 @@ import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { MoleMascot } from './components/mole-mascot'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ToastProvider } from '@/components/ui/toast'
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
 import { useTranslation } from './i18n/context'
 import { Users, Server, Settings as SettingsIcon, Mountain } from "lucide-react"
@@ -104,6 +105,7 @@ function App() {
     }`
 
   return (
+    <ToastProvider>
     <div className="h-full min-w-0 flex flex-col bg-background">
       <Tabs
         value={activeTab}
@@ -204,6 +206,7 @@ function App() {
         </TabsContent>
       </Tabs>
     </div>
+    </ToastProvider>
   )
 }
 

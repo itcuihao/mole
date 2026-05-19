@@ -147,6 +147,7 @@ func (m *Manager) InstallTool(id string) error {
 }
 
 // DeployPluginWithOptions deploys the plugin with the specified template and interval.
+// Uses atomic swap: writes new script first, then removes old ones — avoids icon gap.
 func (m *Manager) DeployPluginWithOptions(id, template, interval string) error {
 	integ, err := m.findIntegration(id)
 	if err != nil {
@@ -164,9 +165,6 @@ func (m *Manager) DeployPluginWithOptions(id, template, interval string) error {
 		return fmt.Errorf("failed to create plugin directory: %w", err)
 	}
 
-	// Remove any previously deployed mole scripts.
-	m.cleanupOldScripts(integ)
-
 	// Compute the target filename from interval.
 	intervalInt, err := strconv.Atoi(interval)
 	if err != nil {
@@ -174,9 +172,14 @@ func (m *Manager) DeployPluginWithOptions(id, template, interval string) error {
 	}
 	destName := scriptName(intervalInt)
 	destPath := filepath.Join(integ.PluginDir, destName)
+
+	// Write new script first (atomic-ish: write content before removing old).
 	if err := os.WriteFile(destPath, scriptContent, 0755); err != nil {
 		return fmt.Errorf("failed to write plugin script: %w", err)
 	}
+
+	// Now remove any previously deployed mole scripts with different intervals.
+	m.cleanupOldScriptsExcept(integ, intervalInt)
 
 	return nil
 }
@@ -268,6 +271,18 @@ func (m *Manager) cleanupOldScripts(integ Integration) {
 		name := scriptName(interval)
 		path := filepath.Join(integ.PluginDir, name)
 		os.Remove(path) // Ignore errors, file may not exist
+	}
+}
+
+// cleanupOldScriptsExcept removes mole scripts except the one with the given interval.
+func (m *Manager) cleanupOldScriptsExcept(integ Integration, keepInterval int) {
+	for _, interval := range integ.AvailableIntervals {
+		if interval == keepInterval {
+			continue
+		}
+		name := scriptName(interval)
+		path := filepath.Join(integ.PluginDir, name)
+		os.Remove(path)
 	}
 }
 
