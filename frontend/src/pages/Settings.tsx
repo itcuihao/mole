@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useTranslation, type Language } from "@/i18n/context"
-import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info, ExternalLink, Plug, Loader2 } from "lucide-react"
+import { Check, Copy, Download, KeyRound, Pencil, Plus, Puzzle, Terminal as TerminalIcon, Trash2, TriangleAlert, Upload, Settings as SettingsIcon, Palette, HardDrive, FileUp, Info, ExternalLink, Loader2 } from "lucide-react"
 
 type SettingsTab = 'general' | 'terminal' | 'import' | 'scripts' | 'plugins' | 'about'
 type PluginConfigModalState = { mode: 'new' | 'edit'; pluginID: string; config?: pluginconfig.Config }
@@ -42,6 +42,8 @@ type IntegrationStatus = {
   installed: boolean
   plugin_ready: boolean
   brew_available: boolean
+  plugin_dir: string
+  script_name: string
 }
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
@@ -202,6 +204,7 @@ function Settings({
   const [pluginConfigModal, setPluginConfigModal] = useState<PluginConfigModalState | null>(null)
   const [integrationStatuses, setIntegrationStatuses] = useState<IntegrationStatus[]>([])
   const [integrationBusy, setIntegrationBusy] = useState<string | null>(null)
+  const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('')
 
   useEffect(() => {
     loadSettings()
@@ -324,6 +327,9 @@ function Settings({
     try {
       const statuses: IntegrationStatus[] = await method()
       setIntegrationStatuses(statuses || [])
+      if (statuses && statuses.length > 0 && !selectedIntegrationId) {
+        setSelectedIntegrationId(statuses[0].id)
+      }
     } catch { /* integration unavailable */ }
   }
 
@@ -987,7 +993,7 @@ function Settings({
             </div>
           </div>
 
-          {/* Integrations section inside plugins tab */}
+          {/* Integrations section inside plugins tab — same sidebar+detail layout */}
           <div className="border-t border-border mt-8 pt-8">
             <h2 className="text-lg font-semibold text-foreground mb-1">{t('settings.integrations.title')}</h2>
             <p className="text-sm text-muted-foreground mb-6">{t('settings.integrations.desc')}</p>
@@ -1001,134 +1007,208 @@ function Settings({
               </div>
             )}
 
-            <div className="space-y-4">
-              {integrationStatuses.map(status => (
-                <div key={status.id} className="breathing-card rounded-2xl border border-border/70 bg-muted/20 p-4 transition-all">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background text-muted-foreground">
-                        <Plug className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-foreground">{status.name}</span>
-                          {status.installed && (
-                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
-                              {t('settings.integrations.installed')}
-                            </span>
-                          )}
-                          {!status.installed && (
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                              {t('settings.integrations.notInstalled')}
-                            </span>
-                          )}
-                        </div>
-                        {status.plugin_ready && (
-                          <div className="mt-1 text-xs text-primary">{t('settings.integrations.pluginDeployed')}</div>
+            <div className="flex gap-0">
+              {/* Left sidebar — integration list */}
+              <div className="w-48 shrink-0 border-r border-border pr-4 space-y-1">
+                {integrationStatuses.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedIntegrationId(s.id)}
+                    className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition-colors ${
+                      selectedIntegrationId === s.id
+                        ? 'border-primary/30 bg-[hsl(var(--selected))] font-medium text-[hsl(var(--selected-foreground))]'
+                        : 'border-transparent text-muted-foreground hover:border-primary/20 hover:bg-muted/30 hover:text-foreground'
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Right detail panel — 3-step setup flow */}
+              <div className="flex-1 min-w-0 pl-6 overflow-hidden">
+                {(() => {
+                  const selected = integrationStatuses.find(s => s.id === selectedIntegrationId)
+                  if (!selected) return <div className="text-sm text-muted-foreground">{t('settings.integrations.desc')}</div>
+
+                  // Step 1: Install tool app
+                  // Step 2: Deploy plugin script
+                  // Step 3: Open & use
+                  const step1Done = selected.installed
+                  const step2Done = selected.plugin_ready
+                  const step3Ready = step1Done && step2Done
+                  const busy = integrationBusy === selected.id
+
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-base font-semibold text-foreground">{selected.name}</h3>
+                        {step3Ready && (
+                          <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                            {t('settings.integrations.ready')}
+                          </span>
                         )}
                       </div>
-                    </div>
+                      <p className="text-sm text-muted-foreground mb-4">{t('settings.integrations.desc')}</p>
 
-                    <div className="flex flex-wrap gap-2">
-                      {!status.installed && (
-                        <Button
-                          size="sm"
-                          disabled={integrationBusy === status.id}
-                          onClick={async () => {
-                            setIntegrationBusy(status.id)
-                            setMessage(null)
-                            try {
-                              const method = getAppMethod('InstallIntegration')
-                              if (typeof method !== 'function') return
-                              await method(status.id)
-                              await loadIntegrationStatuses()
-                              setMessage({ type: 'success', text: t('settings.integrations.installSuccess', { name: status.name }) })
-                              setTimeout(() => setMessage(null), 3000)
-                            } catch (err) {
-                              setMessage({ type: 'error', text: String(err) })
-                            } finally {
-                              setIntegrationBusy(null)
-                            }
-                          }}
-                        >
-                          {integrationBusy === status.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                          {integrationBusy === status.id ? t('settings.integrations.installing') : t('settings.integrations.install')}
-                        </Button>
-                      )}
-                      {status.installed && !status.plugin_ready && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={integrationBusy === status.id}
-                          onClick={async () => {
-                            setIntegrationBusy(status.id)
-                            setMessage(null)
-                            try {
-                              const method = getAppMethod('DeployIntegrationPlugin')
-                              if (typeof method !== 'function') return
-                              await method(status.id)
-                              await loadIntegrationStatuses()
-                              setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: status.name }) })
-                              setTimeout(() => setMessage(null), 3000)
-                            } catch (err) {
-                              setMessage({ type: 'error', text: String(err) })
-                            } finally {
-                              setIntegrationBusy(null)
-                            }
-                          }}
-                        >
-                          {t('settings.integrations.deployPlugin')}
-                        </Button>
-                      )}
-                      {status.plugin_ready && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={integrationBusy === status.id}
-                          onClick={async () => {
-                            setIntegrationBusy(status.id)
-                            setMessage(null)
-                            try {
-                              const method = getAppMethod('RemoveIntegrationPlugin')
-                              if (typeof method !== 'function') return
-                              await method(status.id)
-                              await loadIntegrationStatuses()
-                              setMessage({ type: 'success', text: t('settings.integrations.removeSuccess', { name: status.name }) })
-                              setTimeout(() => setMessage(null), 3000)
-                            } catch (err) {
-                              setMessage({ type: 'error', text: String(err) })
-                            } finally {
-                              setIntegrationBusy(null)
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          {t('settings.integrations.removePlugin')}
-                        </Button>
-                      )}
-                      {status.installed && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              const method = getAppMethod('OpenIntegration')
-                              if (typeof method !== 'function') return
-                              await method(status.id)
-                            } catch (err) {
-                              setMessage({ type: 'error', text: String(err) })
-                            }
-                          }}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          {t('settings.integrations.open')}
-                        </Button>
-                      )}
+                      {/* 3-step progress */}
+                      <div className="space-y-2">
+                        {/* Step 1 — Install */}
+                        <div className={`rounded-xl border p-3 transition-colors ${step1Done ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/15'}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${step1Done ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'}`}>
+                                {step1Done ? <Check className="w-3.5 h-3.5" /> : '1'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground">{t('settings.integrations.stepInstall')}</div>
+                                {step1Done && (
+                                  <div className="text-xs text-primary">{t('settings.integrations.installed')}</div>
+                                )}
+                              </div>
+                            </div>
+                            {!step1Done && (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setIntegrationBusy(selected.id)
+                                  setMessage(null)
+                                  try {
+                                    const method = getAppMethod('InstallIntegration')
+                                    if (typeof method !== 'function') return
+                                    await method(selected.id)
+                                    await loadIntegrationStatuses()
+                                    setMessage({ type: 'success', text: t('settings.integrations.installSuccess', { name: selected.name }) })
+                                    setTimeout(() => setMessage(null), 3000)
+                                  } catch (err) {
+                                    setMessage({ type: 'error', text: String(err) })
+                                  } finally {
+                                    setIntegrationBusy(null)
+                                  }
+                                }}
+                              >
+                                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                                {busy ? t('settings.integrations.installing') : t('settings.integrations.install')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 2 — Deploy plugin */}
+                        <div className={`rounded-xl border p-3 transition-colors ${step2Done ? 'border-primary/30 bg-primary/5' : step1Done ? 'border-border bg-muted/15' : 'border-border/50 bg-muted/5'}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${step2Done ? 'border-primary/30 bg-primary/10 text-primary' : step1Done ? 'border-border bg-muted text-muted-foreground' : 'border-border/50 bg-muted/20 text-muted-foreground/50'}`}>
+                                {step2Done ? <Check className="w-3.5 h-3.5" /> : '2'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className={`text-sm font-medium ${step1Done ? 'text-foreground' : 'text-muted-foreground'}`}>{t('settings.integrations.stepDeploy')}</div>
+                                {step2Done && (
+                                  <div className="mt-0.5 font-mono text-xs text-muted-foreground break-all">{selected.plugin_dir}/{selected.script_name}</div>
+                                )}
+                                {!step2Done && step1Done && (
+                                  <div className="text-xs text-muted-foreground">{t('settings.integrations.deployHint')}</div>
+                                )}
+                              </div>
+                            </div>
+                            {step1Done && !step2Done && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setIntegrationBusy(selected.id)
+                                  setMessage(null)
+                                  try {
+                                    const method = getAppMethod('DeployIntegrationPlugin')
+                                    if (typeof method !== 'function') return
+                                    await method(selected.id)
+                                    await loadIntegrationStatuses()
+                                    setMessage({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                    setTimeout(() => setMessage(null), 3000)
+                                  } catch (err) {
+                                    setMessage({ type: 'error', text: String(err) })
+                                  } finally {
+                                    setIntegrationBusy(null)
+                                  }
+                                }}
+                              >
+                                {t('settings.integrations.deployPlugin')}
+                              </Button>
+                            )}
+                            {step2Done && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setIntegrationBusy(selected.id)
+                                  setMessage(null)
+                                  try {
+                                    const method = getAppMethod('RemoveIntegrationPlugin')
+                                    if (typeof method !== 'function') return
+                                    await method(selected.id)
+                                    await loadIntegrationStatuses()
+                                    setMessage({ type: 'success', text: t('settings.integrations.removeSuccess', { name: selected.name }) })
+                                    setTimeout(() => setMessage(null), 3000)
+                                  } catch (err) {
+                                    setMessage({ type: 'error', text: String(err) })
+                                  } finally {
+                                    setIntegrationBusy(null)
+                                  }
+                                }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                {t('common.remove')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Step 3 — Open */}
+                        <div className={`rounded-xl border p-3 transition-colors ${step3Ready ? 'border-primary/30 bg-primary/5' : 'border-border/50 bg-muted/5'}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-semibold ${step3Ready ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border/50 bg-muted/20 text-muted-foreground/50'}`}>
+                                {step3Ready ? <Check className="w-3.5 h-3.5" /> : '3'}
+                              </div>
+                              <div className="min-w-0">
+                                <div className={`text-sm font-medium ${step3Ready ? 'text-foreground' : 'text-muted-foreground'}`}>{t('settings.integrations.stepOpen')}</div>
+                                {step3Ready && (
+                                  <div className="text-xs text-primary">{t('settings.integrations.ready')}</div>
+                                )}
+                              </div>
+                            </div>
+                            {step3Ready && (
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const method = getAppMethod('OpenIntegration')
+                                      if (typeof method !== 'function') return
+                                      await method(selected.id)
+                                    } catch (err) {
+                                      setMessage({ type: 'error', text: String(err) })
+                                    }
+                                  }}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                  {t('settings.integrations.open')}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  )
+                })()}
+              </div>
             </div>
           </div>
         </div>

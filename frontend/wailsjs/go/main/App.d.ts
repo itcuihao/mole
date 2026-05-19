@@ -6,6 +6,7 @@ import {inventory} from '../models';
 import {provider} from '../models';
 import {codex} from '../models';
 import {docker} from '../models';
+import {integration} from '../models';
 import {pluginconfig} from '../models';
 import {profile} from '../models';
 import {scriptcfg} from '../models';
@@ -34,6 +35,8 @@ export function DeleteProfile(arg1:string):Promise<void>;
 
 export function DeleteScriptConfig(arg1:string):Promise<void>;
 
+export function DeployIntegrationPlugin(arg1:string):Promise<void>;
+
 export function DetachSession(arg1:string):Promise<void>;
 
 export function ExportBurrow():Promise<string>;
@@ -54,11 +57,15 @@ export function ImportBurrow(arg1:string):Promise<void>;
 
 export function ImportSSHConfig(arg1:inventory.SSHConfigImportRequest):Promise<void>;
 
+export function InstallIntegration(arg1:string):Promise<void>;
+
 export function KillSession(arg1:string):Promise<void>;
 
 export function ListCodexConfigs():Promise<Array<codex.Config>>;
 
 export function ListDockerConfigs():Promise<Array<docker.Config>>;
+
+export function ListIntegrationStatuses():Promise<Array<integration.IntegrationStatus>>;
 
 export function ListLaunchPlugins():Promise<Array<session.PluginInfo>>;
 
@@ -72,9 +79,13 @@ export function ListSessions():Promise<Array<session.SessionStatus>>;
 
 export function OpenDen(arg1:string):Promise<session.OpenDenResult>;
 
+export function OpenIntegration(arg1:string):Promise<void>;
+
 export function PickDirectory(arg1:string):Promise<string>;
 
 export function PreviewSSHConfigImport(arg1:string):Promise<inventory.SSHConfigImportPreview>;
+
+export function RemoveIntegrationPlugin(arg1:string):Promise<void>;
 
 export function RestartSession(arg1:string):Promise<void>;
 

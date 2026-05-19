@@ -16,6 +16,7 @@ import (
 	"mole/internal/config"
 	"mole/internal/docker"
 	"mole/internal/inventory"
+	"mole/internal/integration"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/provider"
@@ -38,6 +39,7 @@ type App struct {
 	pluginConfigMgr *pluginconfig.Manager
 	sessionMgr      *session.Manager
 	invMgr          *inventory.Manager
+	integrationMgr  *integration.Manager
 }
 
 // NewApp creates a new App instance.
@@ -70,6 +72,7 @@ func (a *App) startup(ctx context.Context) {
 	a.sessionMgr.SetDockerManager(a.dockerMgr)
 	a.sessionMgr.SetPluginConfigManager(a.pluginConfigMgr)
 	a.sessionMgr.SetScriptManager(a.scriptMgr)
+	a.integrationMgr = integration.NewManager(config.Dir())
 }
 
 // seedDefaultProfiles creates the built-in maxx-free-claude profile if it doesn't already exist.
@@ -632,4 +635,29 @@ func (a *App) defaultTerminalID() string {
 		return terminal.GetDefaultTerminal().ID
 	}
 	return settings.DefaultTerminal
+}
+
+// ListIntegrationStatuses returns the status of all registered external tool integrations.
+func (a *App) ListIntegrationStatuses() []integration.IntegrationStatus {
+	return a.integrationMgr.ListStatuses()
+}
+
+// InstallIntegration installs an external tool via Homebrew (or opens download page).
+func (a *App) InstallIntegration(id string) error {
+	return a.integrationMgr.InstallTool(id)
+}
+
+// DeployIntegrationPlugin deploys the Mole plugin script to the tool's plugin directory.
+func (a *App) DeployIntegrationPlugin(id string) error {
+	return a.integrationMgr.DeployPlugin(id)
+}
+
+// RemoveIntegrationPlugin removes the deployed plugin script from the tool's plugin directory.
+func (a *App) RemoveIntegrationPlugin(id string) error {
+	return a.integrationMgr.RemovePlugin(id)
+}
+
+// OpenIntegration launches the external tool application.
+func (a *App) OpenIntegration(id string) error {
+	return a.integrationMgr.OpenTool(id)
 }

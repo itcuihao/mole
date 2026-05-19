@@ -50,6 +50,10 @@ export function DeleteScriptConfig(arg1) {
   return window['go']['main']['App']['DeleteScriptConfig'](arg1);
 }
 
+export function DeployIntegrationPlugin(arg1) {
+  return window['go']['main']['App']['DeployIntegrationPlugin'](arg1);
+}
+
 export function DetachSession(arg1) {
   return window['go']['main']['App']['DetachSession'](arg1);
 }
@@ -90,6 +94,10 @@ export function ImportSSHConfig(arg1) {
   return window['go']['main']['App']['ImportSSHConfig'](arg1);
 }
 
+export function InstallIntegration(arg1) {
+  return window['go']['main']['App']['InstallIntegration'](arg1);
+}
+
 export function KillSession(arg1) {
   return window['go']['main']['App']['KillSession'](arg1);
 }
@@ -100,6 +108,10 @@ export function ListCodexConfigs() {
 
 export function ListDockerConfigs() {
   return window['go']['main']['App']['ListDockerConfigs']();
+}
+
+export function ListIntegrationStatuses() {
+  return window['go']['main']['App']['ListIntegrationStatuses']();
 }
 
 export function ListLaunchPlugins() {
@@ -126,12 +138,20 @@ export function OpenDen(arg1) {
   return window['go']['main']['App']['OpenDen'](arg1);
 }
 
+export function OpenIntegration(arg1) {
+  return window['go']['main']['App']['OpenIntegration'](arg1);
+}
+
 export function PickDirectory(arg1) {
   return window['go']['main']['App']['PickDirectory'](arg1);
 }
 
 export function PreviewSSHConfigImport(arg1) {
   return window['go']['main']['App']['PreviewSSHConfigImport'](arg1);
+}
+
+export function RemoveIntegrationPlugin(arg1) {
+  return window['go']['main']['App']['RemoveIntegrationPlugin'](arg1);
 }
 
 export function RestartSession(arg1) {

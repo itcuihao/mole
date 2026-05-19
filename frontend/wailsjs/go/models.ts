@@ -90,6 +90,35 @@ export namespace docker {
 
 }
 
+export namespace integration {
+	
+	export class IntegrationStatus {
+	    id: string;
+	    name: string;
+	    installed: boolean;
+	    plugin_ready: boolean;
+	    brew_available: boolean;
+	    plugin_dir: string;
+	    script_name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IntegrationStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.installed = source["installed"];
+	        this.plugin_ready = source["plugin_ready"];
+	        this.brew_available = source["brew_available"];
+	        this.plugin_dir = source["plugin_dir"];
+	        this.script_name = source["script_name"];
+	    }
+	}
+
+}
+
 export namespace inventory {
 	
 	export class Host {
