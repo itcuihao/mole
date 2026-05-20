@@ -1080,6 +1080,28 @@ function Settings({
                                 {busy ? t('settings.integrations.installing') : t('settings.integrations.install')}
                               </Button>
                             )}
+                            {installed && !pluginReady && (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={async () => {
+                                  setIntegrationBusy(selected.id)
+                                  try {
+                                    const method = getAppMethod('DeployIntegrationPluginWithOptions')
+                                    if (typeof method !== 'function') return
+                                    await method(selected.id, 'compact', '30')
+                                    await loadIntegrationStatuses()
+                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                  } catch (err) {
+                                    toast({ type: 'error', text: String(err) })
+                                  } finally {
+                                    setIntegrationBusy(null)
+                                  }
+                                }}
+                              >
+                                {t('settings.integrations.redeploy')}
+                              </Button>
+                            )}
                           </div>
                         </div>
 
@@ -1132,18 +1154,18 @@ function Settings({
                               </div>
                             </div>
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              className="h-7 text-xs shrink-0"
                               disabled={busy}
                               onClick={async () => {
                                 setIntegrationBusy(selected.id)
                                 try {
-                                  const method = getAppMethod('RemoveIntegrationPlugin')
+                                  const method = getAppMethod('DeployIntegrationPluginWithOptions')
                                   if (typeof method !== 'function') return
-                                  await method(selected.id)
+                                  await method(selected.id, currentTemplate, String(currentInterval))
                                   await loadIntegrationStatuses()
-                                  toast({ type: 'success', text: t('settings.integrations.removeSuccess', { name: selected.name }) })
+                                  toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                 } catch (err) {
                                   toast({ type: 'error', text: String(err) })
                                 } finally {
@@ -1151,7 +1173,7 @@ function Settings({
                                 }
                               }}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              {t('settings.integrations.redeploy')}
                             </Button>
                           </div>
                           <div className="mt-2 flex items-center gap-3">
@@ -1219,28 +1241,6 @@ function Settings({
                                 </SelectContent>
                               </Select>
                             </div>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="h-7 text-xs shrink-0"
-                              disabled={busy}
-                              onClick={async () => {
-                                setIntegrationBusy(selected.id)
-                                try {
-                                  const method = getAppMethod('DeployIntegrationPluginWithOptions')
-                                  if (typeof method !== 'function') return
-                                  await method(selected.id, currentTemplate, String(currentInterval))
-                                  await loadIntegrationStatuses()
-                                  toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
-                                } catch (err) {
-                                  toast({ type: 'error', text: String(err) })
-                                } finally {
-                                  setIntegrationBusy(null)
-                                }
-                              }}
-                            >
-                              {t('settings.integrations.redeploy')}
-                            </Button>
                           </div>
                         </div>
                       )}
