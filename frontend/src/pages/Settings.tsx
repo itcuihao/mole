@@ -40,6 +40,7 @@ type RuntimeScriptPlatform = ScriptPlatform | 'other'
 type IntegrationStatus = {
   id: string
   name: string
+  supported: boolean
   installed: boolean
   plugin_ready: boolean
   brew_available: boolean
@@ -332,7 +333,8 @@ function Settings({
       const statuses: IntegrationStatus[] = await method()
       setIntegrationStatuses(statuses || [])
       if (statuses && statuses.length > 0 && !selectedIntegrationId) {
-        setSelectedIntegrationId(statuses[0].id)
+        const supported = statuses.filter(s => s.supported)
+        if (supported.length > 0) setSelectedIntegrationId(supported[0].id)
       }
     } catch { /* integration unavailable */ }
   }
@@ -979,6 +981,7 @@ function Settings({
           </div>
 
           {/* Integrations section inside plugins tab — same sidebar+detail layout */}
+          {integrationStatuses.some(s => s.supported) && (
           <div className="border-t border-border mt-8 pt-8">
             <h2 className="text-lg font-semibold text-foreground mb-1">{t('settings.integrations.title')}</h2>
             <p className="text-sm text-muted-foreground mb-6">{t('settings.integrations.desc')}</p>
@@ -995,7 +998,7 @@ function Settings({
             <div className="flex gap-0">
               {/* Left sidebar — integration list */}
               <div className="w-48 shrink-0 border-r border-border pr-4 space-y-1">
-                {integrationStatuses.map(s => (
+                {integrationStatuses.filter(s => s.supported).map(s => (
                   <button
                     key={s.id}
                     type="button"
@@ -1014,7 +1017,7 @@ function Settings({
               {/* Right detail panel — 2-step setup + config */}
               <div className="flex-1 min-w-0 pl-6 overflow-hidden">
                 {(() => {
-                  const selected = integrationStatuses.find(s => s.id === selectedIntegrationId)
+                  const selected = integrationStatuses.find(s => s.id === selectedIntegrationId && s.supported)
                   if (!selected) return <div className="text-sm text-muted-foreground">{t('settings.integrations.desc')}</div>
 
                   const installed = selected.installed
@@ -1247,6 +1250,7 @@ function Settings({
               </div>
             </div>
           </div>
+          )}
         </div>
       )}
 

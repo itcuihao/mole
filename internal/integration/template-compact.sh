@@ -7,7 +7,7 @@ MOLE_ICON="iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABmJLR0QA/wD/AP+gvaeTA
 if [ ! -f "$CONFIG" ]; then
   echo " | image=$MOLE_ICON"
   echo "---"
-  echo "No sessions | color=#888"
+  echo "No sessions | color=#555"
   echo "Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false"
   exit 0
 fi
@@ -60,9 +60,9 @@ if den_sessions:
         rest_count = len(burrows) - MAX_INLINE
         print(f'{den_name} ({len(burrows)}) | color={color}')
         for b in shown:
-            print(f'-- {b.get(\"name\", \"Unnamed\")} | color=#DDD')
+            print(f'-- {b.get(\"name\", \"Unnamed\")} | color=#333')
         if rest_count > 0:
-            print(f'-- More ({rest_count}) | color=#888')
+            print(f'-- More ({rest_count}) | color=#666')
         print(f'-- ---')
         print(f'-- Open {den_name} | shell=open | param1=-a | param2=Mole | terminal=false | color={color}')
 
@@ -74,9 +74,9 @@ if no_den:
     recent = sorted(no_den, key=recent_sort_key, reverse=True)[:MAX_INLINE]
     rest_count = len(no_den) - MAX_INLINE
     for b in recent:
-        print(f'-- {b.get(\"name\", \"Unnamed\")} | color=#AAA')
+        print(f'-- {b.get(\"name\", \"Unnamed\")} | color=#555')
     if rest_count > 0:
-        print(f'-- More ({rest_count}) | color=#888')
+        print(f'-- More ({rest_count}) | color=#666')
     print(f'-- ---')
     print(f'-- Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false | color=#9B59B6')
 

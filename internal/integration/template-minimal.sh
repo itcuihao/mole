@@ -7,7 +7,7 @@ MOLE_ICON="iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABmJLR0QA/wD/AP+gvaeTA
 if [ ! -f "$CONFIG" ]; then
   echo " | image=$MOLE_ICON"
   echo "---"
-  echo "No sessions | color=#888"
+  echo "No sessions | color=#555"
   echo "Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false"
   exit 0
 fi
@@ -45,7 +45,7 @@ if den_sessions:
     print('Dens | color=#4A90D9')
     for den_name in sorted(den_sessions.keys()):
         count = len(den_sessions[den_name])
-        print(f'-- {den_name} ({count}) | color=#DDD')
+        print(f'-- {den_name} ({count}) | color=#333')
     print(f'-- ---')
     print(f'-- Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false | color=#4A90D9')
 

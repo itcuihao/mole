@@ -4,6 +4,11 @@ package integration
 
 import "fmt"
 
+// Supported returns false on non-darwin platforms (menu bar integrations are macOS-only).
+func Supported() bool {
+	return false
+}
+
 // detectBrew returns false on non-darwin platforms (Homebrew is macOS-only).
 func detectBrew() bool {
 	return false

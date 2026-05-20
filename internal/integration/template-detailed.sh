@@ -7,7 +7,7 @@ MOLE_ICON="iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABmJLR0QA/wD/AP+gvaeTA
 if [ ! -f "$CONFIG" ]; then
   echo " | image=$MOLE_ICON"
   echo "---"
-  echo "No sessions | color=#888"
+  echo "No sessions | color=#555"
   echo "Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false"
   exit 0
 fi
@@ -59,7 +59,7 @@ if den_sessions:
         print(f'{den_name} ({len(burrows)}) | color={color}')
         for b in burrows:
             name = b.get('name', 'Unnamed')
-            print(f'-- {name} | color=#DDD')
+            print(f'-- {name} | color=#333')
         print(f'-- ---')
         print(f'-- Open {den_name} | shell=open | param1=-a | param2=Mole | terminal=false | color={color}')
 
@@ -71,7 +71,7 @@ if no_den:
     print(f'Burrows ({len(no_den)}) | color=#9B59B6')
     for b in sorted(no_den, key=recent_sort_key, reverse=True):
         name = b.get('name', 'Unnamed')
-        print(f'-- {name} | color=#AAA')
+        print(f'-- {name} | color=#555')
     print(f'-- ---')
     print(f'-- Open Dashboard | shell=open | param1=-a | param2=Mole | terminal=false | color=#9B59B6')
 

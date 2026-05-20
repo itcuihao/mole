@@ -9,6 +9,11 @@ import (
 	"path/filepath"
 )
 
+// Supported returns true on macOS (the only platform with menu bar integrations).
+func Supported() bool {
+	return true
+}
+
 // detectBrew checks if Homebrew is available on PATH.
 func detectBrew() bool {
 	_, err := exec.LookPath("brew")

@@ -42,6 +42,7 @@ type Integration struct {
 type IntegrationStatus struct {
 	ID                string `json:"id"`
 	Name              string `json:"name"`
+	Supported         bool   `json:"supported"`
 	Installed         bool   `json:"installed"`
 	PluginReady       bool   `json:"plugin_ready"`
 	BrewAvailable     bool   `json:"brew_available"`
@@ -107,15 +108,17 @@ func NewManager(configDir string) *Manager {
 // ListStatuses returns the current status of all registered integrations.
 func (m *Manager) ListStatuses() []IntegrationStatus {
 	brewAvailable := detectBrew()
+	supported := Supported()
 	statuses := make([]IntegrationStatus, 0, len(m.integrations))
 
 	for _, integ := range m.integrations {
-		installed := detectApp(integ.DetectPaths)
+		installed := supported && detectApp(integ.DetectPaths)
 		template, interval := m.detectDeployedConfig(integ)
 		pluginReady := template != ""
 		statuses = append(statuses, IntegrationStatus{
 			ID:                integ.ID,
 			Name:              integ.Name,
+			Supported:         supported,
 			Installed:         installed,
 			PluginReady:       pluginReady,
 			BrewAvailable:     brewAvailable,

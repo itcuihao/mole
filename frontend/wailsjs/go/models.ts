@@ -95,6 +95,7 @@ export namespace integration {
 	export class IntegrationStatus {
 	    id: string;
 	    name: string;
+	    supported: boolean;
 	    installed: boolean;
 	    plugin_ready: boolean;
 	    brew_available: boolean;
@@ -112,6 +113,7 @@ export namespace integration {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.supported = source["supported"];
 	        this.installed = source["installed"];
 	        this.plugin_ready = source["plugin_ready"];
 	        this.brew_available = source["brew_available"];
