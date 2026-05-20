@@ -4,7 +4,7 @@ import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { ModalShell } from "@/components/ui/modal-shell"
-import { useToast } from "@/components/ui/toast"
+import { useMoleSpeaker } from "@/lib/mole-messages"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -190,7 +190,7 @@ function Settings({
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
   const [saving, setSaving] = useState(false)
-  const toast = useToast()
+  const speakBubble = useMoleSpeaker()
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [burrowBuffer, setBurrowBuffer] = useState('')
@@ -241,7 +241,7 @@ function Settings({
       setTerminals(installed || [])
       setDefaultTerminal(current === '' ? 'auto' : current)
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     }
   }
 
@@ -254,7 +254,7 @@ function Settings({
       const configs = await method()
       setCodexConfigs(configs || [])
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     }
   }
 
@@ -313,7 +313,7 @@ function Settings({
       const configs: ScriptConfig[] = await method()
       setScriptConfigs(configs || [])
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     }
   }
 
@@ -345,9 +345,9 @@ function Settings({
       const value = terminalID === 'auto' ? '' : terminalID
       await SetDefaultTerminal(value)
       setDefaultTerminal(terminalID)
-      toast({ type: 'success', text: t('settings.terminal.updated') })
+      speakBubble({ type: 'success', text: t('settings.terminal.updated') })
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     } finally {
       setSaving(false)
     }
@@ -356,7 +356,7 @@ function Settings({
   const handleExportBurrow = async () => {
     const method = getAppMethod('ExportBurrow')
     if (typeof method !== 'function') {
-      toast({ type: 'error', text: t('settings.importExport.exportUnavailable') })
+      speakBubble({ type: 'error', text: t('settings.importExport.exportUnavailable') })
       return
     }
 
@@ -366,7 +366,7 @@ function Settings({
       setBurrowBuffer(String(raw || ''))
       setShowExportModal(true)
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     } finally {
       setBurrowBusy(null)
     }
@@ -375,7 +375,7 @@ function Settings({
   const handleImportBurrow = async () => {
     const method = getAppMethod('ImportBurrow')
     if (typeof method !== 'function') {
-      toast({ type: 'error', text: t('settings.importExport.importUnavailable') })
+      speakBubble({ type: 'error', text: t('settings.importExport.importUnavailable') })
       return
     }
 
@@ -385,9 +385,9 @@ function Settings({
       setShowImportModal(false)
       setBurrowBuffer('')
       onBurrowImported?.()
-      toast({ type: 'success', text: t('settings.importExport.imported') })
+      speakBubble({ type: 'success', text: t('settings.importExport.imported') })
     } catch (err) {
-      toast({ type: 'error', text: String(err) })
+      speakBubble({ type: 'error', text: String(err) })
     } finally {
       setBurrowBusy(null)
     }
@@ -691,9 +691,9 @@ function Settings({
                                 try {
                                   await method(selectedScriptConfig.id)
                                   await loadScriptConfigs()
-                                  toast({ type: 'success', text: t('settings.scripts.removed') })
+                                  speakBubble({ type: 'success', text: t('settings.scripts.removed') })
                                 } catch (err) {
-                                  toast({ type: 'error', text: String(err) })
+                                  speakBubble({ type: 'error', text: String(err) })
                                 }
                               }}
                             >
@@ -835,9 +835,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadCodexConfigs()
-                                        toast({ type: 'success', text: t('settings.codex.removed') })
+                                        speakBubble({ type: 'success', text: t('settings.codex.removed') })
                                       } catch (err) {
-                                        toast({ type: 'error', text: String(err) })
+                                        speakBubble({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -896,9 +896,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadDockerConfigs()
-                                        toast({ type: 'success', text: t('settings.docker.removed') })
+                                        speakBubble({ type: 'success', text: t('settings.docker.removed') })
                                       } catch (err) {
-                                        toast({ type: 'error', text: String(err) })
+                                        speakBubble({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -958,9 +958,9 @@ function Settings({
                                       try {
                                         await method(cfg.id)
                                         await loadPluginConfigs()
-                                        toast({ type: 'success', text: t('settings.pluginConfigs.removed') })
+                                        speakBubble({ type: 'success', text: t('settings.pluginConfigs.removed') })
                                       } catch (err) {
-                                        toast({ type: 'error', text: String(err) })
+                                        speakBubble({ type: 'error', text: String(err) })
                                       }
                                     }}
                                   >
@@ -1068,9 +1068,9 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id)
                                     await loadIntegrationStatuses()
-                                    toast({ type: 'success', text: t('settings.integrations.installSuccess', { name: selected.name }) })
+                                    speakBubble({ type: 'success', text: t('settings.integrations.installSuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    toast({ type: 'error', text: String(err) })
+                                    speakBubble({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1091,9 +1091,9 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id, 'compact', '30')
                                     await loadIntegrationStatuses()
-                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                    speakBubble({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    toast({ type: 'error', text: String(err) })
+                                    speakBubble({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1129,7 +1129,7 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id)
                                   } catch (err) {
-                                    toast({ type: 'error', text: String(err) })
+                                    speakBubble({ type: 'error', text: String(err) })
                                   }
                                 }}
                               >
@@ -1165,9 +1165,9 @@ function Settings({
                                   if (typeof method !== 'function') return
                                   await method(selected.id, currentTemplate, String(currentInterval))
                                   await loadIntegrationStatuses()
-                                  toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                  speakBubble({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                 } catch (err) {
-                                  toast({ type: 'error', text: String(err) })
+                                  speakBubble({ type: 'error', text: String(err) })
                                 } finally {
                                   setIntegrationBusy(null)
                                 }
@@ -1189,9 +1189,9 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id, newTemplate, String(currentInterval))
                                     await loadIntegrationStatuses()
-                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                    speakBubble({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    toast({ type: 'error', text: String(err) })
+                                    speakBubble({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1221,9 +1221,9 @@ function Settings({
                                     if (typeof method !== 'function') return
                                     await method(selected.id, currentTemplate, newInterval)
                                     await loadIntegrationStatuses()
-                                    toast({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
+                                    speakBubble({ type: 'success', text: t('settings.integrations.deploySuccess', { name: selected.name }) })
                                   } catch (err) {
-                                    toast({ type: 'error', text: String(err) })
+                                    speakBubble({ type: 'error', text: String(err) })
                                   } finally {
                                     setIntegrationBusy(null)
                                   }
@@ -1347,7 +1347,7 @@ function Settings({
           onSaved={async () => {
             setCodexModal(null)
             await loadCodexConfigs()
-            toast({ type: 'success', text: t('settings.codex.saved') })
+            speakBubble({ type: 'success', text: t('settings.codex.saved') })
           }}
         />
       )}
@@ -1360,7 +1360,7 @@ function Settings({
           onSaved={async () => {
             setDockerModal(null)
             await loadDockerConfigs()
-            toast({ type: 'success', text: t('settings.docker.saved') })
+            speakBubble({ type: 'success', text: t('settings.docker.saved') })
           }}
         />
       )}
@@ -1373,7 +1373,7 @@ function Settings({
           onSaved={async () => {
             setScriptModal(null)
             await loadScriptConfigs()
-            toast({ type: 'success', text: t('settings.scripts.saved') })
+            speakBubble({ type: 'success', text: t('settings.scripts.saved') })
           }}
         />
       )}
@@ -1388,7 +1388,7 @@ function Settings({
           onSaved={async () => {
             setPluginConfigModal(null)
             await loadPluginConfigs()
-            toast({ type: 'success', text: t('settings.pluginConfigs.saved') })
+            speakBubble({ type: 'success', text: t('settings.pluginConfigs.saved') })
           }}
         />
       )}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from '@/lib/mascot-events'
+import { useMoleSpeaking, useSetMascotTrack, useSetMascotX } from '@/lib/mole-messages'
 
 type BurrowAnimState = 'none' | 'digging' | 'diving' | 'emerging'
 
@@ -17,6 +18,12 @@ export function MoleMascot() {
   const [burrowAnim, setBurrowAnim] = useState<BurrowAnimState>('none')
   const [trackColor, setTrackColor] = useState<string | null>(null)
   const [x, setX] = useState(0)
+
+  const isSpeaking = useMoleSpeaking()
+  const setMascotTrack = useSetMascotTrack()
+  const setMascotX = useSetMascotX()
+  const isSpeakingRef = useRef(isSpeaking)
+  useEffect(() => { isSpeakingRef.current = isSpeaking }, [isSpeaking])
 
   const clearTimers = () => {
     timersRef.current.forEach(id => window.clearTimeout(id))
@@ -38,6 +45,7 @@ export function MoleMascot() {
     const emergeTimer = window.setTimeout(() => {
       xRef.current = 0
       setX(0)
+      setMascotX(0)
       moveDirRef.current = 1
       setDirection('right')
       burrowAnimRef.current = 'emerging'
@@ -77,6 +85,28 @@ export function MoleMascot() {
   }, [])
 
   useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    setMascotTrack({
+      left: track.getBoundingClientRect().left,
+      top: track.getBoundingClientRect().top,
+      width: track.clientWidth,
+      height: track.clientHeight,
+    })
+    const observer = new ResizeObserver(() => {
+      const rect = track.getBoundingClientRect()
+      setMascotTrack({
+        left: rect.left,
+        top: rect.top,
+        width: track.clientWidth,
+        height: track.clientHeight,
+      })
+    })
+    observer.observe(track)
+    return () => observer.disconnect()
+  }, [setMascotTrack])
+
+  useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
@@ -112,6 +142,16 @@ export function MoleMascot() {
       if (burrowAnimRef.current !== 'none') {
         xRef.current = nextX
         setX(nextX)
+        setMascotX(nextX)
+        frameRef.current = window.requestAnimationFrame(step)
+        return
+      }
+
+      if (isSpeakingRef.current) {
+        if (mode !== 'idle') setMode('idle')
+        xRef.current = nextX
+        setX(nextX)
+        setMascotX(nextX)
         frameRef.current = window.requestAnimationFrame(step)
         return
       }
@@ -137,6 +177,7 @@ export function MoleMascot() {
 
       xRef.current = nextX
       setX(nextX)
+      setMascotX(nextX)
       setDirection(moveDirRef.current === 1 ? 'right' : 'left')
       frameRef.current = window.requestAnimationFrame(step)
     }

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from "@/lib/mascot-events"
+import { useMoleSpeaker } from "@/lib/mole-messages"
 import { useTranslation } from "@/i18n/context"
 import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
@@ -631,7 +632,6 @@ function Sessions({
   const [editingSession, setEditingSession] = useState<SessionRecord | null>(null)
   const [duplicateDraft, setDuplicateDraft] = useState<SessionDraft | null>(null)
   const [error, setError] = useState('')
-  const [infoMessage, setInfoMessage] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortMode, setSortMode] = useState<SessionSortMode>('name')
   const [profiles, setProfiles] = useState<profile.Profile[]>([])
@@ -642,6 +642,8 @@ function Sessions({
   const [showDenOrderModal, setShowDenOrderModal] = useState(false)
   const [denOrderDraft, setDenOrderDraft] = useState<SessionRecord[]>([])
   const [denActionBusy, setDenActionBusy] = useState<'open' | 'restart' | 'save-order' | null>(null)
+
+  const speakBubble = useMoleSpeaker()
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -688,8 +690,7 @@ function Sessions({
   }, [newSessionSignal])
 
   const showTimedInfo = (text: string, duration = 7000) => {
-    setInfoMessage(text)
-    setTimeout(() => setInfoMessage(''), duration)
+    speakBubble({ type: 'info', text, duration })
   }
 
   const showAttachHint = (terminalID: string, wasRestarted = false) => {
@@ -1096,18 +1097,6 @@ function Sessions({
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
             <span className="flex-1">{error}</span>
             <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-
-        {infoMessage && (
-          <div className="mb-4 p-4 bg-primary/10 border border-primary/30 rounded-lg text-foreground text-sm flex items-start justify-between gap-3 shadow-sm">
-            <div className="flex items-start gap-2 flex-1">
-              <TerminalSquare className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-              <span className="flex-1 leading-relaxed">{infoMessage}</span>
-            </div>
-            <Button onClick={() => setInfoMessage('')} variant="ghost" size="sm" className="h-6 w-6 p-0 hover:bg-primary/20 rounded-full">
               <X className="w-3.5 h-3.5" />
             </Button>
           </div>
