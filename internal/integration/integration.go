@@ -26,31 +26,31 @@ var embeddedTemplates = map[string][]byte{
 
 // Integration represents an external tool that Mole can install and configure.
 type Integration struct {
-	ID                string   // "swiftbar", "xbar"
-	Name              string   // "SwiftBar", "xbar"
-	Description       string   // Human-readable description
-	PluginDir         string   // Plugin install directory (may contain ~)
-	InstallCmd        string   // Homebrew cask name, e.g. "swiftbar"
-	DetectPaths       []string // App paths to check for installation
-	Templates         []string // Available template names: "compact", "detailed", "minimal"
-	DefaultTemplate   string   // Default template name
-	DefaultInterval   int      // Default refresh interval in seconds
-	AvailableIntervals []int   // Available refresh intervals: 10, 20, 30, 60
+	ID                 string   // "swiftbar", "xbar"
+	Name               string   // "SwiftBar", "xbar"
+	Description        string   // Human-readable description
+	PluginDir          string   // Plugin install directory (may contain ~)
+	InstallCmd         string   // Homebrew cask name, e.g. "swiftbar"
+	DetectPaths        []string // App paths to check for installation
+	Templates          []string // Available template names: "compact", "detailed", "minimal"
+	DefaultTemplate    string   // Default template name
+	DefaultInterval    int      // Default refresh interval in seconds
+	AvailableIntervals []int    // Available refresh intervals: 10, 20, 30, 60
 }
 
 // IntegrationStatus is the JSON-serializable status returned to the frontend.
 type IntegrationStatus struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Supported         bool   `json:"supported"`
-	Installed         bool   `json:"installed"`
-	PluginReady       bool   `json:"plugin_ready"`
-	BrewAvailable     bool   `json:"brew_available"`
-	PluginDir         string `json:"plugin_dir"`
-	Template          string `json:"template"`
-	Interval          int    `json:"interval"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Supported          bool     `json:"supported"`
+	Installed          bool     `json:"installed"`
+	PluginReady        bool     `json:"plugin_ready"`
+	BrewAvailable      bool     `json:"brew_available"`
+	PluginDir          string   `json:"plugin_dir"`
+	Template           string   `json:"template"`
+	Interval           int      `json:"interval"`
 	AvailableTemplates []string `json:"available_templates"`
-	AvailableIntervals []int `json:"available_intervals"`
+	AvailableIntervals []int    `json:"available_intervals"`
 }
 
 // Manager manages external tool integrations.
@@ -74,27 +74,27 @@ func NewManager(configDir string) *Manager {
 
 	integrations := []Integration{
 		{
-			ID:                "swiftbar",
-			Name:              "SwiftBar",
-			Description:       "Menu bar tool for macOS (xbar successor, actively maintained)",
-			PluginDir:         filepath.Join(home, "Library", "Application Support", "SwiftBar", "plugins"),
-			InstallCmd:        "swiftbar",
-			DetectPaths:       []string{"/Applications/SwiftBar.app"},
-			Templates:         templates,
-			DefaultTemplate:   "compact",
-			DefaultInterval:   30,
+			ID:                 "swiftbar",
+			Name:               "SwiftBar",
+			Description:        "Menu bar tool for macOS (xbar successor, actively maintained)",
+			PluginDir:          filepath.Join(home, "Library", "Application Support", "SwiftBar", "plugins"),
+			InstallCmd:         "swiftbar",
+			DetectPaths:        []string{"/Applications/SwiftBar.app"},
+			Templates:          templates,
+			DefaultTemplate:    "compact",
+			DefaultInterval:    30,
 			AvailableIntervals: intervals,
 		},
 		{
-			ID:                "xbar",
-			Name:              "xbar",
-			Description:       "Menu bar plugin runner for macOS (BitBar successor)",
-			PluginDir:         filepath.Join(home, "Library", "Application Support", "xbar", "plugins"),
-			InstallCmd:        "xbar",
-			DetectPaths:       []string{"/Applications/xbar.app"},
-			Templates:         templates,
-			DefaultTemplate:   "compact",
-			DefaultInterval:   30,
+			ID:                 "xbar",
+			Name:               "xbar",
+			Description:        "Menu bar plugin runner for macOS (BitBar successor)",
+			PluginDir:          filepath.Join(home, "Library", "Application Support", "xbar", "plugins"),
+			InstallCmd:         "xbar",
+			DetectPaths:        []string{"/Applications/xbar.app"},
+			Templates:          templates,
+			DefaultTemplate:    "compact",
+			DefaultInterval:    30,
 			AvailableIntervals: intervals,
 		},
 	}
@@ -116,15 +116,15 @@ func (m *Manager) ListStatuses() []IntegrationStatus {
 		template, interval := m.detectDeployedConfig(integ)
 		pluginReady := template != ""
 		statuses = append(statuses, IntegrationStatus{
-			ID:                integ.ID,
-			Name:              integ.Name,
-			Supported:         supported,
-			Installed:         installed,
-			PluginReady:       pluginReady,
-			BrewAvailable:     brewAvailable,
-			PluginDir:         integ.PluginDir,
-			Template:          template,
-			Interval:          interval,
+			ID:                 integ.ID,
+			Name:               integ.Name,
+			Supported:          supported,
+			Installed:          installed,
+			PluginReady:        pluginReady,
+			BrewAvailable:      brewAvailable,
+			PluginDir:          integ.PluginDir,
+			Template:           template,
+			Interval:           interval,
 			AvailableTemplates: integ.Templates,
 			AvailableIntervals: integ.AvailableIntervals,
 		})

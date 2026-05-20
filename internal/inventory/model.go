@@ -23,11 +23,11 @@ type Host struct {
 
 // HostGroup represents a named collection of hosts.
 type HostGroup struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	BastionID  string   `json:"bastion_id,omitempty"`
-	HostIDs    []string `json:"host_ids"`
-	Tags       []string `json:"tags"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	BastionID string   `json:"bastion_id,omitempty"`
+	HostIDs   []string `json:"host_ids"`
+	Tags      []string `json:"tags"`
 }
 
 // Inventory is the root object stored in hosts.json.

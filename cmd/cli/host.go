@@ -140,10 +140,10 @@ func newHostAddCmd(state *State) *cobra.Command {
 
 func newHostRemoveCmd(state *State) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "remove <name|id>",
-		Short: "Remove an SSH host",
+		Use:     "remove <name|id>",
+		Short:   "Remove an SSH host",
 		Aliases: []string{"rm"},
-		Args:  cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			h, err := findHost(state.InvMgr, args[0])
 			if err != nil {

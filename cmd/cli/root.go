@@ -37,9 +37,9 @@ func newRootCmd() *cobra.Command {
 	state := NewState()
 
 	cmd := &cobra.Command{
-		Use:   "mole",
-		Short: "Mole - AI terminal session manager",
-		Long:  "Mole manages terminal sessions with AI provider profiles, SSH hosts, and more.",
+		Use:           "mole",
+		Short:         "Mole - AI terminal session manager",
+		Long:          "Mole manages terminal sessions with AI provider profiles, SSH hosts, and more.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}

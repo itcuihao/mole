@@ -12,8 +12,8 @@ import (
 
 func newSessionCmd(state *State) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "session",
-		Short: "Manage terminal sessions",
+		Use:     "session",
+		Short:   "Manage terminal sessions",
 		Aliases: []string{"s"},
 	}
 
@@ -31,8 +31,8 @@ func newSessionCmd(state *State) *cobra.Command {
 func newSessionListCmd(state *State) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List all sessions",
+		Use:     "list",
+		Short:   "List all sessions",
 		Aliases: []string{"ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			statuses, err := state.SessionMgr.ListWithStatus()
@@ -178,9 +178,9 @@ func newSessionCreateCmd(state *State) *cobra.Command {
 
 func newSessionAttachCmd(state *State) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "attach <name|id>",
-		Short: "Attach to a session",
-		Args:  cobra.ExactArgs(1),
+		Use:     "attach <name|id>",
+		Short:   "Attach to a session",
+		Args:    cobra.ExactArgs(1),
 		Aliases: []string{"a"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sess, err := findSession(state.SessionMgr, args[0])

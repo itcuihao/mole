@@ -11,8 +11,8 @@ import (
 )
 
 type storeData struct {
-	Sessions  []Session            `json:"sessions"`
-	DenOrders map[string][]string  `json:"den_orders,omitempty"`
+	Sessions  []Session           `json:"sessions"`
+	DenOrders map[string][]string `json:"den_orders,omitempty"`
 }
 
 // Store handles Session persistence to a JSON file.
@@ -50,7 +50,7 @@ func (s *Store) loadData() (storeData, error) {
 	}
 
 	payload = storeData{
-		Sessions: legacy,
+		Sessions:  legacy,
 		DenOrders: map[string][]string{},
 	}
 	normalizeStoreData(&payload)
