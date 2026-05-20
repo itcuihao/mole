@@ -1,0 +1,49 @@
+<svg viewBox="0 0 88 60" width="176" height="120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="44" cy="51" rx="26" ry="6" fill="#3B2F2F" opacity="0.18" />
+
+  <path d="M30 51C31 43 36 37 44 37C52 37 57 43 58 51" fill="#1A1717" />
+
+  <path
+    d="M28 22C28 13 34 7 41 7H47C54 7 60 13 60 22V34C60 43 54 49 47 49H41C34 49 28 43 28 34V22Z"
+    fill="#2D2424"
+    opacity="0.94"
+  />
+
+  <path d="M30 36C32 36 34 36 36 36C36 37 36 38 36 39" fill="#F6F7F9" opacity="0.85" />
+  <path d="M52 36C54 36 56 36 58 36C58 37 58 38 58 39" fill="#F6F7F9" opacity="0.85" />
+
+  <ellipse cx="44" cy="30" rx="8.5" ry="6.5" fill="#F6F7F9" />
+
+  <circle cx="39" cy="24" r="3.2" fill="#F6F7F9" />
+  <circle cx="49" cy="24" r="3.2" fill="#F6F7F9" />
+  <circle cx="39.5" cy="24.4" r="2" fill="#1A1717" />
+  <circle cx="49.5" cy="24.4" r="2" fill="#1A1717" />
+  <circle cx="40" cy="23.5" r="0.6" fill="#F6F7F9" opacity="0.65" />
+  <circle cx="50" cy="23.5" r="0.6" fill="#F6F7F9" opacity="0.65" />
+
+  <circle cx="44" cy="27.5" r="2.2" fill="#E5484D" />
+
+  <path d="M42 29.5C43 30.5 45 30.5 46 29.5" stroke="#8B6B6B" strokeWidth="0.5" strokeLinecap="round" />
+
+  <path
+    d="M27 14C27 5 33 -2 41 -2H47C55 -2 61 5 61 14V10C61 2 55 -5 47 -5H41C33 -5 27 2 27 10V14Z"
+    fill="#EFCD27"
+  />
+  <path d="M24 14.5C24 12.5 26 11 29 11H59C62 11 64 12.5 64 14.5V16.5C64 18.5 62 20 59 20H29C26 20 24 18.5 24 16.5V14.5Z" fill="#E7C324" />
+  <path d="M29 15.5H59V14H29V15.5Z" fill="#F1E159" opacity="0.6" />
+  <path d="M36 -3C38 -5 40 -6 42 -6H46C48 -6 50 -5 52 -3" fill="#F1E159" opacity="0.4" />
+  <circle cx="44" cy="-6.5" r="2.8" fill="#FFE566" />
+  <circle cx="44" cy="-6.5" r="1.6" fill="#FFF8DC" opacity="0.5" />
+
+  <path d="M35 24C32 28 30 32 32 36" stroke="#2D2424" strokeWidth="3.5" strokeLinecap="round" />
+  <path d="M53 24C56 28 58 32 56 36" stroke="#2D2424" strokeWidth="3.5" strokeLinecap="round" />
+
+  <g>
+    <path d="M55 34C60 32 64 31 67 34" stroke="#2D2424" strokeWidth="4" strokeLinecap="round" />
+    <path d="M67.5 33.5L71 26" stroke="#8B7355" strokeWidth="3" strokeLinecap="round" />
+    <path d="M69.3 23.2L76.8 24.6L73.8 31.6L66.2 30.1Z" fill="#8B9DAF" stroke="#6B7D8E" strokeWidth="1.8" strokeLinejoin="round" />
+  </g>
+
+  <path d="M34 49C35 44 38 41 42 41" stroke="#2D2424" strokeWidth="3.5" strokeLinecap="round" />
+  <path d="M46 41C50 41 53 44 54 49" stroke="#2D2424" strokeWidth="3.5" strokeLinecap="round" />
+</svg>

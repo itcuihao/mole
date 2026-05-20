@@ -4,6 +4,7 @@ import Profiles from './pages/Profiles'
 import Hosts from './pages/Hosts'
 import Settings from './pages/Settings'
 import { MoleMascot } from './components/mole-mascot'
+import { MoleRunnerGame } from './components/game/MoleRunnerGame'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MoleMessageProvider } from '@/lib/mole-messages'
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
@@ -31,6 +32,7 @@ function App() {
   const [burrowRefreshSignal, setBurrowRefreshSignal] = useState(0)
   const [navigateContext, setNavigateContext] = useState<NavigateContext | null>(null)
   const [isMacDesktop, setIsMacDesktop] = useState(false)
+  const [gameOpen, setGameOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof (window as any)?.runtime?.Environment !== 'function') {
@@ -145,7 +147,7 @@ function App() {
               </TabsTrigger>
             </TabsList>
             <div className="no-drag flex-1 min-w-[220px] px-1">
-              <MoleMascot />
+              <MoleMascot onEnterCave={() => setGameOpen(true)} />
             </div>
           </div>
           <div className="no-drag flex shrink-0 items-center gap-1">
@@ -206,6 +208,7 @@ function App() {
         </TabsContent>
       </Tabs>
     </div>
+    {gameOpen && <MoleRunnerGame onClose={() => setGameOpen(false)} />}
     </MoleMessageProvider>
   )
 }

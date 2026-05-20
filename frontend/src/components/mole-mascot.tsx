@@ -3,8 +3,9 @@ import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from '@/lib/mascot-
 import { useMoleSpeaking, useSetMascotTrack, useSetMascotX } from '@/lib/mole-messages'
 
 type BurrowAnimState = 'none' | 'digging' | 'diving' | 'emerging'
+type EnterCaveState = 'none' | 'walking' | 'diving'
 
-export function MoleMascot() {
+export function MoleMascot({ onEnterCave }: { onEnterCave?: () => void }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<number>(0)
   const timersRef = useRef<number[]>([])
@@ -13,11 +14,16 @@ export function MoleMascot() {
   const lastDigAtRef = useRef<number>(0)
   const moveDirRef = useRef(1)
   const burrowAnimRef = useRef<BurrowAnimState>('none')
+  const enterCaveRef = useRef<EnterCaveState>('none')
+  const caveCalledRef = useRef(false)
+  const onEnterCaveRef = useRef(onEnterCave)
+  useEffect(() => { onEnterCaveRef.current = onEnterCave }, [onEnterCave])
   const [mode, setMode] = useState<'idle' | 'dig'>('idle')
   const [direction, setDirection] = useState<'left' | 'right'>('right')
   const [burrowAnim, setBurrowAnim] = useState<BurrowAnimState>('none')
   const [trackColor, setTrackColor] = useState<string | null>(null)
   const [x, setX] = useState(0)
+  const [enterCaveState, setEnterCaveState] = useState<EnterCaveState>('none')
 
   const isSpeaking = useMoleSpeaking()
   const setMascotTrack = useSetMascotTrack()
@@ -106,6 +112,19 @@ export function MoleMascot() {
     return () => observer.disconnect()
   }, [setMascotTrack])
 
+  const startEnterCave = () => {
+    if (enterCaveRef.current !== 'none' || !onEnterCaveRef.current) return
+    caveCalledRef.current = false
+    enterCaveRef.current = 'walking'
+    setEnterCaveState('walking')
+    moveDirRef.current = 1
+    setDirection('right')
+    setMode('idle')
+    clearTimers()
+    burrowAnimRef.current = 'none'
+    setBurrowAnim('none')
+  }
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
@@ -116,6 +135,7 @@ export function MoleMascot() {
     }
 
     const speed = 26 // px/s
+    const caveSpeed = 130 // px/s — fast walk to cave
     const mascotWidth = 48
     let digUntil = 0
     let nextDigAt = performance.now() + 3500 + Math.random() * 5500
@@ -138,6 +158,60 @@ export function MoleMascot() {
 
       const maxX = Math.max(track.clientWidth - mascotWidth, 0)
       let nextX = xRef.current
+
+      // Cave entry animation
+      if (enterCaveRef.current === 'walking') {
+        nextX += caveSpeed * dt
+        if (nextX >= maxX) {
+          nextX = maxX
+          // Reached cave — dive in
+          enterCaveRef.current = 'diving'
+          setEnterCaveState('diving')
+          burrowAnimRef.current = 'digging'
+          setBurrowAnim('digging')
+          setMode('dig')
+
+          const diveTimer = window.setTimeout(() => {
+            burrowAnimRef.current = 'diving'
+            setBurrowAnim('diving')
+          }, 400)
+
+          const finishTimer = window.setTimeout(() => {
+            if (!caveCalledRef.current && onEnterCaveRef.current) {
+              caveCalledRef.current = true
+              onEnterCaveRef.current()
+            }
+            // Reset mole to left side
+            xRef.current = 0
+            setX(0)
+            setMascotX(0)
+            moveDirRef.current = 1
+            setDirection('right')
+            burrowAnimRef.current = 'none'
+            setBurrowAnim('none')
+            setMode('idle')
+            enterCaveRef.current = 'none'
+            setEnterCaveState('none')
+            lastDigAtRef.current = performance.now()
+          }, 1000)
+
+          timersRef.current.push(diveTimer, finishTimer)
+        }
+        xRef.current = nextX
+        setX(nextX)
+        setMascotX(nextX)
+        frameRef.current = window.requestAnimationFrame(step)
+        return
+      }
+
+      // Freeze during cave diving
+      if (enterCaveRef.current === 'diving') {
+        xRef.current = nextX
+        setX(nextX)
+        setMascotX(nextX)
+        frameRef.current = window.requestAnimationFrame(step)
+        return
+      }
 
       if (burrowAnimRef.current !== 'none') {
         xRef.current = nextX
@@ -197,19 +271,44 @@ export function MoleMascot() {
       : 'translateY(0px) scale(1)'
 
   const mascotOpacity = burrowAnim === 'diving' ? 0.15 : 1
-  const handleTurnAround = () => {
-    moveDirRef.current = moveDirRef.current === 1 ? -1 : 1
-    setDirection(moveDirRef.current === 1 ? 'right' : 'left')
-  }
 
   return (
       <div
         ref={trackRef}
-      className="relative h-8 w-full cursor-pointer overflow-hidden"
-      onClick={handleTurnAround}
+      className="relative h-8 w-full overflow-hidden"
       aria-hidden="true"
     >
-      <div className="absolute inset-x-0 bottom-0 h-2.5 overflow-hidden rounded-full">
+      {/* Cave entrance — right side */}
+      <div className="absolute right-0 bottom-0 h-full flex items-end z-20">
+        <button
+          type="button"
+          className="no-drag relative z-10 cursor-pointer group"
+          onClick={startEnterCave}
+          aria-label="Enter cave"
+          title="Enter the burrow"
+        >
+          {/* Cave hole SVG */}
+          <svg viewBox="0 0 36 28" className="h-7 w-[36px] relative z-10" fill="none">
+            {/* Dark hole */}
+            <ellipse cx="18" cy="22" rx="16" ry="8" fill="hsl(var(--background))" stroke="hsl(var(--border))" strokeWidth="1.5" />
+            <ellipse cx="18" cy="21" rx="12" ry="5" fill="hsl(var(--muted-foreground) / 0.45)" />
+            <ellipse cx="18" cy="20" rx="7" ry="3" fill="hsl(var(--muted-foreground) / 0.6)" />
+            {/* Dirt rim */}
+            <path d="M2 20C4 12 10 10 18 10C26 10 32 12 34 20" stroke="hsl(var(--border))" strokeWidth="1.2" fill="none" opacity="0.5" />
+            {/* Sparkle hint */}
+            <circle cx="24" cy="18" r="1.2" fill="hsl(var(--primary) / 0.35)" className="group-hover:opacity-100 opacity-40 transition-opacity" />
+          </svg>
+          {/* Hover glow */}
+          <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            style={{
+              background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.12) 0%, transparent 70%)',
+            }}
+          />
+        </button>
+      </div>
+
+      {/* Sand track */}
+      <div className="absolute inset-x-0 bottom-0 h-2.5 overflow-hidden rounded-full pointer-events-none">
         <div
           className="absolute inset-0 transition-colors duration-500"
           style={{
@@ -238,9 +337,11 @@ export function MoleMascot() {
           }}
         />
       </div>
+
+      {/* Mole SVG */}
       <svg
         viewBox="0 0 88 54"
-        className="absolute bottom-0 h-7 text-primary transition-[transform] duration-200 ease-linear"
+        className="absolute bottom-0 h-7 text-primary transition-[transform] duration-200 ease-linear pointer-events-none"
         style={{
           left: `${x}px`,
           transform: `scaleX(${direction === 'left' ? -1 : 1}) ${verticalTransform}`,
