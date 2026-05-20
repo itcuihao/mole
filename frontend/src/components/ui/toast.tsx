@@ -20,6 +20,20 @@ export function useToast(): ToastFn {
   return useContext(ToastContext)
 }
 
+const BUBBLE_STYLES = `
+@keyframes pixel-pop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes pixel-shrink {
+  from { transform: translateY(0); opacity: 1; }
+  to   { transform: translateY(18px); opacity: 0; }
+}
+.pixel-toast-enter { animation: pixel-pop .3s cubic-bezier(.34,1.56,.64,1) forwards; }
+.pixel-toast-exit  { animation: pixel-shrink .3s ease-in forwards; }
+`
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -41,28 +55,49 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 300)
   }, [])
 
+  const tailColor = (type: ToastType) =>
+    type === 'success'
+      ? 'border-t-green-500'
+      : type === 'error'
+        ? 'border-t-red-500'
+        : 'border-t-blue-500'
+
+  const shadowColor = (type: ToastType) =>
+    type === 'success'
+      ? 'shadow-[4px_4px_0_rgba(34,197,94,.35)]'
+      : type === 'error'
+        ? 'shadow-[4px_4px_0_rgba(220,38,38,.35)]'
+        : 'shadow-[4px_4px_0_rgba(59,130,246,.3)]'
+
   return (
     <ToastContext.Provider value={toast}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 pointer-events-none">
+      <style>{BUBBLE_STYLES}</style>
+      <div className="fixed bottom-6 right-4 z-50 flex flex-col-reverse gap-4 pointer-events-none">
         {toasts.map(t => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-start gap-2 rounded-xl border px-4 py-3 text-sm shadow-lg transition-all duration-300 ${
-              t.dismissing
-                ? 'opacity-0 translate-y-2'
-                : 'opacity-100 translate-y-0'
+            className={`pointer-events-auto relative flex items-start gap-2 rounded-none border-2 px-4 py-3 text-sm font-mono ${
+              t.dismissing ? 'pixel-toast-exit' : 'pixel-toast-enter'
             } ${
               t.type === 'success'
-                ? 'bg-green-500/10 border-green-500/50 text-green-600 dark:text-green-400'
+                ? 'bg-green-500/15 border-green-500 text-green-600 dark:text-green-400'
                 : t.type === 'error'
-                  ? 'bg-destructive/10 border-destructive/50 text-destructive'
-                  : 'bg-primary/10 border-primary/30 text-foreground'
-            }`}
+                  ? 'bg-red-500/15 border-red-500 text-red-600 dark:text-red-400'
+                  : 'bg-blue-500/15 border-blue-500 text-foreground'
+            } ${shadowColor(t.type)}`}
           >
-            <span className="flex-1 min-w-0">{t.text}</span>
+            {/* Speech-bubble tail ▼ */}
+            <div
+              className={`absolute -bottom-[10px] left-4
+                w-0 h-0
+                border-l-[8px] border-l-transparent
+                border-r-[8px] border-r-transparent
+                border-t-[10px] ${tailColor(t.type)}`}
+            />
+            <span className="flex-1 min-w-0 leading-5">{t.text}</span>
             <button
-              className="shrink-0 rounded-full p-0.5 opacity-60 hover:opacity-100 transition-opacity"
+              className="shrink-0 p-1 opacity-50 hover:opacity-100 transition-opacity bg-transparent border-0"
               onClick={() => dismiss(t.id)}
             >
               <X className="w-3.5 h-3.5" />
