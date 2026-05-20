@@ -53,80 +53,119 @@ function drawBackground(
   colors: ThemeColors,
   isDark: boolean,
 ): void {
+  // Solid theme fill base
   ctx.fillStyle = colors.background
   ctx.fillRect(0, 0, w, h)
 
-  const skyTop = isDark ? '#1a1a2e' : '#e8f0fe'
-  const skyBottom = isDark ? '#2d2d44' : '#f0f4fa'
+  // Underground dirt gradient
+  const dirtTop = isDark ? '#3a3028' : '#c4a87c'
+  const dirtBottom = isDark ? '#2a2018' : '#8b7355'
   const grad = ctx.createLinearGradient(0, 0, 0, world.groundY)
-  grad.addColorStop(0, skyTop)
-  grad.addColorStop(1, skyBottom)
+  grad.addColorStop(0, dirtTop)
+  grad.addColorStop(1, dirtBottom)
   ctx.fillStyle = grad
   ctx.fillRect(0, 0, w, world.groundY)
 
-  // Sun or moon
-  const sunX = w * 0.82
-  const sunY = h * 0.13
-  ctx.fillStyle = isDark ? 'rgba(255,255,220,0.3)' : 'rgba(255,200,100,0.25)'
-  ctx.beginPath()
-  ctx.arc(sunX, sunY, 38, 0, Math.PI * 2)
-  ctx.fill()
+  // Hanging roots from ceiling
+  drawRoots(ctx, w, world.groundY, world.frameCount, world.scrollSpeed, isDark)
 
-  // Clouds
-  drawClouds(ctx, w, world.groundY, world.frameCount, isDark)
-
-  // Distant mountains
-  drawMountains(ctx, w, world.groundY, world.frameCount, world.scrollSpeed, colors, isDark)
+  // Rock/pebble texture
+  drawRocks(ctx, w, world.groundY, world.frameCount, world.scrollSpeed, isDark)
 }
 
-function drawClouds(ctx: CanvasRenderingContext2D, w: number, groundY: number, frame: number, isDark: boolean): void {
-  const cloudColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.5)'
-  ctx.fillStyle = cloudColor
-  const cloudPositions = [
-    { x: 0.1, y: 0.08, s: 1.0 },
-    { x: 0.4, y: 0.14, s: 0.75 },
-    { x: 0.7, y: 0.06, s: 1.2 },
-    { x: 0.9, y: 0.18, s: 0.6 },
-  ]
-  for (const cp of cloudPositions) {
-    const bx = (cp.x * w + frame * 0.08) % (w + 200) - 100
-    const by = cp.y * groundY
-    const s = cp.s
-    ctx.beginPath()
-    ctx.ellipse(bx, by, 50 * s, 16 * s, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.ellipse(bx + 25 * s, by - 8 * s, 35 * s, 14 * s, 0, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.beginPath()
-    ctx.ellipse(bx - 20 * s, by + 2 * s, 30 * s, 12 * s, 0, 0, Math.PI * 2)
-    ctx.fill()
-  }
-}
-
-function drawMountains(
+function drawRoots(
   ctx: CanvasRenderingContext2D,
   w: number,
   groundY: number,
   frame: number,
   speed: number,
-  colors: ThemeColors,
   isDark: boolean,
 ): void {
-  const color = isDark ? 'rgba(60,60,80,0.3)' : hslWithAlpha(colors.muted, 0.4)
-  ctx.fillStyle = color
-  const offset = (frame * speed * 0.03) % 600
+  const rootColor = isDark ? 'rgba(80,60,40,0.25)' : 'rgba(100,70,40,0.18)'
+  const parallaxFactor = speed * 0.015
 
-  const peaks = [0.15, 0.35, 0.55, 0.75, 0.95]
-  for (const peak of peaks) {
-    const px = peak * w * 1.8 - offset + 100
-    const ph = 40 + ((peak * 7) % 1) * 35
+  const roots = [
+    { x: w * 0.08, length: groundY * 0.22, thickness: 1.8, sway: 0.4 },
+    { x: w * 0.25, length: groundY * 0.32, thickness: 2.2, sway: 0.55 },
+    { x: w * 0.48, length: groundY * 0.18, thickness: 1.4, sway: 0.3 },
+    { x: w * 0.7, length: groundY * 0.28, thickness: 2.0, sway: 0.5 },
+    { x: w * 0.88, length: groundY * 0.24, thickness: 1.6, sway: 0.35 },
+  ]
+
+  ctx.strokeStyle = rootColor
+  ctx.lineCap = 'round'
+
+  for (const root of roots) {
+    const bx = ((root.x + frame * parallaxFactor * 0.3) % (w + 100)) - 50
+    const tl = root.length
+    ctx.lineWidth = root.thickness
+
     ctx.beginPath()
-    ctx.moveTo(px - 80, groundY)
-    ctx.lineTo(px, groundY - ph)
-    ctx.lineTo(px + 80, groundY)
-    ctx.closePath()
+    ctx.moveTo(bx, 0)
+    ctx.bezierCurveTo(
+      bx + root.sway * 15, tl * 0.35,
+      bx - root.sway * 12, tl * 0.65,
+      bx + root.sway * 6, tl,
+    )
+    ctx.stroke()
+
+    // Small branch off the main root
+    if (root.length > groundY * 0.22) {
+      ctx.lineWidth = root.thickness * 0.5
+      const branchY = tl * 0.45
+      ctx.beginPath()
+      ctx.moveTo(bx + root.sway * 8, branchY)
+      ctx.bezierCurveTo(
+        bx + root.sway * 18, branchY + tl * 0.12,
+        bx + root.sway * 22, branchY + tl * 0.18,
+        bx + root.sway * 14, branchY + tl * 0.2,
+      )
+      ctx.stroke()
+    }
+  }
+}
+
+function drawRocks(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  groundY: number,
+  frame: number,
+  speed: number,
+  isDark: boolean,
+): void {
+  const fillColor = isDark ? 'rgba(90,75,55,0.2)' : 'rgba(130,105,75,0.15)'
+  const outlineColor = isDark ? 'rgba(70,55,40,0.12)' : 'rgba(110,85,60,0.1)'
+  const parallaxFactor = speed * 0.025
+
+  const rocks = [
+    { x: w * 0.05, y: groundY * 0.72, r: 5, ry: 4 },
+    { x: w * 0.18, y: groundY * 0.58, r: 3.5, ry: 3 },
+    { x: w * 0.3, y: groundY * 0.78, r: 4.5, ry: 3.5 },
+    { x: w * 0.42, y: groundY * 0.52, r: 6, ry: 4.5 },
+    { x: w * 0.55, y: groundY * 0.7, r: 3, ry: 2.5 },
+    { x: w * 0.68, y: groundY * 0.6, r: 5.5, ry: 4 },
+    { x: w * 0.8, y: groundY * 0.75, r: 4, ry: 3 },
+    { x: w * 0.92, y: groundY * 0.55, r: 3.5, ry: 2.5 },
+    { x: w * 0.12, y: groundY * 0.88, r: 2.5, ry: 2 },
+    { x: w * 0.62, y: groundY * 0.85, r: 3, ry: 2.5 },
+    { x: w * 0.35, y: groundY * 0.92, r: 2, ry: 1.5 },
+    { x: w * 0.85, y: groundY * 0.9, r: 2.5, ry: 2 },
+  ]
+
+  for (const rock of rocks) {
+    const rx = ((rock.x + frame * parallaxFactor * 0.2) % (w + 60)) - 30
+    const ry = rock.y
+
+    // Fill
+    ctx.fillStyle = fillColor
+    ctx.beginPath()
+    ctx.ellipse(rx, ry, rock.r, rock.ry, 0.3, 0, Math.PI * 2)
     ctx.fill()
+
+    // Subtle outline
+    ctx.strokeStyle = outlineColor
+    ctx.lineWidth = 0.8
+    ctx.stroke()
   }
 }
 
@@ -161,20 +200,6 @@ function drawGround(
     ctx.lineTo(x, gY - totalBump)
   }
   ctx.stroke()
-
-  // Grass tufts
-  const grassOffset = world.frameCount * world.scrollSpeed * 0.03
-  ctx.strokeStyle = isDark ? '#5a6a3a' : '#7a9a4a'
-  ctx.lineWidth = 1.5
-  for (let x = -grassOffset % 60; x < canvasWidth; x += 60) {
-    const sx = x + Math.sin(x * 0.1) * 8
-    ctx.beginPath()
-    ctx.moveTo(sx, gY - 1)
-    ctx.lineTo(sx - 3, gY - 7 - Math.random() * 3)
-    ctx.moveTo(sx, gY - 1)
-    ctx.lineTo(sx + 2, gY - 6 - Math.random() * 3)
-    ctx.stroke()
-  }
 }
 
 function drawObstacles(ctx: CanvasRenderingContext2D, obstacles: Obstacle[], colors: ThemeColors): void {
