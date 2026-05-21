@@ -168,6 +168,12 @@ func (m *Manager) DeployPluginWithOptions(id, template, interval string) error {
 		return fmt.Errorf("failed to create plugin directory: %w", err)
 	}
 
+	// Ensure mole CLI is accessible on PATH so the plugin script can invoke it.
+	if err := ensureMoleOnPath(); err != nil {
+		// Non-fatal: the plugin script falls back to verbose error messages.
+		fmt.Fprintf(os.Stderr, "warning: failed to ensure mole on PATH: %v\n", err)
+	}
+
 	// Compute the target filename from interval.
 	intervalInt, err := strconv.Atoi(interval)
 	if err != nil {

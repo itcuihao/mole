@@ -28,3 +28,8 @@ func installToolApp(integ Integration) error {
 func openApp(integ Integration) error {
 	return fmt.Errorf("external tool integration is only supported on macOS")
 }
+
+// ensureMoleOnPath is a no-op on non-Darwin platforms.
+func ensureMoleOnPath() error {
+	return nil
+}

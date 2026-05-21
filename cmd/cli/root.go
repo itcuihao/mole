@@ -50,6 +50,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newSettingsCmd())
 	cmd.AddCommand(newBurrowCmd(state))
 	cmd.AddCommand(newDenCmd(state))
+	cmd.AddCommand(newXbarCmd(state))
 
 	return cmd
 }
