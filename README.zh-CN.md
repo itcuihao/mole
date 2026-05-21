@@ -121,8 +121,10 @@ brew install --cask itcuihao/mole/mole
 
 ```bash
 brew update
-brew upgrade --cask mole
+brew upgrade --cask itcuihao/mole/mole
 ```
+
+> Mole 通过自定义 tap 分发，未加入 Homebrew 官方 cask 仓库，直接使用 `brew upgrade --cask mole`（不带 tap 前缀）将无法找到。
 
 Mole 运行时依赖 `tmux`。如果系统里还没有：
 

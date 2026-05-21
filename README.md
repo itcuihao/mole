@@ -121,8 +121,10 @@ To upgrade after installation:
 
 ```bash
 brew update
-brew upgrade --cask mole
+brew upgrade --cask itcuihao/mole/mole
 ```
+
+> Mole is served via a custom tap, not the official Homebrew cask repo — `brew upgrade --cask mole` (without the tap prefix) will not work.
 
 `tmux` is required at runtime. If you do not already have it:
 
