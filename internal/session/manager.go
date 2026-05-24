@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -74,6 +75,14 @@ func NewManagerWithBackends(storePath string, profileMgr *profile.Manager, invMg
 	}
 	m.registerBuiltinPlugins(invMgr)
 	return m
+}
+
+// StorePath returns the underlying JSON storage file path.
+func (m *Manager) StorePath() string {
+	if m == nil || m.store == nil {
+		return ""
+	}
+	return m.store.path
 }
 
 // SetCodexManager wires optional Codex home preparation for Codex sessions.
@@ -984,6 +993,36 @@ func (m *Manager) ExportBurrowSessions() ([]WorkspaceSession, error) {
 	}
 
 	return result, nil
+}
+
+// ListProfileReferences returns sessions that currently reference the profile.
+func (m *Manager) ListProfileReferences(profileID string) ([]ProfileReference, error) {
+	target := strings.TrimSpace(profileID)
+	if target == "" {
+		return []ProfileReference{}, nil
+	}
+
+	sessions, err := m.store.List()
+	if err != nil {
+		return nil, err
+	}
+
+	refs := make([]ProfileReference, 0)
+	for _, sess := range sessions {
+		if strings.TrimSpace(sess.ProfileID) != target {
+			continue
+		}
+		refs = append(refs, ProfileReference{
+			SessionID: sess.ID,
+			Name:      sess.Name,
+		})
+	}
+
+	sort.Slice(refs, func(i, j int) bool {
+		return refs[i].Name < refs[j].Name
+	})
+
+	return refs, nil
 }
 
 // PrepareBurrowImport validates and normalizes imported session configs without persisting them.

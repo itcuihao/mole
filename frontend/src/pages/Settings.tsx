@@ -3,6 +3,7 @@ import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '.
 import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { useMoleSpeaker } from "@/lib/mole-messages"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -49,6 +50,14 @@ type IntegrationStatus = {
   interval: number
   available_templates: string[]
   available_intervals: number[]
+}
+
+type BurrowImportResult = {
+  success?: boolean
+  message?: string
+  failed_stage?: string
+  rollback_triggered?: boolean
+  rollback_success?: boolean
 }
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
@@ -195,6 +204,7 @@ function Settings({
   const [showImportModal, setShowImportModal] = useState(false)
   const [burrowBuffer, setBurrowBuffer] = useState('')
   const [burrowBusy, setBurrowBusy] = useState<'export' | 'import' | null>(null)
+  const [importConfirmText, setImportConfirmText] = useState('')
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
@@ -381,9 +391,19 @@ function Settings({
 
     setBurrowBusy('import')
     try {
-      await method(burrowBuffer)
+      const result = await method(burrowBuffer) as BurrowImportResult | undefined
+      if (result && result.success === false) {
+        const details: string[] = []
+        if (result.failed_stage) details.push(`stage=${result.failed_stage}`)
+        if (result.rollback_triggered) {
+          details.push(result.rollback_success ? 'rollback=ok' : 'rollback=failed')
+        }
+        const detailText = details.length > 0 ? ` (${details.join(', ')})` : ''
+        throw new Error(`${result.message || t('settings.importExport.importFailed')}${detailText}`)
+      }
       setShowImportModal(false)
       setBurrowBuffer('')
+      setImportConfirmText('')
       onBurrowImported?.()
       speakBubble({ type: 'success', text: t('settings.importExport.imported') })
     } catch (err) {
@@ -575,6 +595,7 @@ function Settings({
             <Button
               onClick={() => {
                 setBurrowBuffer('')
+                setImportConfirmText('')
                 setShowImportModal(true)
               }}
               disabled={burrowBusy !== null}
@@ -1313,14 +1334,30 @@ function Settings({
         <ModalShell
           title={t('settings.importExport.importModalTitle')}
           description={t('settings.importExport.importModalDesc')}
-          onClose={() => setShowImportModal(false)}
+          onClose={() => {
+            setShowImportModal(false)
+            setImportConfirmText('')
+          }}
           contentStyle={{ maxWidth: '760px' }}
           footer={(
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowImportModal(false)
+                  setImportConfirmText('')
+                }}
+              >
                 {t('common.cancel')}
               </Button>
-              <Button onClick={handleImportBurrow} disabled={burrowBusy === 'import'}>
+              <Button
+                onClick={handleImportBurrow}
+                disabled={
+                  burrowBusy === 'import'
+                  || !burrowBuffer.trim()
+                  || importConfirmText.trim().toUpperCase() !== 'IMPORT'
+                }
+              >
                 {burrowBusy === 'import' ? t('settings.importExport.importing') : t('settings.importExport.importBurrow')}
               </Button>
             </div>
@@ -1328,6 +1365,17 @@ function Settings({
         >
           <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-muted-foreground">
             {t('settings.importExport.importWarning')}
+          </div>
+          <div className="mb-4">
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t('settings.importExport.confirmLabel')}
+            </label>
+            <Input
+              value={importConfirmText}
+              onChange={e => setImportConfirmText(e.target.value)}
+              placeholder={t('settings.importExport.confirmPlaceholder')}
+              className="bg-muted/30 focus:bg-background"
+            />
           </div>
           <Textarea
             value={burrowBuffer}

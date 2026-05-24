@@ -18,3 +18,12 @@ type Bundle struct {
 	PluginConfigs []pluginconfig.Config      `json:"plugin_configs,omitempty"`
 	Sessions      []session.WorkspaceSession `json:"sessions"`
 }
+
+// ImportResult summarizes the burrow import outcome for frontend UX and logs.
+type ImportResult struct {
+	Success           bool   `json:"success"`
+	Message           string `json:"message,omitempty"`
+	FailedStage       string `json:"failed_stage,omitempty"`
+	RollbackTriggered bool   `json:"rollback_triggered,omitempty"`
+	RollbackSuccess   bool   `json:"rollback_success,omitempty"`
+}

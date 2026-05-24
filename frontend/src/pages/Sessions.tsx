@@ -232,6 +232,14 @@ const jumpSpec = (conn: HostConnection) => (
 )
 
 const shellQuote = (value: string) => `'${value.replace(/'/g, `'\"'\"'`)}'`
+const SAFE_SHELL_ARG_PATTERN = /^[A-Za-z0-9_@%+=:,./~-]+$/
+
+const quoteShellArgIfNeeded = (value: string) => {
+  const trimmed = value.trim()
+  if (!trimmed) return "''"
+  if (SAFE_SHELL_ARG_PATTERN.test(trimmed)) return trimmed
+  return shellQuote(trimmed)
+}
 
 const joinArgs = (args: string[]) => args.filter(Boolean).join(' ')
 
@@ -247,7 +255,7 @@ const formatWorkspaceForCd = (workspace: string) => {
   if (trimmed === '~' || trimmed.startsWith('~/')) {
     return trimmed
   }
-  return trimmed
+  return quoteShellArgIfNeeded(trimmed)
 }
 
 const withWorkspace = (workspace: string, command: string, fallbackToShell: boolean) => {
@@ -325,7 +333,7 @@ const resolveSessionCommandForSubmit = ({
 const buildNestedProxyCommand = (hops: HostConnection[]): string => {
   const last = hops[hops.length - 1]
   const args = ['ssh']
-  if (last.identity) args.push('-i', last.identity)
+  if (last.identity) args.push('-i', quoteShellArgIfNeeded(last.identity))
   if (last.port && last.port !== 22) args.push('-p', String(last.port))
   if (hops.length > 1) {
     args.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops.slice(0, -1)))}`)
@@ -343,7 +351,7 @@ const buildSSHCommand = (
   const targetConn = resolveHostConnection(host, defaults)
   const parts = ['ssh']
   if (targetConn.identity) {
-    parts.push('-i', targetConn.identity)
+    parts.push('-i', quoteShellArgIfNeeded(targetConn.identity))
   }
   if (targetConn.port && targetConn.port !== 22) {
     parts.push('-p', String(targetConn.port))

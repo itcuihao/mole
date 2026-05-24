@@ -129,3 +129,9 @@ type OpenDenResult struct {
 	Skipped []string         `json:"skipped"`
 	Failed  []OpenDenFailure `json:"failed"`
 }
+
+// ProfileReference summarizes one session that depends on a profile.
+type ProfileReference struct {
+	SessionID string `json:"session_id"`
+	Name      string `json:"name"`
+}

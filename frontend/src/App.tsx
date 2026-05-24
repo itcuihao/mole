@@ -1,10 +1,5 @@
-import { useEffect, useState } from 'react'
-import Sessions from './pages/Sessions'
-import Profiles from './pages/Profiles'
-import Hosts from './pages/Hosts'
-import Settings from './pages/Settings'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { MoleMascot } from './components/mole-mascot'
-import { MoleRunnerGame } from './components/game/MoleRunnerGame'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MoleMessageProvider } from '@/lib/mole-messages'
 import { Environment, EventsOn } from '../wailsjs/runtime/runtime'
@@ -24,6 +19,12 @@ export type NavigateContext = {
     sessionName: string
   } | null
 }
+
+const Sessions = lazy(() => import('./pages/Sessions'))
+const Profiles = lazy(() => import('./pages/Profiles'))
+const Hosts = lazy(() => import('./pages/Hosts'))
+const Settings = lazy(() => import('./pages/Settings'))
+const MoleRunnerGame = lazy(() => import('./components/game/MoleRunnerGame').then(mod => ({ default: mod.MoleRunnerGame })))
 
 function App() {
   const { t } = useTranslation()
@@ -105,6 +106,11 @@ function App() {
         ? 'bg-muted text-foreground'
         : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
     }`
+  const pageFallback = (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      {t('common.loading')}
+    </div>
+  )
 
   return (
     <MoleMessageProvider>
@@ -182,33 +188,45 @@ function App() {
         </div>
 
         <TabsContent value="sessions" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
-          <Sessions
-            onNavigate={handleNavigate}
-            newSessionSignal={newSessionSignal}
-            burrowRefreshSignal={burrowRefreshSignal}
-            onNewSessionSignalHandled={() => setNewSessionSignal(0)}
-            onDiscard={() => {
-              setNavigateContext(null)
-              setNewSessionSignal(0)
-              localStorage.removeItem('mole:newSessionDraft')
-            }}
-          />
+          <Suspense fallback={pageFallback}>
+            <Sessions
+              onNavigate={handleNavigate}
+              newSessionSignal={newSessionSignal}
+              burrowRefreshSignal={burrowRefreshSignal}
+              onNewSessionSignalHandled={() => setNewSessionSignal(0)}
+              onDiscard={() => {
+                setNavigateContext(null)
+                setNewSessionSignal(0)
+                localStorage.removeItem('mole:newSessionDraft')
+              }}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="profiles" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
-          <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
+          <Suspense fallback={pageFallback}>
+            <Profiles refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="hosts" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
-          <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
+          <Suspense fallback={pageFallback}>
+            <Hosts refreshSignal={burrowRefreshSignal} onCreated={handleReturnFromConfig} onBack={handleBackToSessions} />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="settings" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
-          <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
+          <Suspense fallback={pageFallback}>
+            <Settings onBurrowImported={() => setBurrowRefreshSignal(prev => prev + 1)} />
+          </Suspense>
         </TabsContent>
       </Tabs>
     </div>
-    {gameOpen && <MoleRunnerGame onClose={() => setGameOpen(false)} />}
+    {gameOpen && (
+      <Suspense fallback={null}>
+        <MoleRunnerGame onClose={() => setGameOpen(false)} />
+      </Suspense>
+    )}
     </MoleMessageProvider>
   )
 }

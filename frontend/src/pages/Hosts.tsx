@@ -4,6 +4,7 @@ import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import { inventory } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { CardDescription, CardTitle } from "@/components/ui/card"
+import { DangerConfirmModal } from "@/components/ui/danger-confirm-modal"
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -146,6 +147,8 @@ function Hosts({
     bastion_id: '',
     host_ids: [] as string[],
   })
+  const [pendingDeleteHost, setPendingDeleteHost] = useState<HostRecord | null>(null)
+  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<inventory.HostGroup | null>(null)
 
   const hostMap = useMemo(() => {
     const map = new Map<string, HostRecord>()
@@ -406,6 +409,10 @@ function Hosts({
     }
   }
 
+  const requestDeleteHost = (host: HostRecord) => {
+    setPendingDeleteHost(host)
+  }
+
   const handleSaveGroup = async () => {
     if (!groupForm.name.trim()) {
       setError(t('hosts.group.nameRequired'))
@@ -469,6 +476,10 @@ function Hosts({
     } catch (err) {
       setError(String(err))
     }
+  }
+
+  const requestDeleteGroup = (group: inventory.HostGroup) => {
+    setPendingDeleteGroup(group)
   }
 
   const buildSSHCommand = (host: HostRecord) => {
@@ -794,7 +805,7 @@ function Hosts({
                       </button>
                       <button
                         type="button"
-                        onClick={e => { e.stopPropagation(); handleDeleteGroup(group.id) }}
+                        onClick={e => { e.stopPropagation(); requestDeleteGroup(group) }}
                         className="rounded px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -976,7 +987,7 @@ function Hosts({
                           <Copy className="w-3.5 h-3.5" />
                           {t('common.duplicate')}
                         </Button>
-                        <Button onClick={() => handleDeleteHost(host.id)} variant="destructive" size="sm">
+                        <Button onClick={() => requestDeleteHost(host)} variant="destructive" size="sm">
                           <Trash2 className="w-3.5 h-3.5" />
                           {t('common.delete')}
                         </Button>
@@ -1516,6 +1527,40 @@ function Hosts({
           </div>
         </ModalShell>
       )}
+
+      <DangerConfirmModal
+        open={Boolean(pendingDeleteHost)}
+        title={t('hosts.delete.hostTitle')}
+        description={t('hosts.delete.hostDesc', { name: pendingDeleteHost?.name || pendingDeleteHost?.host || '' })}
+        impactText={t('hosts.delete.hostImpact')}
+        ackLabel={t('hosts.delete.confirmAck')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setPendingDeleteHost(null)}
+        onConfirm={async () => {
+          const target = pendingDeleteHost
+          if (!target) return
+          await handleDeleteHost(target.id)
+          setPendingDeleteHost(null)
+        }}
+      />
+
+      <DangerConfirmModal
+        open={Boolean(pendingDeleteGroup)}
+        title={t('hosts.delete.groupTitle')}
+        description={t('hosts.delete.groupDesc', { name: pendingDeleteGroup?.name || '' })}
+        impactText={t('hosts.delete.groupImpact')}
+        ackLabel={t('hosts.delete.confirmAck')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setPendingDeleteGroup(null)}
+        onConfirm={async () => {
+          const target = pendingDeleteGroup
+          if (!target) return
+          await handleDeleteGroup(target.id)
+          setPendingDeleteGroup(null)
+        }}
+      />
 
     </div>
   )

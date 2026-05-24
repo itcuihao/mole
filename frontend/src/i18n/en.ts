@@ -20,6 +20,7 @@ export const en: Record<string, string> = {
   'common.preview': 'Preview',
   'common.default': 'Default',
   'common.ready': 'Ready',
+  'common.loading': 'Loading...',
 
   // Nav / App
   'nav.burrows': 'Burrows',
@@ -230,6 +231,13 @@ export const en: Record<string, string> = {
   'profiles.card.copy': 'Copy',
   'profiles.card.view': 'Vars',
   'profiles.card.noDescription': 'No description yet for this profile.',
+  'profiles.delete.unavailable': 'Delete profile is currently unavailable.',
+  'profiles.delete.inUse': 'This profile is still used by burrows: {{refs}}. Open Burrows and switch those sessions to another profile first.',
+  'profiles.delete.inUseUnknown': 'unknown burrow',
+  'profiles.delete.confirmTitle': 'Delete Profile',
+  'profiles.delete.confirmDesc': 'Delete profile "{{name}}"?',
+  'profiles.delete.confirmImpact': 'This removes the profile from Mole. Existing burrows must be switched to another profile first.',
+  'profiles.delete.confirmAck': 'I understand this action cannot be undone.',
 
   // Profile form
   'profiles.form.newTitle': 'New Profile',
@@ -384,6 +392,13 @@ export const en: Record<string, string> = {
   'hosts.msg.groupUpdatedDraft': 'Group updated. Your host draft is still open.',
   'hosts.msg.groupCreatedSelected': 'Group created and selected for this host.',
   'hosts.msg.sshCopied': 'SSH command copied',
+  'hosts.delete.confirmAck': 'I understand this action cannot be undone.',
+  'hosts.delete.hostTitle': 'Delete Host',
+  'hosts.delete.hostDesc': 'Delete host "{{name}}"?',
+  'hosts.delete.hostImpact': 'This removes the host and also clears related group/bastion references.',
+  'hosts.delete.groupTitle': 'Delete Group',
+  'hosts.delete.groupDesc': 'Delete group "{{name}}"?',
+  'hosts.delete.groupImpact': 'This removes the group entry only. Hosts remain in inventory.',
 
   // Settings
   'settings.title': 'Settings',
@@ -427,6 +442,9 @@ export const en: Record<string, string> = {
   'settings.importExport.importing': 'Importing...',
   'settings.importExport.importPlaceholder': 'Paste burrow JSON here',
   'settings.importExport.imported': 'Burrow imported. Profiles, hosts, and session definitions were replaced.',
+  'settings.importExport.importFailed': 'Burrow import failed.',
+  'settings.importExport.confirmLabel': 'Type IMPORT to confirm replacement',
+  'settings.importExport.confirmPlaceholder': 'IMPORT',
   'settings.importExport.exportUnavailable': 'Burrow export is unavailable',
   'settings.importExport.importUnavailable': 'Burrow import is unavailable',
 

@@ -235,8 +235,12 @@ func launchITerm2(spec LaunchSpec) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
-							exit repeat
+							try
+								if name of w is windowName then
+									set targetWindow to w
+									exit repeat
+								end if
+							end try
 						end if
 					end repeat
 				end try
@@ -300,8 +304,12 @@ func closeITerm2GroupedWindow(group string) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
-							exit repeat
+							try
+								if name of w is windowName then
+									set targetWindow to w
+									exit repeat
+								end if
+							end try
 						end if
 					end repeat
 				end try
@@ -353,8 +361,12 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
-							exit repeat
+							try
+								if name of w is windowName then
+									set targetWindow to w
+									exit repeat
+								end if
+							end try
 						end if
 					end repeat
 				end try
@@ -414,7 +426,11 @@ func launchGhostty(terminal TerminalApp, spec LaunchSpec) error {
 		}
 	}
 
-	args := []string{"-e"}
+	args := []string{}
+	if windowID := ghosttyWindowIDForDen(group); windowID != "" {
+		args = append(args, "--window-id="+windowID)
+	}
+	args = append(args, "-e")
 	args = append(args, spec.ExecArgs...)
 	cmd := exec.Command(ghosttyBin, args...)
 	if output, err := cmd.CombinedOutput(); err != nil {

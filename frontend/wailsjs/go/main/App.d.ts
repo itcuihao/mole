@@ -31,7 +31,7 @@ export function DeleteHostGroup(arg1:string):Promise<void>;
 
 export function DeletePluginConfig(arg1:string):Promise<void>;
 
-export function DeleteProfile(arg1:string):Promise<void>;
+export function DeleteProfile(arg1:string):Promise<any>;
 
 export function DeleteScriptConfig(arg1:string):Promise<void>;
 
@@ -53,7 +53,7 @@ export function GetInventory():Promise<inventory.Inventory>;
 
 export function GetProviderPresets():Promise<Array<provider.Preset>>;
 
-export function ImportBurrow(arg1:string):Promise<void>;
+export function ImportBurrow(arg1:string):Promise<any>;
 
 export function ImportSSHConfig(arg1:inventory.SSHConfigImportRequest):Promise<void>;
 

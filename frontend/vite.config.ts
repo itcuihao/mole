@@ -12,6 +12,20 @@ const devHost = process.env.MOLE_DEV_HOST ?? DEFAULT_DEV_HOST
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replaceAll('\\', '/')
+          if (!normalized.includes('node_modules')) return
+          if (normalized.includes('/react/') || normalized.includes('/react-dom/')) return 'vendor-react'
+          if (normalized.includes('/@radix-ui/')) return 'vendor-radix'
+          if (normalized.includes('/lucide-react/')) return 'vendor-icons'
+          return 'vendor'
+        },
+      },
+    },
+  },
   server: {
     host: devHost,
     port: devPort,

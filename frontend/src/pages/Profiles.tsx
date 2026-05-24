@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ListProfiles, SaveProfile, DeleteProfile, GetProviderPresets } from '../../wailsjs/go/main/App'
+import { ListProfiles, SaveProfile, GetProviderPresets } from '../../wailsjs/go/main/App'
 import { ClipboardSetText, BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { profile } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DangerConfirmModal } from "@/components/ui/danger-confirm-modal"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from '@/lib/utils'
@@ -44,6 +45,18 @@ const buildDuplicateProfileName = (baseName: string, existingNames: string[]) =>
   return `${candidateBase}-${index}`
 }
 
+type ProfileDeleteReference = {
+  session_id?: string
+  name?: string
+}
+
+type ProfileDeleteResponse = {
+  deleted?: boolean
+  code?: string
+  message?: string
+  references?: ProfileDeleteReference[]
+}
+
 function Profiles({
   refreshSignal,
   onCreated,
@@ -60,6 +73,7 @@ function Profiles({
   const [isNew, setIsNew] = useState(false)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+  const [pendingDeleteProfile, setPendingDeleteProfile] = useState<profile.Profile | null>(null)
 
   const refresh = useCallback(() => {
     if (typeof window !== 'undefined' && (window as any).go) {
@@ -111,11 +125,33 @@ function Profiles({
 
   const handleDelete = async (id: string) => {
     try {
-      await DeleteProfile(id)
+      const method = (window as any)?.go?.main?.App?.DeleteProfile
+      if (typeof method !== 'function') {
+        setError(t('profiles.delete.unavailable'))
+        return
+      }
+
+      const result = await method(id) as ProfileDeleteResponse | undefined
+      if (result?.deleted === false && result?.code === 'PROFILE_IN_USE') {
+        const names = (result.references || [])
+          .map(item => (item.name || '').trim())
+          .filter(Boolean)
+          .slice(0, 8)
+        const refs = names.join(', ')
+        setError(t('profiles.delete.inUse', {
+          refs: refs || t('profiles.delete.inUseUnknown'),
+        }))
+        return
+      }
+
       refresh()
     } catch (err) {
       setError(String(err))
     }
+  }
+
+  const requestDelete = (target: profile.Profile) => {
+    setPendingDeleteProfile(target)
   }
 
   const handleSave = () => {
@@ -209,7 +245,7 @@ function Profiles({
                 onView={handleView}
                 onDuplicate={handleDuplicate}
                 onEdit={handleEdit}
-                onDelete={handleDelete}
+                onDelete={requestDelete}
               />
             ))}
           </div>
@@ -231,6 +267,23 @@ function Profiles({
           onClose={() => setViewingProfile(null)}
         />
       )}
+
+      <DangerConfirmModal
+        open={Boolean(pendingDeleteProfile)}
+        title={t('profiles.delete.confirmTitle')}
+        description={t('profiles.delete.confirmDesc', { name: pendingDeleteProfile?.name || '' })}
+        impactText={t('profiles.delete.confirmImpact')}
+        ackLabel={t('profiles.delete.confirmAck')}
+        confirmLabel={t('common.delete')}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => setPendingDeleteProfile(null)}
+        onConfirm={async () => {
+          const target = pendingDeleteProfile
+          if (!target) return
+          await handleDelete(target.id)
+          setPendingDeleteProfile(null)
+        }}
+      />
     </div>
   )
 }
@@ -246,7 +299,7 @@ function ProfileCard({
   onView: (p: profile.Profile) => void
   onDuplicate: (p: profile.Profile) => void
   onEdit: (p: profile.Profile) => void
-  onDelete: (id: string) => void
+  onDelete: (p: profile.Profile) => void
 }) {
   const { t } = useTranslation()
   const envCount = Object.keys(p.env_vars || {}).length
@@ -291,7 +344,7 @@ function ProfileCard({
           <Pencil className="w-3.5 h-3.5" />
           {t('common.edit')}
         </Button>
-        <Button onClick={() => onDelete(p.id)} variant="destructive" size="sm">
+        <Button onClick={() => onDelete(p)} variant="destructive" size="sm">
           <Trash2 className="w-3.5 h-3.5" />
           {t('common.delete')}
         </Button>

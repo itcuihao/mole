@@ -17,6 +17,14 @@ func NewManager(storePath string) *Manager {
 	return &Manager{store: NewStore(storePath)}
 }
 
+// StorePath returns the underlying JSON storage file path.
+func (m *Manager) StorePath() string {
+	if m == nil || m.store == nil {
+		return ""
+	}
+	return m.store.path
+}
+
 func (m *Manager) List(pluginID string) ([]Config, error) {
 	configs, err := m.store.List()
 	if err != nil {

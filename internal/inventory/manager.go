@@ -19,6 +19,14 @@ func NewManager(storePath string) *Manager {
 	}
 }
 
+// StorePath returns the underlying JSON storage file path.
+func (m *Manager) StorePath() string {
+	if m == nil || m.store == nil {
+		return ""
+	}
+	return m.store.path
+}
+
 // GetInventory returns the full inventory.
 func (m *Manager) GetInventory() (Inventory, error) {
 	inv, err := m.store.Load()

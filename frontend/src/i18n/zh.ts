@@ -20,6 +20,7 @@ export const zh: Record<string, string> = {
   'common.preview': '预览',
   'common.default': '默认',
   'common.ready': '就绪',
+  'common.loading': '加载中...',
 
   // Nav / App
   'nav.burrows': '窟',
@@ -230,6 +231,13 @@ export const zh: Record<string, string> = {
   'profiles.card.copy': '复制',
   'profiles.card.view': '变量',
   'profiles.card.noDescription': '这个配置还没有补充说明。',
+  'profiles.delete.unavailable': '当前无法删除配置。',
+  'profiles.delete.inUse': '这个配置仍被以下 Burrow 使用：{{refs}}。请先到 Burrows 页面把这些会话切换到其他配置再删除。',
+  'profiles.delete.inUseUnknown': '未知 Burrow',
+  'profiles.delete.confirmTitle': '删除配置',
+  'profiles.delete.confirmDesc': '确认删除配置“{{name}}”？',
+  'profiles.delete.confirmImpact': '该配置会从 Mole 中移除。若已有 Burrow 引用，请先切换到其他配置。',
+  'profiles.delete.confirmAck': '我已知晓此操作不可撤销。',
 
   // Profile form
   'profiles.form.newTitle': '新建配置',
@@ -384,6 +392,13 @@ export const zh: Record<string, string> = {
   'hosts.msg.groupUpdatedDraft': '分组已更新。主机编辑状态保持不变。',
   'hosts.msg.groupCreatedSelected': '分组已创建并为此主机自动选中。',
   'hosts.msg.sshCopied': 'SSH 命令已复制',
+  'hosts.delete.confirmAck': '我已知晓此操作不可撤销。',
+  'hosts.delete.hostTitle': '删除主机',
+  'hosts.delete.hostDesc': '确认删除主机“{{name}}”？',
+  'hosts.delete.hostImpact': '删除后会同步清理与该主机相关的分组和跳板引用。',
+  'hosts.delete.groupTitle': '删除分组',
+  'hosts.delete.groupDesc': '确认删除分组“{{name}}”？',
+  'hosts.delete.groupImpact': '只会删除分组条目，不会删除分组内主机。',
 
   // Settings
   'settings.title': '设置',
@@ -427,6 +442,9 @@ export const zh: Record<string, string> = {
   'settings.importExport.importing': '导入中...',
   'settings.importExport.importPlaceholder': '在此粘贴窟 JSON',
   'settings.importExport.imported': '窟已导入。配置、主机和会话定义已替换。',
+  'settings.importExport.importFailed': '窟导入失败。',
+  'settings.importExport.confirmLabel': '输入 IMPORT 以确认替换',
+  'settings.importExport.confirmPlaceholder': 'IMPORT',
   'settings.importExport.exportUnavailable': '窟导出不可用',
   'settings.importExport.importUnavailable': '窟导入不可用',
 

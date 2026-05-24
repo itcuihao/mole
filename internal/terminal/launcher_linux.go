@@ -11,8 +11,16 @@ func launchOnPlatform(terminal TerminalApp, spec LaunchSpec) error {
 	switch terminal.ID {
 	case TerminalGnome:
 		return startTerminalProcess(terminal.ExecPath, append([]string{"--"}, spec.ExecArgs...)...)
-	case TerminalKonsole, TerminalAlacritty, TerminalGhostty, TerminalRio, TerminalXterm:
+	case TerminalKonsole, TerminalAlacritty, TerminalRio, TerminalXterm:
 		return startTerminalProcess(terminal.ExecPath, append([]string{"-e"}, spec.ExecArgs...)...)
+	case TerminalGhostty:
+		args := []string{}
+		if windowID := ghosttyWindowIDForDen(spec.Den); windowID != "" {
+			args = append(args, "--window-id="+windowID)
+		}
+		args = append(args, "-e")
+		args = append(args, spec.ExecArgs...)
+		return startTerminalProcess(terminal.ExecPath, args...)
 	case TerminalKitty:
 		return startTerminalProcess(terminal.ExecPath, spec.ExecArgs...)
 	case TerminalWezTerm:

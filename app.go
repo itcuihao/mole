@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -40,6 +41,7 @@ type App struct {
 	sessionMgr      *session.Manager
 	invMgr          *inventory.Manager
 	integrationMgr  *integration.Manager
+	importMu        sync.Mutex
 }
 
 // NewApp creates a new App instance.
@@ -129,8 +131,31 @@ func (a *App) SaveProfile(p profile.Profile, secrets map[string]string) error {
 }
 
 // DeleteProfile removes a profile by ID.
-func (a *App) DeleteProfile(id string) error {
-	return a.profileMgr.Delete(id)
+func (a *App) DeleteProfile(id string) (ProfileDeleteResult, error) {
+	if a.profileMgr == nil || a.sessionMgr == nil {
+		return ProfileDeleteResult{}, fmt.Errorf("burrow is not initialized")
+	}
+
+	refs, err := a.sessionMgr.ListProfileReferences(id)
+	if err != nil {
+		return ProfileDeleteResult{}, err
+	}
+	if len(refs) > 0 {
+		return ProfileDeleteResult{
+			Deleted:    false,
+			Code:       ProfileDeleteCodeInUse,
+			Message:    "profile is in use by existing burrows; change those burrows to another profile before deleting",
+			References: refs,
+		}, nil
+	}
+
+	if err := a.profileMgr.Delete(id); err != nil {
+		return ProfileDeleteResult{}, err
+	}
+
+	return ProfileDeleteResult{
+		Deleted: true,
+	}, nil
 }
 
 // ListCodexConfigs returns all configured isolated Codex homes.
@@ -460,27 +485,64 @@ func (a *App) ExportBurrow() (string, error) {
 }
 
 // ImportBurrow replaces the current burrow with the provided JSON payload.
-func (a *App) ImportBurrow(raw string) error {
+func (a *App) ImportBurrow(raw string) (workspace.ImportResult, error) {
 	if a.profileMgr == nil || a.invMgr == nil || a.sessionMgr == nil {
-		return fmt.Errorf("burrow is not initialized")
+		return workspace.ImportResult{}, fmt.Errorf("burrow is not initialized")
+	}
+
+	a.importMu.Lock()
+	defer a.importMu.Unlock()
+
+	failResult := func(stage, message string) workspace.ImportResult {
+		log.Printf("❌ ImportBurrow failed [stage=%s]: %s", stage, message)
+		return workspace.ImportResult{
+			Success:     false,
+			Message:     message,
+			FailedStage: stage,
+		}
+	}
+
+	failWithRollback := func(stage string, cause error, snapshots []fileSnapshot) workspace.ImportResult {
+		log.Printf("❌ ImportBurrow failed [stage=%s]: %v", stage, cause)
+		log.Printf("↩️ ImportBurrow rollback start [stage=%s]", stage)
+		rollbackErr := restoreSnapshots(snapshots)
+		rollbackSuccess := rollbackErr == nil
+		if rollbackSuccess {
+			log.Printf("✅ ImportBurrow rollback finished")
+		} else {
+			log.Printf("❌ ImportBurrow rollback failed: %v", rollbackErr)
+		}
+
+		msg := fmt.Sprintf("import failed at stage %q: %v", stage, cause)
+		if rollbackErr != nil {
+			msg += fmt.Sprintf("; rollback failed: %v", rollbackErr)
+		}
+
+		return workspace.ImportResult{
+			Success:           false,
+			Message:           msg,
+			FailedStage:       stage,
+			RollbackTriggered: true,
+			RollbackSuccess:   rollbackSuccess,
+		}
 	}
 
 	if strings.TrimSpace(raw) == "" {
-		return fmt.Errorf("burrow payload cannot be empty")
+		return failResult("validate_payload", "burrow payload cannot be empty"), nil
 	}
 
 	var payload workspace.Bundle
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return fmt.Errorf("invalid burrow JSON: %w", err)
+		return failResult("parse_payload", fmt.Sprintf("invalid burrow JSON: %v", err)), nil
 	}
 
 	if payload.SchemaVersion != workspace.SchemaVersion {
-		return fmt.Errorf("unsupported burrow schema version %d", payload.SchemaVersion)
+		return failResult("validate_schema", fmt.Sprintf("unsupported burrow schema version %d", payload.SchemaVersion)), nil
 	}
 
 	profiles, err := a.profileMgr.PrepareImport(payload.Profiles)
 	if err != nil {
-		return err
+		return failResult("prepare_profiles", err.Error()), nil
 	}
 
 	inv := a.invMgr.PrepareImport(payload.Inventory)
@@ -489,7 +551,7 @@ func (a *App) ImportBurrow(raw string) error {
 		var pluginErr error
 		pluginConfigs, pluginErr = a.pluginConfigMgr.PrepareImport(payload.PluginConfigs)
 		if pluginErr != nil {
-			return pluginErr
+			return failResult("prepare_plugin_configs", pluginErr.Error()), nil
 		}
 	}
 
@@ -510,27 +572,106 @@ func (a *App) ImportBurrow(raw string) error {
 
 	sessions, err := a.sessionMgr.PrepareBurrowImport(payload.Sessions, profileIDs, hostIDs, pluginConfigIDs)
 	if err != nil {
-		return err
+		return failResult("prepare_sessions", err.Error()), nil
 	}
 
-	if err := a.sessionMgr.StopTrackedSessions(); err != nil {
-		return err
-	}
-	if err := a.profileMgr.ReplaceAll(profiles); err != nil {
-		return err
-	}
-	if err := a.invMgr.SaveInventory(inv); err != nil {
-		return err
+	snapshotPaths := []string{
+		a.profileMgr.StorePath(),
+		a.invMgr.StorePath(),
+		a.sessionMgr.StorePath(),
 	}
 	if a.pluginConfigMgr != nil {
+		snapshotPaths = append(snapshotPaths, a.pluginConfigMgr.StorePath())
+	}
+	snapshots, err := snapshotFiles(snapshotPaths)
+	if err != nil {
+		return failResult("snapshot", fmt.Sprintf("failed to snapshot burrow files: %v", err)), nil
+	}
+
+	log.Printf("🚚 ImportBurrow start [profiles=%d hosts=%d sessions=%d plugin_configs=%d]", len(profiles), len(inv.Hosts), len(sessions), len(pluginConfigs))
+
+	if err := a.sessionMgr.StopTrackedSessions(); err != nil {
+		return failResult("stop_sessions", fmt.Sprintf("failed to stop tracked sessions before import: %v", err)), nil
+	}
+	log.Printf("✅ ImportBurrow stage complete: stop_sessions")
+
+	if err := a.profileMgr.ReplaceAll(profiles); err != nil {
+		return failWithRollback("replace_profiles", err, snapshots), nil
+	}
+	log.Printf("✅ ImportBurrow stage complete: replace_profiles")
+
+	if err := a.invMgr.SaveInventory(inv); err != nil {
+		return failWithRollback("replace_inventory", err, snapshots), nil
+	}
+	log.Printf("✅ ImportBurrow stage complete: replace_inventory")
+
+	if a.pluginConfigMgr != nil {
 		if err := a.pluginConfigMgr.ReplaceAll(pluginConfigs); err != nil {
+			return failWithRollback("replace_plugin_configs", err, snapshots), nil
+		}
+		log.Printf("✅ ImportBurrow stage complete: replace_plugin_configs")
+	}
+	if err := a.sessionMgr.ReplaceAllImported(sessions); err != nil {
+		return failWithRollback("replace_sessions", err, snapshots), nil
+	}
+	log.Printf("✅ ImportBurrow stage complete: replace_sessions")
+	log.Printf("✅ ImportBurrow complete")
+
+	return workspace.ImportResult{
+		Success: true,
+		Message: "burrow imported successfully",
+	}, nil
+}
+
+const ProfileDeleteCodeInUse = "PROFILE_IN_USE"
+
+type ProfileDeleteResult struct {
+	Deleted    bool                       `json:"deleted"`
+	Code       string                     `json:"code,omitempty"`
+	Message    string                     `json:"message,omitempty"`
+	References []session.ProfileReference `json:"references,omitempty"`
+}
+
+type fileSnapshot struct {
+	Path   string
+	Exists bool
+	Data   []byte
+}
+
+func snapshotFiles(paths []string) ([]fileSnapshot, error) {
+	snapshots := make([]fileSnapshot, 0, len(paths))
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			snapshots = append(snapshots, fileSnapshot{
+				Path:   path,
+				Exists: true,
+				Data:   append([]byte(nil), data...),
+			})
+			continue
+		}
+		if os.IsNotExist(err) {
+			snapshots = append(snapshots, fileSnapshot{Path: path, Exists: false})
+			continue
+		}
+		return nil, err
+	}
+	return snapshots, nil
+}
+
+func restoreSnapshots(snapshots []fileSnapshot) error {
+	for _, snapshot := range snapshots {
+		if snapshot.Exists {
+			if err := os.WriteFile(snapshot.Path, snapshot.Data, 0o644); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := os.Remove(snapshot.Path); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
-	if err := a.sessionMgr.ReplaceAllImported(sessions); err != nil {
-		return err
-	}
-
 	return nil
 }
 
