@@ -417,6 +417,21 @@ func (a *App) DeleteHost(id string) error {
 	return a.invMgr.DeleteHost(id)
 }
 
+// GetHostsHealth returns the cache of all host health metrics.
+func (a *App) GetHostsHealth() map[string]inventory.HostHealth {
+	return a.invMgr.GetHostsHealth()
+}
+
+// CheckHostHealth performs an on-demand TCP connect check and stats query.
+func (a *App) CheckHostHealth(hostID string) (inventory.HostHealth, error) {
+	return a.invMgr.CheckHostHealth(hostID)
+}
+
+// UploadFile uploads a local file to the remote host using scp.
+func (a *App) UploadFile(hostID string, localPath string) error {
+	return a.invMgr.UploadFile(hostID, localPath)
+}
+
 // PreviewSSHConfigImport parses ~/.ssh/config and returns import candidates.
 func (a *App) PreviewSSHConfigImport(path string) (inventory.SSHConfigImportPreview, error) {
 	return a.invMgr.PreviewSSHConfigImport(path)
@@ -796,6 +811,18 @@ func (a *App) DeployIntegrationPluginWithOptions(id, template, interval string) 
 // RemoveIntegrationPlugin removes the deployed plugin script from the tool's plugin directory.
 func (a *App) RemoveIntegrationPlugin(id string) error {
 	return a.integrationMgr.RemovePlugin(id)
+}
+
+// FocusBurrow tries to focus the specific terminal tab for a Burrow.
+func (a *App) FocusBurrow(sessionID string) (bool, error) {
+	terminalID := a.defaultTerminalID()
+	return terminal.FocusBurrowWindow(terminalID, sessionID)
+}
+
+// FocusDen tries to focus the existing terminal window for a Den.
+func (a *App) FocusDen(den string) (bool, error) {
+	terminalID := a.defaultTerminalID()
+	return terminal.FocusGroupedWindow(terminalID, den)
 }
 
 // OpenIntegration launches the external tool application.

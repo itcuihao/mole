@@ -127,6 +127,9 @@ function Hosts({
     bastion_id: '',
     identity_file: '',
     tags: '',
+    port_forwards: [] as string[],
+    enable_health_check: false,
+    enable_alerts: false,
   })
   const [hostGroupIds, setHostGroupIds] = useState<string[]>([])
 
@@ -149,6 +152,8 @@ function Hosts({
   })
   const [pendingDeleteHost, setPendingDeleteHost] = useState<HostRecord | null>(null)
   const [pendingDeleteGroup, setPendingDeleteGroup] = useState<inventory.HostGroup | null>(null)
+  const [pfType, setPfType] = useState<'L' | 'R' | 'D'>('L')
+  const [pfValue, setPfValue] = useState('')
 
   const hostMap = useMemo(() => {
     const map = new Map<string, HostRecord>()
@@ -279,6 +284,9 @@ function Hosts({
         bastion_id: host.bastion_id || '',
         identity_file: host.identity_file || '',
         tags: (host.tags || []).join(', '),
+        port_forwards: host.port_forwards || [],
+        enable_health_check: !!host.enable_health_check,
+        enable_alerts: !!host.enable_alerts,
       })
     } else {
       setEditingHost(null)
@@ -292,6 +300,9 @@ function Hosts({
         bastion_id: '',
         identity_file: '',
         tags: '',
+        port_forwards: [],
+        enable_health_check: false,
+        enable_alerts: false,
       })
     }
     setShowHostModal(true)
@@ -373,6 +384,9 @@ function Hosts({
         jump_host_ids: nextJumpChain,
         identity_file: hostForm.identity_file.trim(),
         tags: parseTags(hostForm.tags),
+        port_forwards: hostForm.port_forwards || [],
+        enable_health_check: hostForm.enable_health_check,
+        enable_alerts: hostForm.enable_alerts,
       })
 
       await Promise.all(inv.groups.map(group => {
@@ -487,11 +501,28 @@ function Hosts({
     const defaults = inv.defaults || { user: '', port: 22, identity_file: '' }
     const targetConn = resolveHostConnection(host, defaults)
     const parts = ['ssh']
+
+    // SSH Multiplexing for instant connections
+    parts.push('-o', 'ControlMaster=auto', '-o', 'ControlPath=~/.ssh/mole-%r@%h:%p', '-o', 'ControlPersist=10m')
+
     if (targetConn.identity) {
       parts.push('-i', targetConn.identity)
     }
     if (targetConn.port && targetConn.port !== 22) {
       parts.push('-p', String(targetConn.port))
+    }
+
+    // Port Forwards
+    if (host.port_forwards) {
+      host.port_forwards.forEach(pf => {
+        const colonIdx = pf.indexOf(':')
+        if (colonIdx === -1) return
+        const typ = pf.slice(0, colonIdx).toUpperCase()
+        const val = pf.slice(colonIdx + 1)
+        if (typ === 'L' || typ === 'R' || typ === 'D') {
+          parts.push(`-${typ}`, val)
+        }
+      })
     }
 
     const chainIDs = hostJumpChain(host)
@@ -538,6 +569,9 @@ function Hosts({
       bastion_id: host.bastion_id || '',
       identity_file: host.identity_file || '',
       tags: (host.tags || []).join(', '),
+      port_forwards: host.port_forwards || [],
+      enable_health_check: !!host.enable_health_check,
+      enable_alerts: !!host.enable_alerts,
     })
     setHostGroupIds(
       inv.groups
@@ -1358,6 +1392,173 @@ function Hosts({
                     })}
                   </div>
                 </div>
+              </div>
+
+              {/* Port Forwarding */}
+              <div className="grid gap-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('hosts.form.portForwarding')}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {t('hosts.form.portForwardingDesc')}
+                </p>
+                {hostForm.port_forwards && hostForm.port_forwards.length > 0 && (
+                  <div className="border border-border rounded bg-muted/20 max-h-32 overflow-auto divide-y divide-border/50">
+                    {hostForm.port_forwards.map((pf, index) => {
+                      const colonIdx = pf.indexOf(':')
+                      const type = pf.slice(0, colonIdx)
+                      const rule = pf.slice(colonIdx + 1)
+                      return (
+                        <div key={index} className="flex items-center justify-between px-3 py-1.5 text-xs text-foreground">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-semibold text-[10px] uppercase border-primary/30 text-primary">
+                              {type}
+                            </Badge>
+                            <span className="font-mono">{rule}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setHostForm({
+                                ...hostForm,
+                                port_forwards: hostForm.port_forwards.filter((_, idx) => idx !== index)
+                              })
+                            }}
+                            className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={pfType}
+                    onValueChange={(val) => setPfType(val as 'L' | 'R' | 'D')}
+                  >
+                    <SelectTrigger className="w-24 bg-muted/30 focus:bg-background h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[110]">
+                      <SelectItem value="L">Local (L)</SelectItem>
+                      <SelectItem value="R">Remote (R)</SelectItem>
+                      <SelectItem value="D">Dynamic (D)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={pfValue}
+                    onChange={(e) => setPfValue(e.target.value)}
+                    placeholder={
+                      pfType === 'L'
+                        ? t('hosts.form.pfValuePlaceholderL')
+                        : pfType === 'R'
+                        ? t('hosts.form.pfValuePlaceholderR')
+                        : t('hosts.form.pfValuePlaceholderD')
+                    }
+                    className="flex-1 bg-muted/30 focus:bg-background h-8 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (pfValue.trim()) {
+                          const newRule = `${pfType}:${pfValue.trim()}`
+                          if (!hostForm.port_forwards.includes(newRule)) {
+                            setHostForm({
+                              ...hostForm,
+                              port_forwards: [...hostForm.port_forwards, newRule]
+                            })
+                          }
+                          setPfValue('')
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 text-xs shrink-0"
+                    onClick={() => {
+                      if (pfValue.trim()) {
+                        const newRule = `${pfType}:${pfValue.trim()}`
+                        if (!hostForm.port_forwards.includes(newRule)) {
+                          setHostForm({
+                            ...hostForm,
+                            port_forwards: [...hostForm.port_forwards, newRule]
+                          })
+                        }
+                        setPfValue('')
+                      }
+                    }}
+                  >
+                    {t('hosts.form.addPf')}
+                  </Button>
+                </div>
+                <div className="text-[11px] text-muted-foreground/80 leading-relaxed bg-muted/15 border border-border/40 rounded-lg p-2.5">
+                  {pfType === 'L' && (
+                    <span><strong>L (Local)</strong>: {t('hosts.form.pfDescL')}</span>
+                  )}
+                  {pfType === 'R' && (
+                    <span><strong>R (Remote)</strong>: {t('hosts.form.pfDescR')}</span>
+                  )}
+                  {pfType === 'D' && (
+                    <span><strong>D (Dynamic)</strong>: {t('hosts.form.pfDescD')}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Monitoring & Alerts */}
+              <div className="grid gap-3 border-t border-border/30 pt-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t('hosts.form.monitoring')}
+                </div>
+                
+                <label className="flex items-start justify-between gap-4 cursor-pointer py-1">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-foreground block">
+                      {t('hosts.form.enableHealthCheck')}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-normal mt-0.5 block">
+                      {t('hosts.form.enableHealthCheckDesc')}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={hostForm.enable_health_check}
+                    onChange={(e) => {
+                      setHostForm({
+                        ...hostForm,
+                        enable_health_check: e.target.checked,
+                        enable_alerts: e.target.checked ? hostForm.enable_alerts : false
+                      })
+                    }}
+                    className="h-4 w-4 rounded accent-primary mt-1 cursor-pointer"
+                  />
+                </label>
+
+                <label className={`flex items-start justify-between gap-4 cursor-pointer py-1 transition-opacity ${!hostForm.enable_health_check ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-foreground block">
+                      {t('hosts.form.enableAlerts')}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-normal mt-0.5 block">
+                      {t('hosts.form.enableAlertsDesc')}
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={hostForm.enable_alerts}
+                    disabled={!hostForm.enable_health_check}
+                    onChange={(e) => {
+                      setHostForm({
+                        ...hostForm,
+                        enable_alerts: e.target.checked
+                      })
+                    }}
+                    className="h-4 w-4 rounded accent-primary mt-1 cursor-pointer"
+                  />
+                </label>
               </div>
           </div>
         </ModalShell>

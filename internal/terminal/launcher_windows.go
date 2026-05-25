@@ -41,3 +41,7 @@ func closeGroupedWindowOnPlatform(_ TerminalApp, _ string) error {
 func focusGroupedWindowOnPlatform(_ TerminalApp, _ string) (bool, error) {
 	return false, ErrFocusGroupedWindowUnsupported
 }
+
+func focusBurrowOnPlatform(_ TerminalApp, _ string) (bool, error) {
+	return false, ErrFocusGroupedWindowUnsupported
+}

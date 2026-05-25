@@ -140,6 +140,9 @@ export namespace inventory {
 	    jump_host_ids?: string[];
 	    identity_file: string;
 	    tags: string[];
+	    port_forwards?: string[];
+	    enable_health_check?: boolean;
+	    enable_alerts?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Host(source);
@@ -157,6 +160,9 @@ export namespace inventory {
 	        this.jump_host_ids = source["jump_host_ids"];
 	        this.identity_file = source["identity_file"];
 	        this.tags = source["tags"];
+	        this.port_forwards = source["port_forwards"];
+	        this.enable_health_check = source["enable_health_check"];
+	        this.enable_alerts = source["enable_alerts"];
 	    }
 	}
 	export class HostDefaults {
@@ -194,6 +200,49 @@ export namespace inventory {
 	        this.host_ids = source["host_ids"];
 	        this.tags = source["tags"];
 	    }
+	}
+	export class HostHealth {
+	    host_id: string;
+	    online: boolean;
+	    latency_ms: number;
+	    cpu_load: number;
+	    memory_usage: number;
+	    // Go type: time
+	    last_checked: any;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HostHealth(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host_id = source["host_id"];
+	        this.online = source["online"];
+	        this.latency_ms = source["latency_ms"];
+	        this.cpu_load = source["cpu_load"];
+	        this.memory_usage = source["memory_usage"];
+	        this.last_checked = this.convertValues(source["last_checked"], null);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class Inventory {
 	    version: number;
@@ -314,6 +363,47 @@ export namespace inventory {
 	        this.aliases = source["aliases"];
 	        this.conflict_strategy = source["conflict_strategy"];
 	    }
+	}
+
+}
+
+export namespace main {
+	
+	export class ProfileDeleteResult {
+	    deleted: boolean;
+	    code?: string;
+	    message?: string;
+	    references?: session.ProfileReference[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileDeleteResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.deleted = source["deleted"];
+	        this.code = source["code"];
+	        this.message = source["message"];
+	        this.references = this.convertValues(source["references"], session.ProfileReference);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
@@ -598,6 +688,20 @@ export namespace session {
 	        this.requires_plugin_config = source["requires_plugin_config"];
 	    }
 	}
+	export class ProfileReference {
+	    session_id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProfileReference(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.session_id = source["session_id"];
+	        this.name = source["name"];
+	    }
+	}
 	export class SessionLaunchRequest {
 	    profile_id: string;
 	    name: string;
@@ -747,6 +851,31 @@ export namespace terminal {
 	        this.AppPath = source["AppPath"];
 	        this.ExecPath = source["ExecPath"];
 	        this.IsInstalled = source["IsInstalled"];
+	    }
+	}
+
+}
+
+export namespace workspace {
+	
+	export class ImportResult {
+	    success: boolean;
+	    message?: string;
+	    failed_stage?: string;
+	    rollback_triggered?: boolean;
+	    rollback_success?: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.failed_stage = source["failed_stage"];
+	        this.rollback_triggered = source["rollback_triggered"];
+	        this.rollback_success = source["rollback_success"];
 	    }
 	}
 

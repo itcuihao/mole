@@ -15,10 +15,13 @@ type Host struct {
 	Host         string   `json:"host"`
 	User         string   `json:"user"`
 	Port         int      `json:"port"`
-	BastionID    string   `json:"bastion_id"`
-	JumpHostIDs  []string `json:"jump_host_ids,omitempty"`
-	IdentityFile string   `json:"identity_file"`
-	Tags         []string `json:"tags"`
+	BastionID         string   `json:"bastion_id"`
+	JumpHostIDs       []string `json:"jump_host_ids,omitempty"`
+	IdentityFile      string   `json:"identity_file"`
+	Tags              []string `json:"tags"`
+	PortForwards      []string `json:"port_forwards,omitempty"`
+	EnableHealthCheck bool     `json:"enable_health_check,omitempty"`
+	EnableAlerts      bool     `json:"enable_alerts,omitempty"`
 }
 
 // HostGroup represents a named collection of hosts.

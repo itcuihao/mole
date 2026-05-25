@@ -84,3 +84,21 @@ func FocusGroupedWindow(terminalID, group string) (bool, error) {
 
 	return focusGroupedWindowOnPlatform(*terminal, group)
 }
+
+// FocusBurrowWindow tries to bring an existing terminal tab for a specific Burrow to front.
+func FocusBurrowWindow(terminalID, burrowID string) (bool, error) {
+	burrowID = strings.TrimSpace(burrowID)
+	if burrowID == "" {
+		return false, fmt.Errorf("burrowID is empty")
+	}
+
+	terminal := FindByID(terminalID)
+	if terminal == nil {
+		return false, fmt.Errorf("unknown terminal: %s", terminalID)
+	}
+	if !terminal.IsInstalled {
+		return false, fmt.Errorf("terminal not installed: %s", terminal.Name)
+	}
+
+	return focusBurrowOnPlatform(*terminal, burrowID)
+}

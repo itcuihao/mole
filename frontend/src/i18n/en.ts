@@ -50,6 +50,8 @@ export const en: Record<string, string> = {
   'burrows.den.openFailedList': 'Failed items: {{names}}.',
   'burrows.den.restartSummary': 'Handled den {{den}}: restarted {{restarted}}, failed {{failed}}.',
   'burrows.den.restartFailedList': 'Restart failed: {{names}}.',
+  'burrows.focus': 'Focus Window',
+  'burrows.focusDen': 'Focus Den Window',
   'burrows.profileFilter': 'Profile filter',
   'burrows.showing': 'Showing {{filtered}} of {{total}}',
   'burrows.sortedBy': 'Sorted by {{mode}}',
@@ -355,6 +357,23 @@ export const en: Record<string, string> = {
   'hosts.form.hostCount.one': '{{count}} host',
   'hosts.form.hostCount.other': '{{count}} hosts',
   'hosts.form.hostRequired': 'Host address is required',
+  'hosts.form.portForwarding': 'Port Forwarding',
+  'hosts.form.portForwardingDesc': 'Define local/remote port forwarding or dynamic SOCKS tunnels.',
+  'hosts.form.pfType': 'Type',
+  'hosts.form.pfValue': 'Rule',
+  'hosts.form.pfValuePlaceholderL': 'e.g. 8080:localhost:80',
+  'hosts.form.pfValuePlaceholderR': 'e.g. 9090:localhost:90',
+  'hosts.form.pfValuePlaceholderD': 'e.g. 1080',
+  'hosts.form.addPf': 'Add',
+  'hosts.form.pfDescL': 'Local Port Forwarding. Pulls a remote service to your local machine. E.g., 3306:localhost:3306 lets you connect to the remote database locally.',
+  'hosts.form.pfDescR': 'Remote Port Forwarding. Pushes a local service to the remote host. E.g., 8080:localhost:8000 lets the remote host access your local Web app.',
+  'hosts.form.pfDescD': 'Dynamic Port Forwarding (SOCKS5 proxy). E.g., 1080 turns the remote server into a proxy gateway to access its entire internal network.',
+
+  'hosts.form.monitoring': 'Monitoring & Alerts',
+  'hosts.form.enableHealthCheck': 'Enable Health Check',
+  'hosts.form.enableHealthCheckDesc': 'Periodically test SSH connectivity to show status before opening.',
+  'hosts.form.enableAlerts': 'Enable Mascot Alerts',
+  'hosts.form.enableAlertsDesc': 'Warning toast by the mole mascot if SSH connection fails.',
 
   // Group modal
   'hosts.group.addTitle': 'Add Group',
@@ -399,6 +418,14 @@ export const en: Record<string, string> = {
   'hosts.delete.groupTitle': 'Delete Group',
   'hosts.delete.groupDesc': 'Delete group "{{name}}"?',
   'hosts.delete.groupImpact': 'This removes the group entry only. Hosts remain in inventory.',
+  'hosts.alert.connectionFailed': 'This server is unreachable. Connection canceled.',
+  'hosts.upload.title': 'Upload to Remote (SCP)',
+  'hosts.upload.desc': 'Drag and drop files here to upload to remote ~/',
+  'hosts.upload.success': 'File uploaded successfully!',
+  'hosts.upload.failed': 'Upload failed',
+  'hosts.upload.uploading': 'Uploading...',
+  'hosts.msg.uploadSuccess': 'Successfully uploaded {{name}} to remote host!',
+
 
   // Settings
   'settings.title': 'Settings',

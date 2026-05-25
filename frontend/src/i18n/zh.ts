@@ -50,6 +50,8 @@ export const zh: Record<string, string> = {
   'burrows.den.openFailedList': '失败项：{{names}}。',
   'burrows.den.restartSummary': '巢穴 {{den}} 已处理：重启 {{restarted}} 个，失败 {{failed}} 个。',
   'burrows.den.restartFailedList': '重启失败：{{names}}。',
+  'burrows.focus': '定位窗口',
+  'burrows.focusDen': '定位巢穴窗口',
   'burrows.profileFilter': '配置筛选',
   'burrows.showing': '显示 {{filtered}} / {{total}}',
   'burrows.sortedBy': '按 {{mode}} 排序',
@@ -355,6 +357,23 @@ export const zh: Record<string, string> = {
   'hosts.form.hostCount.one': '{{count}} 台主机',
   'hosts.form.hostCount.other': '{{count}} 台主机',
   'hosts.form.hostRequired': '主机地址为必填项',
+  'hosts.form.portForwarding': '端口转发',
+  'hosts.form.portForwardingDesc': '配置本地/远程端口转发或动态 SOCKS 隧道。',
+  'hosts.form.pfType': '类型',
+  'hosts.form.pfValue': '转发规则',
+  'hosts.form.pfValuePlaceholderL': '例如 8080:localhost:80',
+  'hosts.form.pfValuePlaceholderR': '例如 9090:localhost:90',
+  'hosts.form.pfValuePlaceholderD': '例如 1080',
+  'hosts.form.addPf': '添加',
+  'hosts.form.pfDescL': '本地端口转发。将远端服务“拉”到本地。例如 3306:localhost:3306 可让你在本地连接和管理远程数据库。',
+  'hosts.form.pfDescR': '远程端口转发。将本地服务“推”到远端。例如 8080:localhost:8000 可让远程机器直接访问你本地开发的项目。',
+  'hosts.form.pfDescD': '动态端口转发（SOCKS5 代理）。例如 1080 端口，可充当全局代理网关访问远程服务器的整片内网。',
+
+  'hosts.form.monitoring': '监控与告警',
+  'hosts.form.enableHealthCheck': '启用健康检测',
+  'hosts.form.enableHealthCheckDesc': '定期检测 SSH 连通性，在打开前展示状态。',
+  'hosts.form.enableAlerts': '启用连接失败告警',
+  'hosts.form.enableAlertsDesc': '若 SSH 连接失败，地鼠气泡将弹出阻拦与警告。',
 
   // Group modal
   'hosts.group.addTitle': '添加分组',
@@ -399,6 +418,14 @@ export const zh: Record<string, string> = {
   'hosts.delete.groupTitle': '删除分组',
   'hosts.delete.groupDesc': '确认删除分组“{{name}}”？',
   'hosts.delete.groupImpact': '只会删除分组条目，不会删除分组内主机。',
+  'hosts.alert.connectionFailed': '这台服务器连不上哦，帮你取消了',
+  'hosts.upload.title': '上传文件到远端 (SCP)',
+  'hosts.upload.desc': '拖拽文件到此处以上传至远端 ~/',
+  'hosts.upload.success': '文件上传成功！',
+  'hosts.upload.failed': '文件上传失败',
+  'hosts.upload.uploading': '正在上传...',
+  'hosts.msg.uploadSuccess': '成功上传 {{name}} 到远端主机！',
+
 
   // Settings
   'settings.title': '设置',

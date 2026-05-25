@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory } from '../../wailsjs/go/main/App'
+import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory, GetHostsHealth, CheckHostHealth, UploadFile } from '../../wailsjs/go/main/App'
 import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Environment } from '../../wailsjs/runtime/runtime'
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from "@/lib/mascot-events"
 import { useMoleSpeaker } from "@/lib/mole-messages"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle, Maximize, FileUp, Upload } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -646,6 +646,14 @@ function Sessions({
   const [selectedDenFilter, setSelectedDenFilter] = useState<string>('')
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('')
   const [inventoryCount, setInventoryCount] = useState(0)
+  const [hosts, setHosts] = useState<inventory.Host[]>([])
+  const [hostsHealth, setHostsHealth] = useState<Record<string, inventory.HostHealth>>({})
+
+  const pageHostMap = useMemo(() => {
+    const map = new Map<string, inventory.Host>()
+    hosts.forEach(h => map.set(h.id, h))
+    return map
+  }, [hosts])
   const [sessionAction, setSessionAction] = useState<{ id: string, kind: 'open' | 'kill' | 'restart' } | null>(null)
   const [showDenOrderModal, setShowDenOrderModal] = useState(false)
   const [denOrderDraft, setDenOrderDraft] = useState<SessionRecord[]>([])
@@ -676,8 +684,23 @@ function Sessions({
         .catch(() => {})
 
       GetInventory()
-        .then(data => setInventoryCount((data?.hosts || []).length))
+        .then(data => {
+          setHosts(data?.hosts || [])
+          setInventoryCount((data?.hosts || []).length)
+        })
         .catch(() => {})
+    }
+  }, [])
+
+  const fetchHostsHealth = useCallback(() => {
+    if (typeof window !== 'undefined' && (window as any).go) {
+      GetHostsHealth()
+        .then(data => {
+          setHostsHealth(data || {})
+        })
+        .catch(err => {
+          console.error("GetHostsHealth error:", err)
+        })
     }
   }, [])
 
@@ -690,6 +713,12 @@ function Sessions({
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
   }, [refresh, burrowRefreshSignal])
+
+  useEffect(() => {
+    fetchHostsHealth()
+    const interval = setInterval(fetchHostsHealth, 10000)
+    return () => clearInterval(interval)
+  }, [fetchHostsHealth])
 
   useEffect(() => {
     if (!newSessionSignal) return
@@ -711,7 +740,47 @@ function Sessions({
     }
   }
 
+  const handleFocusBurrow = async (sessionID: string) => {
+    const focusBurrow = getAppMethod('FocusBurrow')
+    if (typeof focusBurrow === 'function') {
+      try {
+        await focusBurrow(sessionID)
+      } catch (err) {
+        console.error('FocusBurrow error:', err)
+      }
+    }
+  }
+
+  const handleFocusDen = async (den: string) => {
+    const focusDen = getAppMethod('FocusDen')
+    if (typeof focusDen === 'function') {
+      try {
+        await focusDen(den)
+      } catch (err) {
+        console.error('FocusDen error:', err)
+      }
+    }
+  }
+
   const handleOpenSession = async (sess: SessionRecord, terminalID?: string) => {
+    // Intercept if host is offline and alerts are enabled
+    if (sess.host_id) {
+      const host = pageHostMap.get(sess.host_id)
+      if (host && host.enable_health_check) {
+        const health = hostsHealth[sess.host_id]
+        if (health && !health.online) {
+          if (host.enable_alerts) {
+            speakBubble({
+              type: 'error',
+              text: t('hosts.alert.connectionFailed') || '这台服务器连不上哦，帮你取消了',
+              duration: 5000
+            })
+            return
+          }
+        }
+      }
+    }
+
     const resolvedTerminal = terminalID || defaultTerminal
     const wasRestarted = !sess.alive
 
@@ -1214,20 +1283,28 @@ function Sessions({
             </div>
           ) : (
             <div className="grid gap-3 pb-2">
-              {filteredSessions.map(s => (
-                <SessionCard
-                  key={s.id}
-                  session={s}
-                  terminals={terminals}
-                  onOpen={handleOpenSession}
-                  onKill={handleKill}
-                  onRestart={handleRestart}
-                  onEdit={setEditingSession}
-                  onDuplicate={handleDuplicateSession}
-                  isWorking={sessionAction?.id === s.id}
-                  currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
-                />
-              ))}
+              {filteredSessions.map(s => {
+                const host = s.host_id ? pageHostMap.get(s.host_id) : undefined
+                const health = s.host_id ? hostsHealth[s.host_id] : undefined
+                return (
+                  <SessionCard
+                    key={s.id}
+                    session={s}
+                    terminals={terminals}
+                    host={host}
+                    health={health}
+                    onOpen={handleOpenSession}
+                    onKill={handleKill}
+                    onRestart={handleRestart}
+                    onEdit={setEditingSession}
+                    onDuplicate={handleDuplicateSession}
+                    onFocusBurrow={handleFocusBurrow}
+                    onFocusDen={handleFocusDen}
+                    isWorking={sessionAction?.id === s.id}
+                    currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
+                  />
+                )
+              })}
             </div>
           )}
         </div>
@@ -1307,27 +1384,89 @@ function Sessions({
 function SessionCard({
   session: s,
   terminals,
+  host,
+  health,
   onOpen,
   onKill,
   onRestart,
   onEdit,
   onDuplicate,
+  onFocusBurrow,
+  onFocusDen,
   isWorking,
   currentAction,
 }: {
   session: SessionRecord
   terminals: terminal.TerminalApp[]
+  host?: inventory.Host
+  health?: inventory.HostHealth
   onOpen: (session: SessionRecord, terminalID?: string) => void
   onKill: (session: SessionRecord) => void
   onRestart: (session: SessionRecord) => void
   onEdit: (session: SessionRecord) => void
   onDuplicate: (session: SessionRecord) => void
+  onFocusBurrow: (id: string) => void
+  onFocusDen: (den: string) => void
   isWorking: boolean
   currentAction: 'open' | 'kill' | 'restart' | null
 }) {
   const { t } = useTranslation()
   const [confirmKill, setConfirmKill] = useState(false)
   const startupPreview = buildSessionStartupPreview(s)
+
+  const speakBubble = useMoleSpeaker()
+  const [showUploadZone, setShowUploadZone] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    
+    const files = e.dataTransfer.files
+    if (files.length === 0) return
+    
+    setUploading(true)
+    setUploadError('')
+    setUploadSuccess(false)
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const nativePath = (file as any).path
+        if (!nativePath) {
+          throw new Error('Could not resolve local file path')
+        }
+        await UploadFile(s.host_id || '', nativePath)
+      }
+      setUploadSuccess(true)
+      speakBubble({
+        type: 'success',
+        text: t('hosts.msg.uploadSuccess', { name: files[0].name }) || `成功上传 ${files[0].name} 到远端主机！`,
+        duration: 5000
+      })
+    } catch (err) {
+      console.error('File upload failed:', err)
+      setUploadError(String(err))
+      speakBubble({
+        type: 'error',
+        text: `文件上传失败: ${String(err)}`
+      })
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const statusColor = !s.alive
     ? 'bg-muted-foreground/70'
@@ -1346,141 +1485,233 @@ function SessionCard({
     : t('burrows.restart')
 
   return (
-    <div className="breathing-card surface-panel flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor}`} />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-medium text-foreground">{s.name}</div>
-            {s.den ? (
-              <span className="rounded-full border border-primary/15 bg-[hsl(var(--selected))] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--selected-foreground))]">
-                {s.den}
-              </span>
-            ) : null}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {s.profile_name && (
-              <span className="inline-flex items-center gap-1">
-                {s.profile_color && (
-                  <span
-                    className="inline-block w-2 h-2 rounded-full"
-                    style={{ backgroundColor: s.profile_color }}
-                  />
-                )}
-                {s.profile_name}
-                <span className="mx-1 text-muted-foreground/50">|</span>
-              </span>
+    <div className="breathing-card surface-panel flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 transition-all w-full">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between w-full">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColor}`} />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-medium text-foreground">{s.name}</div>
+              {s.den ? (
+                <button
+                  type="button"
+                  onClick={() => s.den && onFocusDen(s.den)}
+                  className="interactive-chip rounded-full border border-primary/15 bg-[hsl(var(--selected))] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--selected-foreground))] hover:border-primary/30 transition-colors"
+                  title={t('burrows.focusDen')}
+                >
+                  {s.den}
+                </button>
+              ) : null}
+              {host && host.enable_health_check && (
+                health ? (
+                  health.online ? (
+                    <Badge variant="outline" className="rounded-full text-[9px] h-4.5 py-0 px-1.5 border-green-500/30 bg-green-500/5 text-green-600 dark:text-green-400 flex items-center gap-1 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      <span>{Math.round(health.latency_ms)}ms</span>
+                      {health.cpu_load > 0 && <span>| CPU {health.cpu_load.toFixed(1)}</span>}
+                      {health.memory_usage > 0 && <span>| Mem {Math.round(health.memory_usage)}%</span>}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="rounded-full text-[9px] h-4.5 py-0 px-1.5 border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-1 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+                      <span>Offline</span>
+                    </Badge>
+                  )
+                ) : (
+                  <Badge variant="outline" className="rounded-full text-[9px] h-4.5 py-0 px-1.5 border-muted-foreground/30 bg-muted/5 text-muted-foreground flex items-center gap-1 font-mono animate-pulse">
+                    <RotateCw className="w-2.5 h-2.5 animate-spin" />
+                    <span>Probing...</span>
+                  </Badge>
+                )
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {s.profile_name && (
+                <span className="inline-flex items-center gap-1">
+                  {s.profile_color && (
+                    <span
+                      className="inline-block w-2 h-2 rounded-full"
+                      style={{ backgroundColor: s.profile_color }}
+                    />
+                  )}
+                  {s.profile_name}
+                  <span className="mx-1 text-muted-foreground/50">|</span>
+                </span>
+              )}
+              {statusText}
+              <span className="mx-1 text-muted-foreground/50">|</span>
+              {s.alive ? t('burrows.windowCount', { count: s.windows }) : t('burrows.willRestore')}
+            </div>
+            {s.cwd && (
+              <div className="mt-1 text-xs text-muted-foreground font-mono">
+                {t('burrows.workspaceLabel', { path: s.cwd })}
+              </div>
             )}
-            {statusText}
-            <span className="mx-1 text-muted-foreground/50">|</span>
-            {s.alive ? t('burrows.windowCount', { count: s.windows }) : t('burrows.willRestore')}
+            {startupPreview && (
+              <div
+                className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
+                title={t('burrows.autoRunsHint', { command: startupPreview })}
+              >
+                <span className="shrink-0 font-mono">{t('burrows.startup')}</span>
+                <CommandText command={startupPreview} className="min-w-0 flex-1" />
+              </div>
+            )}
           </div>
-          {s.cwd && (
-            <div className="mt-1 text-xs text-muted-foreground font-mono">
-              {t('burrows.workspaceLabel', { path: s.cwd })}
-            </div>
-          )}
-          {startupPreview && (
-            <div
-              className="mt-1.5 flex min-w-0 flex-wrap items-start gap-x-1 gap-y-0.5 text-xs leading-relaxed text-muted-foreground/70"
-              title={t('burrows.autoRunsHint', { command: startupPreview })}
+        </div>
+
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:self-center">
+          <div className="flex">
+            <Button
+              onClick={() => onOpen(s)}
+              size="sm"
+              className="rounded-r-none pr-2 shadow-md"
+              disabled={isWorking}
             >
-              <span className="shrink-0 font-mono">{t('burrows.startup')}</span>
-              <CommandText command={startupPreview} className="min-w-0 flex-1" />
-            </div>
+              <Play className="w-3.5 h-3.5" />
+              {primaryLabel}
+            </Button>
+            {terminals.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="rounded-l-none border-l border-primary-foreground/20 pl-1 pr-1.5 data-[state=open]:bg-primary/90"
+                    disabled={isWorking}
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>{t('burrows.openWith')}</DropdownMenuLabel>
+                  {terminals.map(term => (
+                    <DropdownMenuItem key={term.ID} onSelect={() => onOpen(s, term.ID)}>
+                      <TerminalSquare className="w-4 h-4 text-muted-foreground" />
+                      <span>{term.Name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+          {s.host_id && s.alive && (
+            <Button
+              variant={showUploadZone ? "default" : "secondary"}
+              size="sm"
+              className="w-9 px-0"
+              onClick={() => setShowUploadZone(p => !p)}
+              title={t('hosts.upload.title')}
+              disabled={isWorking}
+            >
+              <FileUp className="w-4 h-4" />
+            </Button>
           )}
+          <DropdownMenu onOpenChange={(open: boolean) => { if (!open) setConfirmKill(false) }}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-9 px-0 data-[state=open]:border-border data-[state=open]:bg-popover data-[state=open]:text-popover-foreground data-[state=open]:shadow-lg data-[state=open]:backdrop-blur-sm"
+                aria-label={t('burrows.moreActions')}
+                disabled={isWorking}
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel>{t('burrows.actions')}</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => onDuplicate(s)}>
+                <Copy className="w-4 h-4 text-muted-foreground" />
+                <span>{t('common.duplicate')}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onEdit(s)}>
+                <Pencil className="w-4 h-4 text-muted-foreground" />
+                <span>{t('common.edit')}</span>
+              </DropdownMenuItem>
+              {s.alive && (
+                <>
+                  {s.attached && (
+                    <DropdownMenuItem onSelect={() => onFocusBurrow(s.id)}>
+                      <Maximize className="w-4 h-4 text-muted-foreground" />
+                      <span>{t('burrows.focus')}</span>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onSelect={() => onRestart(s)}>
+                    <RotateCw className="w-4 h-4 text-muted-foreground" />
+                    <span>{restartLabel}</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
+              {confirmKill ? (
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onSelect={() => {
+                    setConfirmKill(false)
+                    onKill(s)
+                  }}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>{t('burrows.confirmDestroy')}</span>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onSelect={(e: Event) => {
+                    e.preventDefault()
+                    setConfirmKill(true)
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{destructiveLabel}</span>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap sm:justify-end sm:self-center">
-        <div className="flex">
-          <Button
-            onClick={() => onOpen(s)}
-            size="sm"
-            className="rounded-r-none pr-2 shadow-md"
-            disabled={isWorking}
-          >
-            <Play className="w-3.5 h-3.5" />
-            {primaryLabel}
-          </Button>
-          {terminals.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="sm"
-                  className="rounded-l-none border-l border-primary-foreground/20 pl-1 pr-1.5 data-[state=open]:bg-primary/90"
-                  disabled={isWorking}
-                >
-                  <ChevronDown className="w-3 h-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>{t('burrows.openWith')}</DropdownMenuLabel>
-                {terminals.map(term => (
-                  <DropdownMenuItem key={term.ID} onSelect={() => onOpen(s, term.ID)}>
-                    <TerminalSquare className="w-4 h-4 text-muted-foreground" />
-                    <span>{term.Name}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+      {showUploadZone && (
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={cn(
+            "flex flex-col items-center justify-center rounded-xl border border-dashed p-6 text-center transition-all duration-200",
+            isDragging
+              ? "border-primary bg-primary/10 scale-[0.99] shadow-inner"
+              : "border-border bg-muted/20 hover:bg-muted/30"
+          )}
+        >
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2">
+              <RotateCw className="w-8 h-8 text-primary animate-spin" />
+              <div className="text-sm font-medium text-foreground">
+                {t('hosts.upload.uploading')}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <Upload className={cn("w-8 h-8 transition-colors", isDragging ? "text-primary" : "text-muted-foreground")} />
+              <div className="text-sm font-medium text-foreground">
+                {t('hosts.upload.title')}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t('hosts.upload.desc')}
+              </div>
+              {uploadSuccess && (
+                <div className="mt-2 text-xs text-green-600 dark:text-green-400 font-medium">
+                  {t('hosts.upload.success')}
+                </div>
+              )}
+              {uploadError && (
+                <div className="mt-2 text-xs text-destructive font-medium">
+                  {t('hosts.upload.failed')}: {uploadError}
+                </div>
+              )}
+            </div>
           )}
         </div>
-        <DropdownMenu onOpenChange={(open: boolean) => { if (!open) setConfirmKill(false) }}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-9 px-0 data-[state=open]:border-border data-[state=open]:bg-popover data-[state=open]:text-popover-foreground data-[state=open]:shadow-lg data-[state=open]:backdrop-blur-sm"
-              aria-label={t('burrows.moreActions')}
-              disabled={isWorking}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuLabel>{t('burrows.actions')}</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => onDuplicate(s)}>
-              <Copy className="w-4 h-4 text-muted-foreground" />
-              <span>{t('common.duplicate')}</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onEdit(s)}>
-              <Pencil className="w-4 h-4 text-muted-foreground" />
-              <span>{t('common.edit')}</span>
-            </DropdownMenuItem>
-            {s.alive && (
-              <DropdownMenuItem onSelect={() => onRestart(s)}>
-                <RotateCw className="w-4 h-4 text-muted-foreground" />
-                <span>{restartLabel}</span>
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            {confirmKill ? (
-              <DropdownMenuItem
-                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                onSelect={() => {
-                  setConfirmKill(false)
-                  onKill(s)
-                }}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>{t('burrows.confirmDestroy')}</span>
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem
-                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                onSelect={(e: Event) => {
-                  e.preventDefault()
-                  setConfirmKill(true)
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>{destructiveLabel}</span>
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      )}
     </div>
   )
 }

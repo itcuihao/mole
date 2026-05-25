@@ -2,21 +2,29 @@ package inventory
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 )
 
 // Manager coordinates inventory storage.
 type Manager struct {
-	store *Store
+	store       *Store
+	healthCache map[string]HostHealth
+	cacheMu     sync.RWMutex
+	stopChan    chan struct{}
 }
 
 // NewManager creates a new inventory Manager.
 func NewManager(storePath string) *Manager {
-	return &Manager{
-		store: NewStore(storePath),
+	m := &Manager{
+		store:       NewStore(storePath),
+		healthCache: make(map[string]HostHealth),
 	}
+	m.StartHealthTicker()
+	return m
 }
 
 // StorePath returns the underlying JSON storage file path.
@@ -236,6 +244,9 @@ func (m *Manager) normalize(inv *Inventory) {
 		} else {
 			h.BastionID = ""
 		}
+		if h.PortForwards == nil {
+			h.PortForwards = []string{}
+		}
 		inv.Hosts[i] = h
 	}
 	for i, g := range inv.Groups {
@@ -264,11 +275,28 @@ func buildSSHCommand(host Host, defaults HostDefaults, hostMap map[string]Host) 
 	targetConn := resolveHostConnection(host, defaults)
 
 	parts := []string{"ssh"}
+	
+	// SSH Multiplexing for instant connections
+	parts = append(parts, "-o", "ControlMaster=auto", "-o", "ControlPath=~/.ssh/mole-%r@%h:%p", "-o", "ControlPersist=10m")
+
 	if targetConn.identity != "" {
 		parts = append(parts, "-i", targetConn.identity)
 	}
 	if targetConn.port != 0 && targetConn.port != 22 {
 		parts = append(parts, "-p", fmt.Sprintf("%d", targetConn.port))
+	}
+
+	// Port Forwards
+	for _, pf := range host.PortForwards {
+		partsOption := strings.SplitN(pf, ":", 2)
+		if len(partsOption) != 2 {
+			continue
+		}
+		typ := strings.ToUpper(partsOption[0])
+		val := partsOption[1]
+		if typ == "L" || typ == "R" || typ == "D" {
+			parts = append(parts, "-"+typ, val)
+		}
 	}
 
 	jumpIDs := host.JumpHostIDs
@@ -365,4 +393,84 @@ func buildNestedProxyCommand(hops []hostConnection) string {
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+// UploadFile uploads a local file to the remote host using scp.
+func (m *Manager) UploadFile(hostID string, localPath string) error {
+	inv, err := m.store.Load()
+	if err != nil {
+		return err
+	}
+	m.normalize(&inv)
+
+	hostMap := make(map[string]Host, len(inv.Hosts))
+	var selected *Host
+	for i := range inv.Hosts {
+		host := inv.Hosts[i]
+		hostMap[host.ID] = host
+		if host.ID == hostID {
+			copy := host
+			selected = &copy
+		}
+	}
+
+	if selected == nil {
+		return fmt.Errorf("host %q not found", hostID)
+	}
+
+	conn := resolveHostConnection(*selected, inv.Defaults)
+
+	args := []string{
+		"-o", "ControlPath=~/.ssh/mole-%r@%h:%p",
+	}
+
+	if conn.identity != "" {
+		args = append(args, "-i", conn.identity)
+	}
+	if conn.port != 0 && conn.port != 22 {
+		args = append(args, "-P", fmt.Sprintf("%d", conn.port)) // Capital P for scp!
+	}
+
+	jumpIDs := selected.JumpHostIDs
+	if len(jumpIDs) == 0 && selected.BastionID != "" {
+		jumpIDs = []string{selected.BastionID}
+	}
+	if len(jumpIDs) > 0 {
+		hops := make([]hostConnection, 0, len(jumpIDs))
+		canUseProxyJump := true
+		for _, jumpID := range jumpIDs {
+			if bastion, ok := hostMap[jumpID]; ok && bastion.Host != "" {
+				hopConn := resolveHostConnection(bastion, inv.Defaults)
+				hops = append(hops, hopConn)
+				if hopConn.identity != "" {
+					canUseProxyJump = false
+				}
+			}
+		}
+		if len(hops) > 0 {
+			if canUseProxyJump {
+				jumpSpecs := make([]string, 0, len(hops))
+				for _, hop := range hops {
+					jumpSpecs = append(jumpSpecs, hop.jumpSpec())
+				}
+				args = append(args, "-J", strings.Join(jumpSpecs, ","))
+			} else {
+				args = append(args, "-o", fmt.Sprintf("ProxyCommand=%s", shellQuote(buildNestedProxyCommand(hops))))
+			}
+		}
+	}
+
+	// Add local file path
+	args = append(args, localPath)
+
+	// Add remote destination spec, e.g. user@host:~/
+	dest := conn.targetSpec() + ":~/"
+	args = append(args, dest)
+
+	cmd := exec.Command("scp", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("scp failed: %v (output: %s)", err, string(output))
+	}
+	return nil
 }

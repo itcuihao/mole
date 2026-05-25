@@ -20,6 +20,9 @@ import (
 var (
 	iTermGroupWindowMu    sync.Mutex
 	iTermGroupWindowByDen = make(map[string]int)
+
+	iTermTabWindowMu   sync.Mutex
+	iTermTabByBurrowID = make(map[string]string)
 )
 
 func getITermGroupWindowID(group string) int {
@@ -77,6 +80,15 @@ func focusGroupedWindowOnPlatform(terminal TerminalApp, group string) (bool, err
 	switch terminal.ID {
 	case TerminalITerm2:
 		return focusITerm2GroupedWindow(group)
+	default:
+		return false, ErrFocusGroupedWindowUnsupported
+	}
+}
+
+func focusBurrowOnPlatform(terminal TerminalApp, burrowID string) (bool, error) {
+	switch terminal.ID {
+	case TerminalITerm2:
+		return focusITerm2Tab(burrowID)
 	default:
 		return false, ErrFocusGroupedWindowUnsupported
 	}
@@ -275,7 +287,7 @@ func launchITerm2(spec LaunchSpec) error {
 					write text commandText
 				end tell
 			end tell
-			return id of targetWindow
+			return (id of targetWindow as string) & ":" & (id of targetSession as string)
 		end tell
 	`, escapeAppleScript(windowName), escapeAppleScript(spec.CommandText), hintedWindowID)
 
@@ -284,10 +296,19 @@ func launchITerm2(spec LaunchSpec) error {
 		log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
 	}
-	if windowID, parseErr := strconv.Atoi(strings.TrimSpace(string(output))); parseErr == nil {
-		setITermGroupWindowID(group, windowID)
-	} else {
-		log.Printf("⚠️ iTerm2 group window id parse failed (group=%q, output=%q): %v", group, strings.TrimSpace(string(output)), parseErr)
+	outStr := strings.TrimSpace(string(output))
+	parts := strings.SplitN(outStr, ":", 2)
+	if len(parts) > 0 {
+		if windowID, parseErr := strconv.Atoi(parts[0]); parseErr == nil {
+			setITermGroupWindowID(group, windowID)
+		} else {
+			log.Printf("⚠️ iTerm2 group window id parse failed (group=%q, output=%q): %v", group, outStr, parseErr)
+		}
+	}
+	if len(parts) == 2 && spec.BurrowID != "" {
+		iTermTabWindowMu.Lock()
+		iTermTabByBurrowID[spec.BurrowID] = parts[1]
+		iTermTabWindowMu.Unlock()
 	}
 	return nil
 }
@@ -407,6 +428,58 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 	}
 
 	setITermGroupWindowID(group, windowID)
+	return true, nil
+}
+
+func focusITerm2Tab(burrowID string) (bool, error) {
+	iTermTabWindowMu.Lock()
+	sessionID := iTermTabByBurrowID[burrowID]
+	iTermTabWindowMu.Unlock()
+
+	if sessionID == "" {
+		return false, nil
+	}
+
+	script := fmt.Sprintf(`
+		set targetSessionID to "%s"
+		set foundSession to false
+		tell application "iTerm"
+			activate
+			repeat with w in windows
+				repeat with t in tabs of w
+					repeat with s in sessions of t
+						if id of s is targetSessionID then
+							select w
+							select t
+							select s
+							set foundSession to true
+							exit repeat
+						end if
+					end repeat
+					if foundSession then exit repeat
+				end repeat
+				if foundSession then exit repeat
+			end repeat
+			if foundSession then
+				return "focused"
+			else
+				return "notfound"
+			end if
+		end tell
+	`, escapeAppleScript(sessionID))
+
+	output, err := runOsaScript([]string{script})
+	if err != nil {
+		return false, fmt.Errorf("iTerm2 focus tab failed: %s: %w", strings.TrimSpace(string(output)), err)
+	}
+
+	if strings.TrimSpace(string(output)) == "notfound" {
+		iTermTabWindowMu.Lock()
+		delete(iTermTabByBurrowID, burrowID)
+		iTermTabWindowMu.Unlock()
+		return false, nil
+	}
+
 	return true, nil
 }
 

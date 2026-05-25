@@ -803,6 +803,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 		return Session{}, terminal.LaunchSpec{}, false, err
 	}
 	launchSpec.Cwd = sess.Cwd
+	launchSpec.BurrowID = sess.ID
 
 	return sess, launchSpec, profileChanged, nil
 }

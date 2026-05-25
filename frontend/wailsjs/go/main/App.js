@@ -10,6 +10,10 @@ export function AttachSessionWithTerminal(arg1, arg2) {
   return window['go']['main']['App']['AttachSessionWithTerminal'](arg1, arg2);
 }
 
+export function CheckHostHealth(arg1) {
+  return window['go']['main']['App']['CheckHostHealth'](arg1);
+}
+
 export function CreateSession(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateSession'](arg1, arg2, arg3);
 }
@@ -62,6 +66,14 @@ export function ExportBurrow() {
   return window['go']['main']['App']['ExportBurrow']();
 }
 
+export function FocusBurrow(arg1) {
+  return window['go']['main']['App']['FocusBurrow'](arg1);
+}
+
+export function FocusDen(arg1) {
+  return window['go']['main']['App']['FocusDen'](arg1);
+}
+
 export function GetCodexConfigToml(arg1) {
   return window['go']['main']['App']['GetCodexConfigToml'](arg1);
 }
@@ -72,6 +84,10 @@ export function GetDefaultTerminal() {
 
 export function GetDenOrder(arg1) {
   return window['go']['main']['App']['GetDenOrder'](arg1);
+}
+
+export function GetHostsHealth() {
+  return window['go']['main']['App']['GetHostsHealth']();
 }
 
 export function GetInstalledTerminals() {
@@ -216,4 +232,8 @@ export function UpdateSessionWithOptions(arg1, arg2, arg3, arg4, arg5, arg6, arg
 
 export function UpdateSessionWithOptionsV2(arg1) {
   return window['go']['main']['App']['UpdateSessionWithOptionsV2'](arg1);
+}
+
+export function UploadFile(arg1, arg2) {
+  return window['go']['main']['App']['UploadFile'](arg1, arg2);
 }

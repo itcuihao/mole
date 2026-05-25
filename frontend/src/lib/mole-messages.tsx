@@ -121,23 +121,21 @@ const BUBBLE_STYLES = `
 .mole-bubble-exiting {
   animation: mole-bubble-fade 0.25s ease-in forwards;
 }
-@media (prefers-color-scheme: dark) {
-  .mole-bubble-success {
-    background: hsl(142 50% 12%);
-    border-color: #22c55e;
-    color: hsl(142 76% 82%);
-  }
-  .mole-bubble-error {
-    background: hsl(0 50% 12%);
-    border-color: hsl(var(--destructive));
-    color: hsl(0 76% 82%);
-  }
-  .mole-tail-success {
-    border-bottom-color: #22c55e;
-  }
-  .mole-tail-error {
-    border-bottom-color: hsl(var(--destructive));
-  }
+.dark .mole-bubble-success {
+  background: hsl(142 50% 12%);
+  border-color: #22c55e;
+  color: hsl(142 76% 82%);
+}
+.dark .mole-bubble-error {
+  background: hsl(0 50% 12%);
+  border-color: hsl(var(--destructive));
+  color: hsl(0 76% 82%);
+}
+.dark .mole-tail-success {
+  border-bottom-color: #22c55e;
+}
+.dark .mole-tail-error {
+  border-bottom-color: hsl(var(--destructive));
 }
 `
 
@@ -155,10 +153,19 @@ export function MoleMessageProvider({ children }: { children: ReactNode }) {
   const currentRef = useRef<DisplayMessage | null>(null)
   const mascotTrackRef = useRef<MascotTrack>({ left: 0, top: 0, width: 0, height: 0 })
   const mascotXRef = useRef(0)
-  const [bubblePos, setBubblePos] = useState<{ left: number; top: number } | null>(null)
+  const bubbleRef = useRef<HTMLDivElement>(null)
   const timersRef = useRef<number[]>([])
 
   const isSpeaking = current !== null
+
+  const updateBubblePosition = useCallback(() => {
+    if (!bubbleRef.current) return
+    const track = mascotTrackRef.current
+    const left = track.left + mascotXRef.current + MOLE_WIDTH / 2
+    const top = track.top + track.height + 4
+    bubbleRef.current.style.left = `${left}px`
+    bubbleRef.current.style.top = `${top}px`
+  }, [])
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(id => window.clearTimeout(id))
@@ -169,15 +176,8 @@ export function MoleMessageProvider({ children }: { children: ReactNode }) {
     const next = queueRef.current.shift()
     if (!next) {
       setCurrent(null)
-      setBubblePos(null)
       return
     }
-
-    const track = mascotTrackRef.current
-    setBubblePos({
-      left: track.left + mascotXRef.current + MOLE_WIDTH / 2,
-      top: track.top + track.height + 4,
-    })
 
     setCurrent({ message: next, state: 'entering' })
 
@@ -226,15 +226,21 @@ export function MoleMessageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     currentRef.current = current
-  }, [current])
+    if (current) {
+      // Use requestAnimationFrame to ensure the DOM is ready for the ref
+      requestAnimationFrame(() => updateBubblePosition())
+    }
+  }, [current, updateBubblePosition])
 
   const setMascotTrack = useCallback((track: MascotTrack) => {
     mascotTrackRef.current = track
-  }, [])
+    updateBubblePosition()
+  }, [updateBubblePosition])
 
   const setMascotX = useCallback((x: number) => {
     mascotXRef.current = x
-  }, [])
+    updateBubblePosition()
+  }, [updateBubblePosition])
 
   const speakBubbleRef = useRef(speakBubble)
   speakBubbleRef.current = speakBubble
@@ -286,13 +292,13 @@ export function MoleMessageProvider({ children }: { children: ReactNode }) {
     <MoleMessageContext.Provider value={{ speakBubble, isSpeaking, setMascotTrack, setMascotX }}>
       {children}
       <style>{BUBBLE_STYLES}</style>
-      {current && bubblePos && createPortal(
+      {current && createPortal(
         <div
+          ref={bubbleRef}
           className="mole-speech-bubble-container"
           style={{
             position: 'fixed',
-            left: `${bubblePos.left}px`,
-            top: `${bubblePos.top}px`,
+            left: '-9999px',
             zIndex: 9999,
             pointerEvents: 'none',
           }}
