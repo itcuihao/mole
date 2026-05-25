@@ -97,6 +97,7 @@ func (a *App) seedDefaultProfiles() {
 		EnvVars: map[string]string{
 			"ANTHROPIC_AUTH_TOKEN": "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9",
 			"ANTHROPIC_BASE_URL":   "https://maxx-direct.cloverstd.com/project/haoc/",
+			"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		},
 		SecretKeys: []string{"ANTHROPIC_AUTH_TOKEN"},
 		CreatedAt:  time.Now().Format(time.RFC3339Nano),

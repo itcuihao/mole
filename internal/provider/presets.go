@@ -35,6 +35,7 @@ func GetPresets() []Preset {
 				{Key: "ANTHROPIC_DEFAULT_OPUS_MODEL", Value: "claude-opus-4-0", IsSecret: false},
 				{Key: "CLAUDE_CODE_EFFORT_LEVEL", Value: "", IsSecret: false},
 				{Key: "CLAUDE_CODE_SUBAGENT_MODEL", Value: "", IsSecret: false},
+				{Key: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Value: "1", IsSecret: false},
 			},
 		},
 		{
@@ -52,6 +53,7 @@ func GetPresets() []Preset {
 				{Key: "ANTHROPIC_DEFAULT_OPUS_MODEL", Value: "deepseek-v4-pro[1m]", IsSecret: false},
 				{Key: "CLAUDE_CODE_EFFORT_LEVEL", Value: "max", IsSecret: false},
 				{Key: "CLAUDE_CODE_SUBAGENT_MODEL", Value: "deepseek-v4-flash", IsSecret: false},
+				{Key: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Value: "1", IsSecret: false},
 			},
 		},
 		{
@@ -69,6 +71,7 @@ func GetPresets() []Preset {
 				{Key: "ANTHROPIC_DEFAULT_OPUS_MODEL", Value: "glm5.1", IsSecret: false},
 				{Key: "CLAUDE_CODE_EFFORT_LEVEL", Value: "", IsSecret: false},
 				{Key: "CLAUDE_CODE_SUBAGENT_MODEL", Value: "", IsSecret: false},
+				{Key: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Value: "1", IsSecret: false},
 			},
 		},
 		{
@@ -80,6 +83,7 @@ func GetPresets() []Preset {
 			Entries: []PresetEntry{
 				{Key: "ANTHROPIC_AUTH_TOKEN", Value: "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9", IsSecret: true},
 				{Key: "ANTHROPIC_BASE_URL", Value: "https://maxx-direct.cloverstd.com/project/haoc/", IsSecret: false},
+				{Key: "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", Value: "1", IsSecret: false},
 			},
 		},
 		{
