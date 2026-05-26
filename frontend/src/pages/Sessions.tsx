@@ -265,8 +265,7 @@ const withWorkspace = (workspace: string, command: string, fallbackToShell: bool
   const workspaceArg = formatWorkspaceForCd(normalizedWorkspace)
   if (normalizedCommand) return `cd ${workspaceArg} && ${normalizedCommand}`
   if (!fallbackToShell) return ''
-  // Backend handles working directory via tmux -c; no need to emit cd/exec here.
-  return ''
+  return `cd ${workspaceArg} && exec $SHELL -l`
 }
 
 const buildResolvedCommand = ({
@@ -2488,17 +2487,19 @@ function NewSessionModal({
                 placeholder={t('burrows.modal.workspacePlaceholder')}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={handlePickWorkspace}
-                disabled={creating || pickingCwd}
-              >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                {t('burrows.modal.browse')}
-              </Button>
+              {execEnv === 'local' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={handlePickWorkspace}
+                  disabled={creating || pickingCwd}
+                >
+                  <FolderGit2 className="w-3.5 h-3.5" />
+                  {t('burrows.modal.browse')}
+                </Button>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
           </div>
@@ -3257,17 +3258,19 @@ function EditSessionModal({
                 placeholder={t('burrows.modal.workspacePlaceholder')}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={handlePickWorkspace}
-                disabled={updating || pickingCwd}
-              >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                {t('burrows.modal.browse')}
-              </Button>
+              {execEnv === 'local' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={handlePickWorkspace}
+                  disabled={updating || pickingCwd}
+                >
+                  <FolderGit2 className="w-3.5 h-3.5" />
+                  {t('burrows.modal.browse')}
+                </Button>
+              )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{t('burrows.modal.workspaceHint')}</p>
           </div>

@@ -48,13 +48,31 @@ func (p *hostPlugin) Resolve(req LaunchRequest) (LaunchConfig, error) {
 }
 
 func (p *hostPlugin) Command(sess Session) (string, error) {
+	var cmd string
+	var err error
 	if strings.TrimSpace(sess.Command) != "" {
-		return sess.Command, nil
+		cmd = sess.Command
+	} else {
+		if p.invMgr == nil {
+			return "", fmt.Errorf("host inventory is unavailable")
+		}
+		cmd, err = p.invMgr.BuildSSHCommand(sess.HostID)
+		if err != nil {
+			return "", err
+		}
 	}
-	if p.invMgr == nil {
-		return "", fmt.Errorf("host inventory is unavailable")
+
+	if sess.Cwd != "" && strings.HasPrefix(strings.TrimSpace(cmd), "ssh") {
+		trimmed := strings.TrimSpace(cmd)
+		if !strings.Contains(trimmed, " cd ") && !strings.Contains(trimmed, ";cd ") && !strings.Contains(trimmed, "&&") {
+			if !strings.Contains(trimmed, " -t") && !strings.Contains(trimmed, " -tt") {
+				trimmed = strings.Replace(trimmed, "ssh ", "ssh -t ", 1)
+			}
+			escapedCmd := fmt.Sprintf("cd %s && exec $SHELL -l", shellQuote(sess.Cwd))
+			cmd = fmt.Sprintf("%s %s", trimmed, shellQuote(escapedCmd))
+		}
 	}
-	return p.invMgr.BuildSSHCommand(sess.HostID)
+	return cmd, nil
 }
 
 func (p *hostPlugin) PrepareEnv(_ Session, env map[string]string, command string) (map[string]string, string, error) {
