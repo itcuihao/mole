@@ -247,24 +247,30 @@ func launchITerm2(spec LaunchSpec) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							try
-								if name of w is windowName then
-									set targetWindow to w
-									exit repeat
-								end if
-							end try
+							set targetWindow to w
+							exit repeat
 						end if
 					end repeat
 				end try
 			end if
 			if targetWindow is missing value then
 				repeat with w in windows
+					set foundWindow to false
 					try
-						if name of w is windowName then
-							set targetWindow to w
-							exit repeat
-						end if
+						repeat with t in tabs of w
+							repeat with s in sessions of t
+								try
+									if variable named "user.mole_den" of s is windowName then
+										set targetWindow to w
+										set foundWindow to true
+										exit repeat
+									end if
+								end try
+							end repeat
+							if foundWindow then exit repeat
+						end repeat
 					end try
+					if foundWindow then exit repeat
 				end repeat
 			end if
 			if targetWindow is missing value then
@@ -284,6 +290,9 @@ func launchITerm2(spec LaunchSpec) error {
 					set targetSession to current session of newTab
 				end if
 				tell targetSession
+					try
+						set variable named "user.mole_den" to windowName
+					end try
 					write text commandText
 				end tell
 			end tell
@@ -325,24 +334,30 @@ func closeITerm2GroupedWindow(group string) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							try
-								if name of w is windowName then
-									set targetWindow to w
-									exit repeat
-								end if
-							end try
+							set targetWindow to w
+							exit repeat
 						end if
 					end repeat
 				end try
 			end if
 			if targetWindow is missing value then
 				repeat with w in windows
+					set foundWindow to false
 					try
-						if name of w is windowName then
-							set targetWindow to w
-							exit repeat
-						end if
+						repeat with t in tabs of w
+							repeat with s in sessions of t
+								try
+									if variable named "user.mole_den" of s is windowName then
+										set targetWindow to w
+										set foundWindow to true
+										exit repeat
+									end if
+								end try
+							end repeat
+							if foundWindow then exit repeat
+						end repeat
 					end try
+					if foundWindow then exit repeat
 				end repeat
 			end if
 			if targetWindow is missing value then
@@ -382,24 +397,30 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							try
-								if name of w is windowName then
-									set targetWindow to w
-									exit repeat
-								end if
-							end try
+							set targetWindow to w
+							exit repeat
 						end if
 					end repeat
 				end try
 			end if
 			if targetWindow is missing value then
 				repeat with w in windows
+					set foundWindow to false
 					try
-						if name of w is windowName then
-							set targetWindow to w
-							exit repeat
-						end if
+						repeat with t in tabs of w
+							repeat with s in sessions of t
+								try
+									if variable named "user.mole_den" of s is windowName then
+										set targetWindow to w
+										set foundWindow to true
+										exit repeat
+									end if
+								end try
+							end repeat
+							if foundWindow then exit repeat
+						end repeat
 					end try
+					if foundWindow then exit repeat
 				end repeat
 			end if
 			if targetWindow is missing value then
