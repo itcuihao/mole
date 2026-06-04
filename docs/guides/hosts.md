@@ -4,7 +4,7 @@ Hosts 是 SSH 主机库存，配合 Burrow 的 SSH Host 模式使用。保存主
 
 ## 创建 Host
 
-![新建 Host](screenshots/host-create.png)
+![新建 Host](assets/host-create.png)
 
 1. 进入 **Hosts** 页面，点击 **New Host**
 2. 填写以下字段：
@@ -21,7 +21,7 @@ Hosts 是 SSH 主机库存，配合 Burrow 的 SSH Host 模式使用。保存主
 
 ## Host Groups
 
-![Host Groups](screenshots/host-groups.png)
+![Host Groups](assets/host-groups.png)
 
 Group 用来组织多个 Host，并可以为 Group 设置共享属性：
 
@@ -36,8 +36,6 @@ Group 内的 Host 可以共享：
 
 ## 堡垒机 / JumpHost
 
-![堡垒机设置](screenshots/host-bastion.png)
-
 ### Host 级堡垒机
 
 在单个 Host 编辑界面中指定 **Bastion / Jump Host**，Mole 生成 SSH 命令时会添加 `-J bastion-user@bastion-address` 参数：
@@ -48,8 +46,6 @@ ssh -J jump@bastion.example.com user@target.example.com
 
 ### Group 级堡垒机
 
-![Group 堡垒机](screenshots/host-group-bastion.png)
-
 在 Group 设置中指定默认堡垒机，所有组成员自动继承该跳板配置。如果某个 Host 已单独设置了堡垒机，则 Host 级设置优先。
 
 ### 多跳链路
@@ -58,7 +54,7 @@ ssh -J jump@bastion.example.com user@target.example.com
 
 ## SSH Config 导入
 
-![SSH Config 导入](screenshots/host-ssh-import.png)
+![SSH Config 导入](assets/host-ssh-import.png)
 
 1. 点击 **Import from SSH Config**
 2. Mole 解析 `~/.ssh/config`，列出所有可导入的 Host 别名
@@ -67,12 +63,8 @@ ssh -J jump@bastion.example.com user@target.example.com
 
 ## Host Defaults
 
-![Host Defaults](screenshots/host-defaults.png)
-
 在 Hosts 页面设置全局默认值（默认 User、Port、Identity File），新建 Host 时未填写的字段会自动使用默认值。
 
 ## 复制 SSH 命令
-
-![复制 SSH 命令](screenshots/host-copy-command.png)
 
 每个 Host 卡片上有 **Copy SSH Command** 按钮，一键复制完整的 SSH 命令到剪贴板（含堡垒机参数），方便在其他场景直接使用。

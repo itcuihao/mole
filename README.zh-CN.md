@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/appicon.png" alt="mole logo" width="128" height="128">
+  <img src="assets/appicon.png" alt="mole logo" width="128" height="128">
 </p>
 
 <h1 align="center">Mole</h1>
@@ -13,16 +13,16 @@
 </p>
 
 <p align="center">
-  7 种运行模式 · iTerm2/Ghostty 窗口分组 · 可复用环境配置 · SSH 主机库存
+  9 种运行模式 · iTerm2/Ghostty 窗口分组 · 可复用环境配置 · SSH 主机库存
 </p>
 
 <p align="center">
-  <img src="docs/hero.png" alt="Mole 截图" width="720">
+  <img src="assets/hero.png" alt="Mole 截图" width="720">
 </p>
 
 ## 功能概览
 
-- **Burrows** — 7 种运行模式启动终端会话（Shell / SSH / Command / Codex / Docker / K8s / Tmux） → [配置指南](docs/guides/burrows.md)
+- **Burrows** — 9 种运行模式启动终端会话（Shell / SSH / Command / Codex / Docker / K8s / Tmux / Remote Tmux / Script） → [配置指南](docs/guides/burrows.md)
 - **Dens** — 同组 Burrow 共享终端窗口（iTerm2 Tab / Ghostty Window） → [配置指南](docs/guides/dens.md)
 - **Profiles** — 可复用环境配置 + Provider 预设模板（Claude / DeepSeek / GLM / Maxx） → [配置指南](docs/guides/profiles.md)
 - **Hosts** — SSH 主机库存、分组、堡垒机/JumpHost → [配置指南](docs/guides/hosts.md)
@@ -188,7 +188,7 @@ wsl --install -d Ubuntu
 
 1. 在 **Profiles** 页面创建一个 Profile。
 2. 如果需要 SSH 目标，可以先在 **Hosts** 页面保存 Host 和 Group。
-3. 在 **Burrows** 页面用 Shell、SSH Host 或 Command 模式创建 Burrow，可选分配 Den。
+3. 在 **Burrows** 页面创建 Burrow —— 选择一种运行模式，进行配置，可选分配一个 Den。
 4. 在线 Burrow 使用 **Open**，离线但已保存的 Burrow 使用 **Restore**。
 
 Mole 会把 Burrow 元数据和真实运行时 backend 分开存储。所以即使 backend 进程暂时没了，保存过的 Burrow 依然会留在 UI 中，并且可以通过 **Restore** 按原配置重建。

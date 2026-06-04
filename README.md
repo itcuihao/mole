@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/appicon.png" alt="mole logo" width="128" height="128">
+  <img src="assets/appicon.png" alt="mole logo" width="128" height="128">
 </p>
 
 <h1 align="center">Mole</h1>
@@ -13,16 +13,16 @@
 </p>
 
 <p align="center">
-  7 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
+  9 run modes · iTerm2/Ghostty window grouping · Reusable environment profiles · SSH host inventory
 </p>
 
 <p align="center">
-  <img src="docs/hero.png" alt="Mole screenshot" width="720">
+  <img src="assets/hero.png" alt="Mole screenshot" width="720">
 </p>
 
 ## Features
 
-- **Burrows** — Launch terminal sessions across 7 run modes (Shell / SSH / Command / Codex / Docker / K8s / Tmux) → [Setup Guide](docs/guides/burrows.md)
+- **Burrows** — Launch terminal sessions across 9 run modes (Shell / SSH / Command / Codex / Docker / K8s / Tmux / Remote Tmux / Script) → [Setup Guide](docs/guides/burrows.md)
 - **Dens** — Group Burrows into the same terminal window (iTerm2 tabs / Ghostty windows) → [Setup Guide](docs/guides/dens.md)
 - **Profiles** — Reusable environment configs + Provider presets (Claude / DeepSeek / GLM / Maxx) → [Setup Guide](docs/guides/profiles.md)
 - **Hosts** — SSH host inventory, groups, bastion/JumpHost → [Setup Guide](docs/guides/hosts.md)
@@ -240,7 +240,13 @@ export DATABASE_URL=postgresql://localhost/app
 
 ## Release
 
-Releases are built via GitHub Actions on `v*` tag push. The workflow produces macOS ZIP archives (arm64 + amd64) and a Windows ZIP archive (amd64), along with SHA256 checksums, then publishes a GitHub Release with auto-generated notes.
+Releases are built via GitHub Actions on `v*` tag push. The workflow produces:
+
+- macOS ZIP archives (arm64 + amd64)
+- Windows ZIP archive (amd64)
+- Corresponding SHA256 checksums
+
+then publishes a GitHub Release with auto-generated notes.
 
 ```bash
 ./scripts/release.sh --version v0.1.3

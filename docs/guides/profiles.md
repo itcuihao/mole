@@ -2,9 +2,9 @@
 
 Profile 是可复用的环境变量集合。创建 Burrow 时选择一个 Profile，Mole 会把其中的环境变量注入到 tmux 会话中。
 
-## 创建 Profile
+![Profiles](assets/profiles.png)
 
-![新建 Profile](screenshots/profile-create.png)
+## 创建 Profile
 
 1. 进入 **Profiles** 页面，点击 **New Profile**
 2. 填写以下字段：
@@ -20,7 +20,7 @@ Profile 是可复用的环境变量集合。创建 Burrow 时选择一个 Profil
 
 ## 环境变量与 Secret 遮罩
 
-![Env Var 编辑](screenshots/profile-env-vars.png)
+![Env Var 编辑](assets/profile-env-vars.png)
 
 每个环境变量由 Key 和 Value 组成。勾选 **Secret** 标记后：
 
@@ -29,11 +29,9 @@ Profile 是可复用的环境变量集合。创建 Burrow 时选择一个 Profil
 
 > `secret_keys` 仅控制 UI 显示，不影响运行时行为。请避免在本地开发数据中放置真实生产凭据。
 
-![Secret 遮罩效果](screenshots/profile-secret-mask.png)
-
 ## Provider 预设模板
 
-![Provider 预设](screenshots/profile-provider-presets.png)
+![Provider 预设](assets/profile-provider-presets.png)
 
 新建 Profile 时可以从内置模板开始，模板会预填对应 Provider 的环境变量 Key 和 Base URL：
 
@@ -49,7 +47,7 @@ Profile 是可复用的环境变量集合。创建 Burrow 时选择一个 Profil
 
 ## 批量导入环境变量
 
-![批量导入](screenshots/profile-bulk-import.png)
+![批量导入](assets/profile-bulk-import.png)
 
 点击 **Import** 按钮，支持三种格式一次性导入多个变量：
 
@@ -68,12 +66,8 @@ export REDIS_URL=redis://localhost:6379
 
 ## Default Command 字段
 
-![Default Command](screenshots/profile-default-command.png)
-
 Profile 的 **Default Command** 会作为新建 Burrow 时 Command 模式的默认值。例如设置为 `claude`，则每次用此 Profile 创建 Command Burrow 时自动填入 `claude`。
 
 ## Profile 变更自动同步
-
-![变更同步](screenshots/profile-sync.png)
 
 当 Profile 的环境变量被修改时，所有使用该 Profile 的活跃 Burrow 会在 UI 上收到提示，确认后 Mole 自动将新变量值同步到 tmux 会话环境中。
