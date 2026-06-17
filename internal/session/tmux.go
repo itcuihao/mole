@@ -98,8 +98,16 @@ func resolveSessionWorkingDir(cwd string) string {
 	return defaultSessionWorkingDir()
 }
 
-// SyncTmuxSessionEnv refreshes tmux session-level environment variables so any
-// new panes or windows created after attach inherit the latest profile values.
+// SyncTmuxSessionEnv refreshes tmux session-level environment variables.
+//
+// Caveat: tmux `setenv -t <name>` writes to the session's environment table,
+// which is only inherited by panes/windows *created after* the setenv call.
+// The currently attached pane already has its env set when the user attaches
+// (via the per-session env script sourced by `attach`). Therefore, this
+// function primarily serves to keep the session env table consistent for
+// future windows/panes (e.g. user manually C-b c after a profile edit).
+// It does NOT retroactively update the live shell — callers must restart
+// or source the env script if they need an immediate effect.
 func SyncTmuxSessionEnv(name string, env map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
@@ -120,6 +128,26 @@ func SyncTmuxSessionEnv(name string, env map[string]string) error {
 }
 
 func EnableTmuxMouse(name string) error {
+	return configureTmuxSession(name, tmuxMouseEnabled())
+}
+
+// configureTmuxSession applies Mole's standard tmux session options.
+// Centralized so local (tmux.go) and WSL (wsl_tmux.go) stay in sync.
+//
+// Notes on each option:
+//   - mouse: when on, tmux hijacks the terminal's mouse so drag-select is
+//     routed through copy-mode. This is what makes copy via MouseDragEnd1Pane
+//     work, but it also interferes with terminal-native selection/scroll.
+//     Exposed to users as a setting.
+//   - escape-time 10: removes the 500ms default delay after ESC. Critical
+//     for vim/less inside tmux. Only affects the initial window.
+//   - history-limit 50000: more scrollback than the 2000 default.
+//   - set-titles / set-titles-string: window title used by iTerm2 den grouping.
+//   - set-clipboard: previously set globally (-s) which polluted other
+//     tmux sessions the user might run. Now scoped to this session (-t).
+//   - copy-mode MouseDragEnd1Pane bindings: pipe selection into the OS
+//     clipboard; only useful when mouse is on.
+func configureTmuxSession(name string, mouseOn bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
@@ -128,13 +156,24 @@ func EnableTmuxMouse(name string) error {
 		return err
 	}
 
+	mouseVal := "off"
+	if mouseOn {
+		mouseVal = "on"
+	}
+
 	commands := [][]string{
-		{"set-option", "-t", name, "mouse", "on"},
-		{"set-option", "-s", "set-clipboard", "on"},
+		{"set-option", "-t", name, "mouse", mouseVal},
+		{"set-option", "-t", name, "escape-time", "10"},
+		{"set-option", "-t", name, "history-limit", "50000"},
 		{"set-option", "-t", name, "set-titles", "on"},
 		{"set-option", "-t", name, "set-titles-string", "Mole: " + name},
-		{"bind-key", "-T", "copy-mode-vi", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
-		{"bind-key", "-T", "copy-mode", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
+		{"set-option", "-t", name, "set-clipboard", "on"},
+	}
+	if mouseOn {
+		commands = append(commands,
+			[]string{"bind-key", "-T", "copy-mode-vi", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
+			[]string{"bind-key", "-T", "copy-mode", "MouseDragEnd1Pane", "send-keys", "-X", "copy-pipe-and-cancel", "pbcopy"},
+		)
 	}
 
 	for _, args := range commands {
@@ -148,15 +187,39 @@ func EnableTmuxMouse(name string) error {
 }
 
 func buildTmuxMouseEnableShellCommand(tmuxPath, session string) string {
+	return buildTmuxConfigureShellCommand(tmuxPath, session, tmuxMouseEnabled())
+}
+
+func buildTmuxConfigureShellCommand(tmuxPath, session string, mouseOn bool) string {
+	mouseVal := "off"
+	if mouseOn {
+		mouseVal = "on"
+	}
 	commands := []string{
-		fmt.Sprintf("%s set-option -t %s mouse on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
-		fmt.Sprintf("%s set-option -s set-clipboard on >/dev/null 2>&1", shellQuote(tmuxPath)),
+		fmt.Sprintf("%s set-option -t %s mouse %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session), mouseVal),
+		fmt.Sprintf("%s set-option -t %s escape-time 10 >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
+		fmt.Sprintf("%s set-option -t %s history-limit 50000 >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
 		fmt.Sprintf("%s set-option -t %s set-titles on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
 		fmt.Sprintf("%s set-option -t %s set-titles-string %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session), shellQuote("Mole: "+session)),
-		fmt.Sprintf("%s bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
-		fmt.Sprintf("%s bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
+		fmt.Sprintf("%s set-option -t %s set-clipboard on >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote(session)),
+	}
+	if mouseOn {
+		commands = append(commands,
+			fmt.Sprintf("%s bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
+			fmt.Sprintf("%s bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel %s >/dev/null 2>&1", shellQuote(tmuxPath), shellQuote("pbcopy")),
+		)
 	}
 	return strings.Join(commands, "; ")
+}
+
+// tmuxMouseEnabled returns the user-configured tmux mouse preference.
+// Defaults to true (current behavior) when not set.
+func tmuxMouseEnabled() bool {
+	settings, err := config.LoadSettings()
+	if err != nil || settings == nil || settings.TmuxMouse == nil {
+		return true
+	}
+	return *settings.TmuxMouse
 }
 
 func buildTmuxEnvScriptContent(env map[string]string, command, tmuxPath string) string {

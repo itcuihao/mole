@@ -95,9 +95,13 @@ func TestBuildTmuxAttachShellCommandUsesResolvedBinary(t *testing.T) {
 	got := buildTmuxAttachShellCommand("/opt/homebrew/bin/tmux", "mole-demo", "")
 	wants := []string{
 		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' mouse on >/dev/null 2>&1",
-		"'/opt/homebrew/bin/tmux' set-option -s set-clipboard on >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' escape-time 10 >/dev/null 2>&1",
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' history-limit 50000 >/dev/null 2>&1",
 		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' set-titles on >/dev/null 2>&1",
 		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' set-titles-string 'Mole: mole-demo' >/dev/null 2>&1",
+		// set-clipboard must be scoped to this session (-t), not global (-s),
+		// so we don't pollute other tmux sessions the user may run.
+		"'/opt/homebrew/bin/tmux' set-option -t 'mole-demo' set-clipboard on >/dev/null 2>&1",
 		"'/opt/homebrew/bin/tmux' bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'pbcopy' >/dev/null 2>&1",
 		"'/opt/homebrew/bin/tmux' bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'pbcopy' >/dev/null 2>&1",
 		"exec '/opt/homebrew/bin/tmux' attach -d -t 'mole-demo'",
@@ -118,8 +122,14 @@ func TestBuildWslTmuxAttachShellCommandEnablesMouseBeforeAttach(t *testing.T) {
 	if !strings.Contains(got, "tmux set-option -t 'mole-demo' mouse on >/dev/null 2>&1") {
 		t.Fatalf("buildWslTmuxAttachShellCommand() missing mouse enable command: %q", got)
 	}
-	if !strings.Contains(got, "tmux set-option -s set-clipboard on >/dev/null 2>&1") {
-		t.Fatalf("buildWslTmuxAttachShellCommand() missing set-clipboard command: %q", got)
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' escape-time 10 >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing escape-time command: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' history-limit 50000 >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing history-limit command: %q", got)
+	}
+	if !strings.Contains(got, "tmux set-option -t 'mole-demo' set-clipboard on >/dev/null 2>&1") {
+		t.Fatalf("buildWslTmuxAttachShellCommand() missing session-scoped set-clipboard command: %q", got)
 	}
 	if !strings.Contains(got, "tmux set-option -t 'mole-demo' set-titles on >/dev/null 2>&1") {
 		t.Fatalf("buildWslTmuxAttachShellCommand() missing set-titles command: %q", got)
@@ -135,5 +145,22 @@ func TestBuildWslTmuxAttachShellCommandEnablesMouseBeforeAttach(t *testing.T) {
 	}
 	if !strings.Contains(got, "exec tmux attach -d -t 'mole-demo'") {
 		t.Fatalf("buildWslTmuxAttachShellCommand() missing attach command: %q", got)
+	}
+}
+
+// When mouse is disabled, the configure command must NOT bind copy-mode keys
+// (they only make sense with mouse on) and must write `mouse off`.
+func TestBuildTmuxConfigureShellCommandMouseOff(t *testing.T) {
+	got := buildTmuxConfigureShellCommand("/opt/homebrew/bin/tmux", "mole-demo", false)
+
+	if !strings.Contains(got, "set-option -t 'mole-demo' mouse off >/dev/null 2>&1") {
+		t.Fatalf("expected mouse off in configure script, got: %q", got)
+	}
+	if strings.Contains(got, "bind-key -T copy-mode") {
+		t.Fatalf("mouse off must not install copy-mode bindings, got: %q", got)
+	}
+	// set-clipboard is independent of mouse — it should still be there.
+	if !strings.Contains(got, "set-option -t 'mole-demo' set-clipboard on") {
+		t.Fatalf("set-clipboard should remain on regardless of mouse state, got: %q", got)
 	}
 }

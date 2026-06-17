@@ -94,16 +94,31 @@ func SyncWslTmuxSessionEnv(name string, env map[string]string) error {
 }
 
 func EnableWslTmuxMouse(name string) error {
+	return enableWslTmuxSession(name, tmuxMouseEnabled())
+}
+
+func enableWslTmuxSession(name string, mouseOn bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), wslTmuxTimeout)
 	defer cancel()
 
+	mouseVal := "off"
+	if mouseOn {
+		mouseVal = "on"
+	}
+
 	commands := []string{
-		fmt.Sprintf("tmux set-option -t %s mouse on", shellQuote(name)),
-		"tmux set-option -s set-clipboard on",
+		fmt.Sprintf("tmux set-option -t %s mouse %s", shellQuote(name), mouseVal),
+		fmt.Sprintf("tmux set-option -t %s escape-time 10", shellQuote(name)),
+		fmt.Sprintf("tmux set-option -t %s history-limit 50000", shellQuote(name)),
 		fmt.Sprintf("tmux set-option -t %s set-titles on", shellQuote(name)),
 		fmt.Sprintf("tmux set-option -t %s set-titles-string %s", shellQuote(name), shellQuote("Mole: "+name)),
-		"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
-		"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
+		fmt.Sprintf("tmux set-option -t %s set-clipboard on", shellQuote(name)),
+	}
+	if mouseOn {
+		commands = append(commands,
+			"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
+			"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe'",
+		)
 	}
 
 	for _, script := range commands {
@@ -116,13 +131,27 @@ func EnableWslTmuxMouse(name string) error {
 }
 
 func buildWslTmuxMouseEnableShellCommand(session string) string {
+	return buildWslTmuxConfigureShellCommand(session, tmuxMouseEnabled())
+}
+
+func buildWslTmuxConfigureShellCommand(session string, mouseOn bool) string {
+	mouseVal := "off"
+	if mouseOn {
+		mouseVal = "on"
+	}
 	commands := []string{
-		fmt.Sprintf("tmux set-option -t %s mouse on >/dev/null 2>&1", shellQuote(session)),
-		"tmux set-option -s set-clipboard on >/dev/null 2>&1",
+		fmt.Sprintf("tmux set-option -t %s mouse %s >/dev/null 2>&1", shellQuote(session), mouseVal),
+		fmt.Sprintf("tmux set-option -t %s escape-time 10 >/dev/null 2>&1", shellQuote(session)),
+		fmt.Sprintf("tmux set-option -t %s history-limit 50000 >/dev/null 2>&1", shellQuote(session)),
 		fmt.Sprintf("tmux set-option -t %s set-titles on >/dev/null 2>&1", shellQuote(session)),
 		fmt.Sprintf("tmux set-option -t %s set-titles-string %s >/dev/null 2>&1", shellQuote(session), shellQuote("Mole: "+session)),
-		"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
-		"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
+		fmt.Sprintf("tmux set-option -t %s set-clipboard on >/dev/null 2>&1", shellQuote(session)),
+	}
+	if mouseOn {
+		commands = append(commands,
+			"tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
+			"tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel 'clip.exe' >/dev/null 2>&1",
+		)
 	}
 	return strings.Join(commands, "; ")
 }
