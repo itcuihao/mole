@@ -211,6 +211,20 @@ func launchITerm2(spec LaunchSpec) error {
 	group := strings.TrimSpace(spec.Den)
 	log.Printf("🚀 Launching iTerm2 (group=%q) with command: %s", group, spec.CommandText)
 
+	// iTerm2's `write text` is unreliable for long command strings — under
+	// certain conditions it silently drops trailing characters, leaving bash
+	// with an unterminated single-quoted argument ("unexpected EOF while
+	// looking for matching `''"). With the new tmux configure commands the
+	// attach command is ~1KB; rather than chase the iTerm2 limit we write
+	// the full command to a temp .sh script and have iTerm2 just exec it.
+	// The `write text` payload then becomes a short, ASCII-safe command.
+	cleanupOldLaunchScripts()
+	scriptPath, err := writeTempLaunchScript(spec.CommandText)
+	if err != nil {
+		return fmt.Errorf("iTerm2: failed to write launch script: %w", err)
+	}
+	shortCmd := "/bin/bash '" + scriptPath + "'"
+
 	if group == "" {
 		// No den — create new window (existing behavior)
 		output, err := runOsaScriptWithArg([]string{
@@ -224,7 +238,7 @@ func launchITerm2(spec LaunchSpec) error {
 			`end tell`,
 			`end tell`,
 			`end run`,
-		}, spec.CommandText)
+		}, shortCmd)
 		if err != nil {
 			log.Printf("❌ iTerm2 error: %v | Output: %s", err, string(output))
 			return fmt.Errorf("iTerm2 failed: %s: %w", string(output), err)
@@ -302,7 +316,7 @@ func launchITerm2(spec LaunchSpec) error {
 			end tell
 			return (id of targetWindow as string) & ":" & (id of targetSession as string)
 		end tell
-	`, escapeAppleScript(windowName), escapeAppleScript(spec.CommandText), hintedWindowID)
+	`, escapeAppleScript(windowName), escapeAppleScript(shortCmd), hintedWindowID)
 
 	output, err := runOsaScript([]string{script})
 	if err != nil {
