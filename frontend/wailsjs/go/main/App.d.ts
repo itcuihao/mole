@@ -63,6 +63,8 @@ export function GetInventory():Promise<inventory.Inventory>;
 
 export function GetProviderPresets():Promise<Array<provider.Preset>>;
 
+export function GetTmuxMouseEnabled():Promise<boolean>;
+
 export function ImportBurrow(arg1:string):Promise<workspace.ImportResult>;
 
 export function ImportSSHConfig(arg1:inventory.SSHConfigImportRequest):Promise<void>;
@@ -120,6 +122,8 @@ export function SaveProfile(arg1:profile.Profile,arg2:Record<string, string>):Pr
 export function SaveScriptConfig(arg1:scriptcfg.SaveRequest):Promise<scriptcfg.Config>;
 
 export function SetDefaultTerminal(arg1:string):Promise<void>;
+
+export function SetTmuxMouseEnabled(arg1:boolean):Promise<void>;
 
 export function TestScriptCommand(arg1:string):Promise<scriptcfg.CommandTestResult>;
 

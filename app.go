@@ -384,6 +384,32 @@ func (a *App) SetDefaultTerminal(terminalID string) error {
 	return config.SaveSettings(settings)
 }
 
+// GetTmuxMouseEnabled returns whether new tmux sessions should enable mouse
+// support. Defaults to true (current behavior) when not configured.
+func (a *App) GetTmuxMouseEnabled() (bool, error) {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		return true, err
+	}
+	if settings.TmuxMouse == nil {
+		return true, nil
+	}
+	return *settings.TmuxMouse, nil
+}
+
+// SetTmuxMouseEnabled persists whether new tmux sessions should enable
+// mouse support. Only affects future sessions — already-running sessions
+// keep their current mouse state.
+func (a *App) SetTmuxMouseEnabled(enabled bool) error {
+	settings, err := config.LoadSettings()
+	if err != nil {
+		settings = &config.Settings{}
+	}
+	val := enabled
+	settings.TmuxMouse = &val
+	return config.SaveSettings(settings)
+}
+
 // PickDirectory opens a native directory picker and returns the selected path.
 func (a *App) PickDirectory(initialPath string) (string, error) {
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{

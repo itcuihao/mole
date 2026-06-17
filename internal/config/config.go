@@ -13,6 +13,11 @@ const (
 // Settings represents application settings
 type Settings struct {
 	DefaultTerminal string `json:"default_terminal"` // Terminal ID (e.g., "iterm2", "ghostty")
+	// TmuxMouse controls whether new tmux sessions enable mouse support.
+	// nil = not configured yet (treat as on, i.e. default behavior);
+	// &true / &false = user has explicitly set it.
+	// Only meaningful for backends backed by tmux (macOS/Linux, Windows WSL).
+	TmuxMouse *bool `json:"tmux_mouse,omitempty"`
 }
 
 // Dir returns the configuration directory path (~/.config/mole/).

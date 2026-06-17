@@ -102,6 +102,10 @@ export function GetProviderPresets() {
   return window['go']['main']['App']['GetProviderPresets']();
 }
 
+export function GetTmuxMouseEnabled() {
+  return window['go']['main']['App']['GetTmuxMouseEnabled']();
+}
+
 export function ImportBurrow(arg1) {
   return window['go']['main']['App']['ImportBurrow'](arg1);
 }
@@ -216,6 +220,10 @@ export function SaveScriptConfig(arg1) {
 
 export function SetDefaultTerminal(arg1) {
   return window['go']['main']['App']['SetDefaultTerminal'](arg1);
+}
+
+export function SetTmuxMouseEnabled(arg1) {
+  return window['go']['main']['App']['SetTmuxMouseEnabled'](arg1);
 }
 
 export function TestScriptCommand(arg1) {
