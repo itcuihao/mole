@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal } from '../../wailsjs/go/main/App'
+import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal, GetTmuxMouseEnabled, SetTmuxMouseEnabled } from '../../wailsjs/go/main/App'
 import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
@@ -198,6 +198,7 @@ function Settings({
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [terminals, setTerminals] = useState<terminal.TerminalApp[]>([])
   const [defaultTerminal, setDefaultTerminal] = useState('')
+  const [tmuxMouse, setTmuxMouse] = useState(true)
   const [saving, setSaving] = useState(false)
   const speakBubble = useMoleSpeaker()
   const [showExportModal, setShowExportModal] = useState(false)
@@ -244,13 +245,26 @@ function Settings({
 
   const loadSettings = async () => {
     try {
-      const [installed, current] = await Promise.all([
+      const [installed, current, mouse] = await Promise.all([
         GetInstalledTerminals(),
-        GetDefaultTerminal()
+        GetDefaultTerminal(),
+        GetTmuxMouseEnabled()
       ])
       setTerminals(installed || [])
       setDefaultTerminal(current === '' ? 'auto' : current)
+      setTmuxMouse(mouse !== false)
     } catch (err) {
+      speakBubble({ type: 'error', text: String(err) })
+    }
+  }
+
+  const handleToggleTmuxMouse = async (next: boolean) => {
+    setTmuxMouse(next)
+    try {
+      await SetTmuxMouseEnabled(next)
+    } catch (err) {
+      // revert on failure
+      setTmuxMouse(!next)
       speakBubble({ type: 'error', text: String(err) })
     }
   }
@@ -528,6 +542,34 @@ function Settings({
                   </SelectContent>
                 </Select>
               )}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-foreground">{t('settings.terminal.mouseLabel')}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{t('settings.terminal.mouseDesc')}</div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={tmuxMouse}
+                  onClick={() => handleToggleTmuxMouse(!tmuxMouse)}
+                  className={
+                    "relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-colors " +
+                    (tmuxMouse
+                      ? "bg-primary border-primary"
+                      : "bg-muted border-border")
+                  }
+                >
+                  <span
+                    className={
+                      "inline-block h-4 w-4 transform rounded-full bg-background shadow transition-transform " +
+                      (tmuxMouse ? "translate-x-6" : "translate-x-1")
+                    }
+                  />
+                </button>
+              </div>
             </div>
 
             {terminals.length > 0 && (

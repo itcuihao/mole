@@ -452,6 +452,8 @@ export const zh: Record<string, string> = {
   'settings.terminal.selectPlaceholder': '选择终端',
   'settings.terminal.installed': '已安装终端',
   'settings.terminal.updated': '默认终端已更新',
+  'settings.terminal.mouseLabel': '启用 tmux 鼠标支持',
+  'settings.terminal.mouseDesc': '开启后，鼠标拖拽通过 tmux 选中并写入系统剪贴板；关闭后由终端原生处理选中（日常复制更顺手）。仅影响 macOS / Linux / WSL 上新建的 tmux 会话；已运行的会话保持当前设置不变。',
 
   // Settings > Import/Export
   'settings.importExport.title': '窟导入 / 导出',

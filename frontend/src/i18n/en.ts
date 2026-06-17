@@ -452,6 +452,8 @@ export const en: Record<string, string> = {
   'settings.terminal.selectPlaceholder': 'Select a terminal',
   'settings.terminal.installed': 'Installed Terminals',
   'settings.terminal.updated': 'Default terminal updated',
+  'settings.terminal.mouseLabel': 'Enable tmux Mouse Support',
+  'settings.terminal.mouseDesc': 'When on, mouse drag selects via tmux and pipes to the OS clipboard. When off, the terminal handles selection natively (better for casual copy/paste). Applies to new tmux sessions on macOS, Linux, and WSL. Already-running sessions keep their current setting.',
 
   // Settings > Import/Export
   'settings.importExport.title': 'Burrow Import / Export',
