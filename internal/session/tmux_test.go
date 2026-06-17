@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,5 +163,87 @@ func TestBuildTmuxConfigureShellCommandMouseOff(t *testing.T) {
 	// set-clipboard is independent of mouse — it should still be there.
 	if !strings.Contains(got, "set-option -t 'mole-demo' set-clipboard on") {
 		t.Fatalf("set-clipboard should remain on regardless of mouse state, got: %q", got)
+	}
+}
+
+func TestIsNoTmuxServerOutput(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		err    error
+		want   bool
+	}{
+		// True positives — these are the messages tmux actually emits when
+		// it cannot reach a server.
+		{
+			name:   "no server running on socket",
+			output: "no server running on /tmp/tmux-1000/default\n",
+			err:    errors.New("exit status 1"),
+			want:   true,
+		},
+		{
+			name:   "failed to connect to server",
+			output: "failed to connect to server\n",
+			err:    errors.New("exit status 1"),
+			want:   true,
+		},
+		{
+			name:   "server exited unexpectedly",
+			output: "server exited unexpectedly\n",
+			err:    errors.New("exit status 1"),
+			want:   true,
+		},
+		{
+			name:   "missing socket file",
+			output: "connect /tmp/tmux-1000/default (No such file or directory)\n",
+			err:    errors.New("exit status 1"),
+			want:   true,
+		},
+
+		// True negatives — genuine errors that must NOT be silently swallowed
+		// as "no server". Each of these previously matched the old
+		// `exit status 1` substring and broke List/Detach semantics.
+		{
+			name:   "session does not exist",
+			output: "can't find session: foo\n",
+			err:    errors.New("exit status 1"),
+			want:   false,
+		},
+		{
+			name:   "duplicate session",
+			output: "duplicate session: foo\n",
+			err:    errors.New("exit status 1"),
+			want:   false,
+		},
+		{
+			name:   "unknown option",
+			output: "unknown option: -x\n",
+			err:    errors.New("exit status 1"),
+			want:   false,
+		},
+		{
+			name:   "empty output, exit status 1",
+			output: "",
+			err:    errors.New("exit status 1"),
+			want:   false,
+		},
+
+		// No error means there is nothing to interpret.
+		{
+			name:   "nil error",
+			output: "",
+			err:    nil,
+			want:   false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isNoTmuxServerOutput(tc.output, tc.err)
+			if got != tc.want {
+				t.Fatalf("isNoTmuxServerOutput(%q, %v) = %v, want %v",
+					tc.output, tc.err, got, tc.want)
+			}
+		})
 	}
 }

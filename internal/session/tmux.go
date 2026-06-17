@@ -402,8 +402,32 @@ func parseTmuxSessionList(output string) []TmuxSessionInfo {
 	return sessions
 }
 
+// isNoTmuxServerOutput reports whether a failed tmux invocation is best
+// explained by "tmux server is not running" rather than a genuine error
+// (unknown session, duplicate session, syntax error, etc).
+//
+// Background: tmux returns exit code 1 for many unrelated reasons
+// (`can't find session: foo`, `duplicate session: foo`, etc). Matching on
+// "exit status 1" alone caused those genuine errors to be silently swallowed
+// as if no server were running, which made List() report an empty result
+// and ListWithStatus() mis-classify sessions as offline.
+//
+// We instead match on the stderr/stdout phrases tmux uses specifically when
+// it cannot reach a server. exec.Cmd.CombinedOutput merges stderr into the
+// same buffer, so a single string check covers both streams.
 func isNoTmuxServerOutput(output string, err error) bool {
-	return strings.Contains(output, "no server") || strings.Contains(err.Error(), "exit status 1")
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(strings.TrimSpace(output))
+	switch {
+	case strings.Contains(msg, "no server running"),
+		strings.Contains(msg, "failed to connect to server"),
+		strings.Contains(msg, "no such file or directory"), // missing socket file
+		strings.Contains(msg, "server exited unexpectedly"):
+		return true
+	}
+	return false
 }
 
 // KillTmuxSession terminates a tmux session.
