@@ -259,13 +259,17 @@ func launchITerm2(spec LaunchSpec) error {
 					try
 						repeat with t in tabs of w
 							repeat with s in sessions of t
-								try
-									if variable named "user.mole_den" of s is windowName then
+								tell s
+									-- variable named without an "of s" suffix; the of-s form
+									-- throws -1723 ("not allowed access") in iTerm2 3.6.x.
+									-- Reading a non-existent var yields missing value (no error).
+									set denVar to variable named "user.mole_den"
+									if denVar is not missing value and denVar is windowName then
 										set targetWindow to w
 										set foundWindow to true
-										exit repeat
 									end if
-								end try
+								end tell
+								if foundWindow then exit repeat
 							end repeat
 							if foundWindow then exit repeat
 						end repeat
@@ -346,13 +350,17 @@ func closeITerm2GroupedWindow(group string) error {
 					try
 						repeat with t in tabs of w
 							repeat with s in sessions of t
-								try
-									if variable named "user.mole_den" of s is windowName then
+								tell s
+									-- variable named without an "of s" suffix; the of-s form
+									-- throws -1723 ("not allowed access") in iTerm2 3.6.x.
+									-- Reading a non-existent var yields missing value (no error).
+									set denVar to variable named "user.mole_den"
+									if denVar is not missing value and denVar is windowName then
 										set targetWindow to w
 										set foundWindow to true
-										exit repeat
 									end if
-								end try
+								end tell
+								if foundWindow then exit repeat
 							end repeat
 							if foundWindow then exit repeat
 						end repeat
@@ -409,13 +417,17 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 					try
 						repeat with t in tabs of w
 							repeat with s in sessions of t
-								try
-									if variable named "user.mole_den" of s is windowName then
+								tell s
+									-- variable named without an "of s" suffix; the of-s form
+									-- throws -1723 ("not allowed access") in iTerm2 3.6.x.
+									-- Reading a non-existent var yields missing value (no error).
+									set denVar to variable named "user.mole_den"
+									if denVar is not missing value and denVar is windowName then
 										set targetWindow to w
 										set foundWindow to true
-										exit repeat
 									end if
-								end try
+								end tell
+								if foundWindow then exit repeat
 							end repeat
 							if foundWindow then exit repeat
 						end repeat
