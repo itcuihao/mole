@@ -2,12 +2,15 @@ package session
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"mole/internal/molecache"
 )
 
 type storeData struct {
@@ -243,7 +246,27 @@ func (s *Store) Delete(id string) error {
 	return s.saveData(payload)
 }
 
-// DeleteByTmuxName removes a session by its tmux session name.
+// FindIDByTmuxName returns the session ID for the given tmux session name,
+// or "" if no session matches. Useful when cleaning up cache files after a
+// session is removed by tmux name rather than ID.
+func (s *Store) FindIDByTmuxName(tmuxName string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload, err := s.loadData()
+	if err != nil {
+		return ""
+	}
+	for _, sess := range payload.Sessions {
+		if strings.EqualFold(strings.TrimSpace(sess.TmuxSessionName), strings.TrimSpace(tmuxName)) {
+			return sess.ID
+		}
+	}
+	return ""
+}
+
+// DeleteByTmuxName removes a session by its tmux session name. Also removes
+// any per-session cache files (attach-env, create-env) keyed by that
+// session's UUID.
 func (s *Store) DeleteByTmuxName(tmuxName string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -253,14 +276,29 @@ func (s *Store) DeleteByTmuxName(tmuxName string) error {
 		return err
 	}
 
+	var removedID string
 	filtered := payload.Sessions[:0]
 	for _, sess := range payload.Sessions {
-		if sess.TmuxSessionName != tmuxName {
-			filtered = append(filtered, sess)
+		if sess.TmuxSessionName == tmuxName {
+			removedID = sess.ID
+			continue
 		}
+		filtered = append(filtered, sess)
 	}
 	payload.Sessions = filtered
-	return s.saveData(payload)
+
+	if err := s.saveData(payload); err != nil {
+		return err
+	}
+
+	// Best-effort cache cleanup. Errors here are not fatal — the store
+	// is the source of truth and stale cache files are harmless.
+	if removedID != "" {
+		if err := molecache.RemoveSession(removedID); err != nil {
+			log.Printf("⚠️ DeleteByTmuxName cache cleanup %s: %v", removedID, err)
+		}
+	}
+	return nil
 }
 
 // GetByRuntimeName returns a session by its runtime session name.

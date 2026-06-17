@@ -48,8 +48,60 @@ func (s Session) RuntimeName() string {
 	return strings.TrimSpace(s.TmuxSessionName)
 }
 
-func RuntimeNameForSessionName(name string) string {
-	return "mole-" + strings.TrimSpace(name)
+// RuntimeNameForSession builds the runtime (tmux) session identifier for a
+// Burrow. The format is `mole-<id8>-<slug>`:
+//
+//   - id8 is the first 8 hex chars of the Burrow's UUID — short, stable
+//     across renames, and unique enough for typical Mole usage.
+//   - slug is a 1-3 token shortname derived from the Burrow's user-facing
+//     name, so `tmux list-sessions` stays human-readable when scanning.
+//
+// `name` may be empty; in that case the slug segment is omitted.
+func RuntimeNameForSession(sessionID, name string) string {
+	idPart := ""
+	if len(sessionID) >= 8 {
+		idPart = strings.ToLower(sessionID[:8])
+	}
+	slug := runtimeSlug(name)
+	if idPart == "" && slug == "" {
+		return "mole"
+	}
+	if slug == "" {
+		return "mole-" + idPart
+	}
+	if idPart == "" {
+		return "mole-" + slug
+	}
+	return "mole-" + idPart + "-" + slug
+}
+
+// runtimeSlug takes a Burrow's user-facing name and produces a short, shell-
+// safe segment suitable for a tmux session name. Examples:
+//
+//	"mimo-mole"          -> "mole"
+//	"es-search-glm-ma"   -> "es"
+//	"firefly-mimo-qwen"  -> "firefly"
+//
+// Falls back to "burrow" if the input has no usable characters.
+func runtimeSlug(name string) string {
+	cleaned := strings.ToLower(strings.TrimSpace(name))
+	if cleaned == "" {
+		return ""
+	}
+	first := strings.SplitN(cleaned, "-", 2)[0]
+	out := make([]rune, 0, len(first))
+	for _, r := range first {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			out = append(out, r)
+		}
+	}
+	if len(out) == 0 {
+		return "burrow"
+	}
+	if len(out) > 12 {
+		out = out[:12]
+	}
+	return string(out)
 }
 
 func (s *Session) NormalizeRuntimeMetadata() {

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+
+	"mole/internal/molecache"
 	"strings"
 	"sync"
 	"time"
@@ -138,7 +140,8 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return err
 	}
 
-	tmuxName := "mole-" + sessionName
+	sessionID := uuid.New().String()
+	tmuxName := RuntimeNameForSession(sessionID, sessionName)
 	if backend.IsAlive(tmuxName) {
 		return fmt.Errorf("%s session %q already exists", backend.ID(), tmuxName)
 	}
@@ -173,6 +176,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 	}
 
 	sess := Session{
+		ID:               sessionID,
 		Name:             sessionName,
 		ProfileID:        profileID,
 		ProfileUpdatedAt: profileUpdatedAt,
@@ -194,7 +198,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		return err
 	}
 
-	if err := backend.Create(tmuxName, env, sess.Command, sess.Cwd, false); err != nil {
+	if err := backend.Create(sess.ID, tmuxName, env, sess.Command, sess.Cwd, false); err != nil {
 		return err
 	}
 
@@ -436,15 +440,16 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 		if err := currentBackend.Kill(sess.RuntimeName()); err != nil {
 			return fmt.Errorf("failed to kill existing session: %w", err)
 		}
+		m.cleanupSessionCache(sess.ID)
 	}
 
 	// Update session metadata
 	sess = nextSession
 
-	if err := targetBackend.Create(sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
+	if err := targetBackend.Create(sess.ID, sess.RuntimeName(), newEnv, sess.Command, sess.Cwd, true); err != nil {
 		if isAlive && canRollback {
 			sess.BackendID = currentBackend.ID()
-			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
+			if rollbackErr := currentBackend.Create(sess.ID, sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to recreate session with new settings: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to recreate session with new settings: %w (restored previous session)", err)
@@ -457,7 +462,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 		_ = targetBackend.Kill(sess.RuntimeName())
 		sess.BackendID = currentBackend.ID()
 		if isAlive && canRollback {
-			if rollbackErr := currentBackend.Create(sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
+			if rollbackErr := currentBackend.Create(sess.ID, sess.RuntimeName(), rollbackEnv, oldCommand, oldSession.Cwd, true); rollbackErr != nil {
 				return fmt.Errorf("failed to persist session update: %w (rollback also failed: %v)", err, rollbackErr)
 			}
 			return fmt.Errorf("failed to persist session update: %w (restored previous session)", err)
@@ -484,11 +489,26 @@ func (m *Manager) Kill(sessionID string) error {
 	runtimeName := sess.RuntimeName()
 	if err := backend.Kill(runtimeName); err != nil {
 		if !backend.IsAlive(runtimeName) {
+			m.cleanupSessionCache(sess.ID)
 			return m.store.Delete(sessionID)
 		}
 		return err
 	}
+	m.cleanupSessionCache(sess.ID)
 	return m.store.Delete(sessionID)
+}
+
+// cleanupSessionCache removes every per-session runtime file Mole wrote
+// (attach-env, create-env). Safe to call even if some files don't exist.
+// Errors are logged at debug level — cache cleanup must never fail the
+// surrounding operation.
+func (m *Manager) cleanupSessionCache(sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	if err := molecache.RemoveSession(sessionID); err != nil {
+		log.Printf("⚠️ cleanupSessionCache(%s): %v", sessionID, err)
+	}
 }
 
 // Detach disconnects all terminal clients attached to a runtime session while
@@ -568,7 +588,7 @@ func (m *Manager) Restart(sessionID string) error {
 		}
 	}
 
-	if err := backend.Create(runtimeName, env, command, sess.Cwd, true); err != nil {
+	if err := backend.Create(sess.ID, runtimeName, env, command, sess.Cwd, true); err != nil {
 		return err
 	}
 
@@ -772,7 +792,7 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 				return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 			}
 			log.Printf("📦 Create session: name=%s cwd=%q command=%q envVars=%d", runtimeName, sess.Cwd, command, len(env))
-			if createErr := backend.Create(runtimeName, env, command, sess.Cwd, true); createErr != nil {
+			if createErr := backend.Create(sess.ID, runtimeName, env, command, sess.Cwd, true); createErr != nil {
 				return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session recreate failed: %w", createErr)
 			}
 		} else {
@@ -793,12 +813,12 @@ func (m *Manager) resolveAttachLaunchSpec(sessionID string) (Session, terminal.L
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("failed to resolve command for [%s]: %w", runtimeName, cmdErr)
 		}
 		log.Printf("📦 Create session: name=%s cwd=%q command=%q envVars=%d", runtimeName, sess.Cwd, command, len(env))
-		if createErr := backend.Create(runtimeName, env, command, sess.Cwd, true); createErr != nil {
+		if createErr := backend.Create(sess.ID, runtimeName, env, command, sess.Cwd, true); createErr != nil {
 			return Session{}, terminal.LaunchSpec{}, false, fmt.Errorf("session is not running and could not be restarted: %w", createErr)
 		}
 	}
 
-	launchSpec, err := backend.BuildAttachSpec(runtimeName, env, sess.Den, sess.Cwd)
+	launchSpec, err := backend.BuildAttachSpec(sess.ID, runtimeName, env, sess.Den, sess.Cwd)
 	if err != nil {
 		return Session{}, terminal.LaunchSpec{}, false, err
 	}
@@ -1053,12 +1073,8 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		}
 		seenNames[name] = struct{}{}
 
-		runtimeName := RuntimeNameForSessionName(name)
-		if _, exists := seenRuntimeNames[runtimeName]; exists {
-			return nil, fmt.Errorf("duplicate runtime session name %q", runtimeName)
-		}
-		seenRuntimeNames[runtimeName] = struct{}{}
-
+		// Resolve ID first — runtimeName derives from it, and both must be
+		// stable together.
 		id := strings.TrimSpace(cfg.ID)
 		if id == "" {
 			id = uuid.New().String()
@@ -1067,6 +1083,12 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			return nil, fmt.Errorf("duplicate session id %q", id)
 		}
 		seenIDs[id] = struct{}{}
+
+		runtimeName := RuntimeNameForSession(id, name)
+		if _, exists := seenRuntimeNames[runtimeName]; exists {
+			return nil, fmt.Errorf("duplicate runtime session name %q", runtimeName)
+		}
+		seenRuntimeNames[runtimeName] = struct{}{}
 
 		profileID := strings.TrimSpace(cfg.ProfileID)
 		if profileID == "" {

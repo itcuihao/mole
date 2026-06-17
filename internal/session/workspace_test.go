@@ -39,8 +39,10 @@ func TestPrepareBurrowImportNormalizesStaticSessions(t *testing.T) {
 	if got := prepared[0].BackendID; got != BackendIDTmux {
 		t.Fatalf("prepared[0].BackendID = %q, want %q", got, BackendIDTmux)
 	}
-	if got := prepared[0].TmuxSessionName; got != "mole-deploy-shell" {
-		t.Fatalf("prepared[0].TmuxSessionName = %q, want %q", got, "mole-deploy-shell")
+	// TmuxSessionName follows `mole-<id8>-<slug>` from RuntimeNameForSession.
+	expectedName := RuntimeNameForSession(prepared[0].ID, "deploy-shell")
+	if got := prepared[0].TmuxSessionName; got != expectedName {
+		t.Fatalf("prepared[0].TmuxSessionName = %q, want %q", got, expectedName)
 	}
 	if got := prepared[0].RunMode; got != RunModeHost {
 		t.Fatalf("prepared[0].RunMode = %q, want %q", got, RunModeHost)
@@ -55,8 +57,9 @@ func TestPrepareBurrowImportNormalizesStaticSessions(t *testing.T) {
 	if got := prepared[1].RunMode; got != RunModeCustom {
 		t.Fatalf("prepared[1].RunMode = %q, want %q", got, RunModeCustom)
 	}
-	if got := prepared[1].TmuxSessionName; got != "mole-custom-job" {
-		t.Fatalf("prepared[1].TmuxSessionName = %q, want %q", got, "mole-custom-job")
+	expectedName1 := RuntimeNameForSession(prepared[1].ID, "custom-job")
+	if got := prepared[1].TmuxSessionName; got != expectedName1 {
+		t.Fatalf("prepared[1].TmuxSessionName = %q, want %q", got, expectedName1)
 	}
 	if prepared[1].ID == "" {
 		t.Fatal("prepared[1].ID is empty, want generated ID")
