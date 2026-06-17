@@ -18,6 +18,7 @@ import (
 	"mole/internal/docker"
 	"mole/internal/integration"
 	"mole/internal/inventory"
+	"mole/internal/molecache"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/provider"
@@ -55,6 +56,15 @@ func (a *App) startup(ctx context.Context) {
 
 	if err := config.EnsureDir(); err != nil {
 		log.Printf("Failed to create config directory: %v", err)
+	}
+
+	// One-time migration: drop legacy .mole-env-* and .mole-attach-env-*
+	// files that older versions dropped directly into ~/.config/mole/.
+	// Safe to run on every startup; missing files are ignored.
+	if removed, err := molecache.MigrateFromLegacyCache(); err != nil {
+		log.Printf("legacy cache migration: %v", err)
+	} else if removed > 0 {
+		log.Printf("legacy cache migration: removed %d stale files", removed)
 	}
 
 	// Initialize settings.json if it doesn't exist

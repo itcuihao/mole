@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"mole/internal/molecache"
 )
 
 var (
@@ -121,24 +123,20 @@ func escapeAppleScript(s string) string {
 	return s
 }
 
-// writeTempLaunchScript writes commandText to a temp .sh file in the mole config dir
-// and returns its path. The file is created with executable permission.
+// writeTempLaunchScript writes commandText to a per-launch .sh file in
+// ~/.config/mole/cache/launch/ and returns its path. The file is created with
+// executable permission. Paths are owned by molecache so they share a single
+// cleanup policy with other Mole runtime files.
 func writeTempLaunchScript(commandText string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("cannot determine home dir: %w", err)
-	}
-	dir := filepath.Join(home, ".config", "mole")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("cannot create config dir: %w", err)
-	}
-
 	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("cannot generate random name: %w", err)
 	}
-	name := fmt.Sprintf(".mole-launch-%s.sh", hex.EncodeToString(b))
-	path := filepath.Join(dir, name)
+	baseName := "mole-launch-" + hex.EncodeToString(b)
+	path, err := molecache.LaunchScriptPath(baseName)
+	if err != nil {
+		return "", err
+	}
 
 	content := "#!/bin/sh\n" + commandText + "\n"
 	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
@@ -147,20 +145,23 @@ func writeTempLaunchScript(commandText string) (string, error) {
 	return path, nil
 }
 
-// cleanupOldLaunchScripts removes .mole-launch-*.sh files older than 1 hour.
+// cleanupOldLaunchScripts removes mole-launch-*.sh files in the cache/launch
+// dir that are older than 1 hour. (The previous implementation lived in
+// ~/.config/mole/ and matched `.mole-launch-*`; leftover files from before
+// the cache move are still cleaned up separately by MigrateFromLegacyCache.)
 func cleanupOldLaunchScripts() {
-	home, err := os.UserHomeDir()
+	root, err := molecache.Dir()
 	if err != nil {
 		return
 	}
-	dir := filepath.Join(home, ".config", "mole")
+	dir := filepath.Join(root, "launch")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	cutoff := time.Now().Add(-1 * time.Hour)
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), ".mole-launch-") || !strings.HasSuffix(e.Name(), ".sh") {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "mole-launch-") || !strings.HasSuffix(e.Name(), ".sh") {
 			continue
 		}
 		info, err := e.Info()
@@ -191,6 +192,17 @@ func launchWithScript(appName string, spec LaunchSpec) error {
 
 func launchTerminalApp(commandText string) error {
 	log.Printf("🚀 Launching Terminal.app with command: %s", commandText)
+
+	// Same iTerm2 risk: Terminal.app's `do script` is an AppleScript call
+	// that takes the command as a string, and long strings are unreliable.
+	// Write the command to a temp script and exec it instead.
+	cleanupOldLaunchScripts()
+	scriptPath, err := writeTempLaunchScript(commandText)
+	if err != nil {
+		return fmt.Errorf("Terminal.app: failed to write launch script: %w", err)
+	}
+	shortCmd := "/bin/bash '" + scriptPath + "'"
+
 	output, err := runOsaScriptWithArg([]string{
 		`on run argv`,
 		`set commandText to item 1 of argv`,
@@ -199,7 +211,7 @@ func launchTerminalApp(commandText string) error {
 		`do script commandText`,
 		`end tell`,
 		`end run`,
-	}, commandText)
+	}, shortCmd)
 	if err != nil {
 		log.Printf("❌ Terminal.app error: %v | Output: %s", err, string(output))
 		return fmt.Errorf("Terminal.app failed: %s: %w", string(output), err)
