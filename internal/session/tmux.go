@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"mole/internal/config"
+	"mole/internal/molecache"
 )
 
 const tmuxTimeout = 5 * time.Second
@@ -284,7 +285,9 @@ func TmuxSessionCwd(name string) string {
 // CreateTmuxSession creates a new detached tmux session with environment variables.
 // If command is non-empty and runCommand is true, auto-runs the startup command;
 // if runCommand is false, defers execution until the user explicitly opens the session.
-func CreateTmuxSession(name string, env map[string]string, command string, cwd string, runCommand bool) error {
+// sessionID is the Burrow UUID and is used to scope the per-session env script
+// under ~/.config/mole/cache/create-env/.
+func CreateTmuxSession(sessionID, name string, env map[string]string, command string, cwd string, runCommand bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
 	defer cancel()
 
@@ -293,8 +296,10 @@ func CreateTmuxSession(name string, env map[string]string, command string, cwd s
 		return err
 	}
 
-	// Create a temporary env script file
-	envScriptPath := filepath.Join(config.Dir(), fmt.Sprintf(".mole-env-%s.sh", name))
+	envScriptPath, err := molecache.CreateEnvPath(sessionID)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(envScriptPath, []byte(buildTmuxEnvScriptContent(env, command, tmuxPath)), 0600); err != nil {
 		return fmt.Errorf("failed to create env script: %w", err)
 	}

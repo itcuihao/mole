@@ -22,13 +22,18 @@ type RuntimeSessionInfo struct {
 type SessionBackend interface {
 	ID() string
 	EnsureAvailable() error
-	Create(name string, env map[string]string, command string, cwd string, runCommand bool) error
+	// Create starts a new runtime session. sessionID is the Burrow's stable
+	// UUID and is used to scope per-session cache files; name is the
+	// backend-native identifier (e.g. tmux session name).
+	Create(sessionID, name string, env map[string]string, command string, cwd string, runCommand bool) error
 	List() ([]RuntimeSessionInfo, error)
 	Kill(name string) error
 	Detach(name string) error
 	IsAlive(name string) bool
 	SyncEnv(name string, env map[string]string) error
-	BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error)
+	// BuildAttachSpec: name is the runtime (e.g. tmux) session name; sessionID
+	// is the Burrow UUID, used to look up per-session cache files.
+	BuildAttachSpec(sessionID, name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error)
 	// SessionCwd returns the live working directory of the session, or "" if unknown.
 	SessionCwd(name string) string
 }

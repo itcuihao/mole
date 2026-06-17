@@ -18,7 +18,7 @@ func (unsupportedPowerShellBackend) ID() string { return BackendIDPowerShell }
 func (unsupportedPowerShellBackend) EnsureAvailable() error {
 	return fmt.Errorf("powershell backend is only available on Windows")
 }
-func (unsupportedPowerShellBackend) Create(string, map[string]string, string, string, bool) error {
+func (unsupportedPowerShellBackend) Create(string, string, map[string]string, string, string, bool) error {
 	return fmt.Errorf("powershell backend is only available on Windows")
 }
 func (unsupportedPowerShellBackend) List() ([]RuntimeSessionInfo, error) {
@@ -28,7 +28,7 @@ func (unsupportedPowerShellBackend) Kill(string) error                       { r
 func (unsupportedPowerShellBackend) Detach(string) error                     { return nil }
 func (unsupportedPowerShellBackend) IsAlive(string) bool                     { return false }
 func (unsupportedPowerShellBackend) SyncEnv(string, map[string]string) error { return nil }
-func (unsupportedPowerShellBackend) BuildAttachSpec(string, map[string]string, string, string) (terminal.LaunchSpec, error) {
+func (unsupportedPowerShellBackend) BuildAttachSpec(string, string, map[string]string, string, string) (terminal.LaunchSpec, error) {
 	return terminal.LaunchSpec{}, fmt.Errorf("powershell backend is only available on Windows")
 }
 func (unsupportedPowerShellBackend) SessionCwd(string) string { return "" }

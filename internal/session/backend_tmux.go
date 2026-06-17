@@ -21,8 +21,8 @@ func (TmuxBackend) EnsureAvailable() error {
 	return ErrTmuxUnavailable
 }
 
-func (TmuxBackend) Create(name string, env map[string]string, command string, cwd string, runCommand bool) error {
-	return CreateTmuxSession(name, env, command, cwd, runCommand)
+func (TmuxBackend) Create(sessionID, name string, env map[string]string, command string, cwd string, runCommand bool) error {
+	return CreateTmuxSession(sessionID, name, env, command, cwd, runCommand)
 }
 
 func (TmuxBackend) List() ([]RuntimeSessionInfo, error) {
@@ -63,8 +63,8 @@ func (TmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncTmuxSessionEnv(name, env)
 }
 
-func (TmuxBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
-	return buildTmuxAttachLaunchSpec(name, env, den, cwd)
+func (TmuxBackend) BuildAttachSpec(sessionID, name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
+	return buildTmuxAttachLaunchSpec(sessionID, name, env, den, cwd)
 }
 
 func (TmuxBackend) SessionCwd(name string) string {

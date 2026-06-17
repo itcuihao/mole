@@ -3,11 +3,10 @@ package session
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
-	"mole/internal/config"
+	"mole/internal/molecache"
 	"mole/internal/terminal"
 )
 
@@ -21,16 +20,15 @@ func attachRunnerShell() (string, string) {
 	return runnerShell, runnerFlag
 }
 
-func writeAttachEnvScript(session string, env map[string]string) (string, error) {
+func writeAttachEnvScript(sessionID string, env map[string]string) (string, error) {
 	if len(env) == 0 {
 		return "", nil
 	}
 
-	if err := config.EnsureDir(); err != nil {
-		return "", fmt.Errorf("failed to ensure config directory: %w", err)
+	scriptPath, err := molecache.AttachEnvPath(sessionID)
+	if err != nil {
+		return "", err
 	}
-
-	scriptPath := filepath.Join(config.Dir(), fmt.Sprintf(".mole-attach-env-%s.sh", session))
 
 	keys := make([]string, 0, len(env))
 	for key := range env {
@@ -59,13 +57,13 @@ func buildTmuxAttachShellCommand(tmuxPath, session, envScriptPath string) string
 	return fmt.Sprintf(". %s && %s", shellQuote(envScriptPath), attachCommand)
 }
 
-func buildTmuxAttachLaunchSpec(session string, env map[string]string, den string, _ string) (terminal.LaunchSpec, error) {
+func buildTmuxAttachLaunchSpec(sessionID, session string, env map[string]string, den string, _ string) (terminal.LaunchSpec, error) {
 	tmuxPath, err := tmuxExecutable()
 	if err != nil {
 		return terminal.LaunchSpec{}, err
 	}
 
-	envScriptPath, err := writeAttachEnvScript(session, env)
+	envScriptPath, err := writeAttachEnvScript(sessionID, env)
 	if err != nil {
 		return terminal.LaunchSpec{}, err
 	}

@@ -17,7 +17,10 @@ func (WslTmuxBackend) EnsureAvailable() error {
 	return EnsureWslTmuxAvailable()
 }
 
-func (WslTmuxBackend) Create(name string, env map[string]string, command string, cwd string, runCommand bool) error {
+func (WslTmuxBackend) Create(sessionID, name string, env map[string]string, command string, cwd string, runCommand bool) error {
+	// The WSL backend doesn't currently write a per-session env file (the
+	// env is inlined into the attach shell command), so sessionID is
+	// accepted for interface symmetry but unused here.
 	return CreateWslTmuxSession(name, env, command, cwd, runCommand)
 }
 
@@ -59,7 +62,8 @@ func (WslTmuxBackend) SyncEnv(name string, env map[string]string) error {
 	return SyncWslTmuxSessionEnv(name, env)
 }
 
-func (WslTmuxBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
+func (WslTmuxBackend) BuildAttachSpec(sessionID, name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
+	// sessionID unused on WSL — see Create above.
 	return buildWslTmuxAttachLaunchSpec(name, env)
 }
 
