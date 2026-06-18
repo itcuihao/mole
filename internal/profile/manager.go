@@ -131,7 +131,13 @@ func (m *Manager) GetDefaultCommand(profileID string) (string, error) {
 
 // GetFullEnv returns all environment variables for a profile.
 // All values are stored in EnvVars (no Keychain), SecretKeys is just a UI hint.
+// An empty profileID is treated as "no profile" and returns an empty env with no error,
+// so callers (e.g. session creation) can explicitly opt out of injecting any profile env.
 func (m *Manager) GetFullEnv(profileID string) (map[string]string, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return map[string]string{}, nil
+	}
+
 	p, err := m.store.Get(profileID)
 	if err != nil {
 		return nil, err

@@ -21,6 +21,8 @@ export const en: Record<string, string> = {
   'common.default': 'Default',
   'common.ready': 'Ready',
   'common.loading': 'Loading...',
+  'common.search': 'Search...',
+  'common.noMatches': 'No matches',
 
   // Nav / App
   'nav.burrows': 'Burrows',

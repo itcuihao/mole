@@ -21,6 +21,8 @@ export const zh: Record<string, string> = {
   'common.default': '默认',
   'common.ready': '就绪',
   'common.loading': '加载中...',
+  'common.search': '搜索...',
+  'common.noMatches': '无匹配项',
 
   // Nav / App
   'nav.burrows': '窟',

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Combobox } from "@/components/ui/combobox"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
@@ -2146,7 +2147,7 @@ function NewSessionModal({
   })
 
   const handleCreate = async () => {
-    if (!selectedProfile || !sessionName.trim()) return
+    if (!sessionName.trim()) return
     if (execEnv === 'ssh' && !selectedHostId) {
       setError(t('burrows.modal.selectHostRequired'))
       return
@@ -2251,7 +2252,7 @@ function NewSessionModal({
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={creating || !selectedProfile || !sessionName.trim()}
+            disabled={creating || !sessionName.trim()}
           >
             {submitLabel}
           </Button>
@@ -2306,16 +2307,14 @@ function NewSessionModal({
             ) : (
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder={t('burrows.modal.selectProfile')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sortedProfiles.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    value={selectedProfile}
+                    onValueChange={setSelectedProfile}
+                    options={sortedProfiles.map(p => ({ value: p.id, label: p.name || '' }))}
+                    placeholder={t('burrows.modal.selectProfile')}
+                    searchPlaceholder={t('common.search')}
+                    emptyMessage={t('common.noMatches')}
+                  />
                 </div>
                 <Button
                   onClick={() => {
@@ -2431,23 +2430,14 @@ function NewSessionModal({
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <Select
+                    <Combobox
                       value={selectedHostId || inv.hosts[0]?.id || ''}
-                      onValueChange={value => {
-                        setSelectedHostId(value)
-                      }}
-                    >
-                      <SelectTrigger className="bg-background">
-                        <SelectValue placeholder={t('burrows.modal.selectHost')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sortedHosts.map(h => (
-                          <SelectItem key={h.id} value={h.id}>
-                            {h.name || h.host}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      onValueChange={setSelectedHostId}
+                      options={sortedHosts.map(h => ({ value: h.id, label: h.name || h.host || '' }))}
+                      placeholder={t('burrows.modal.selectHost')}
+                      searchPlaceholder={t('common.search')}
+                      emptyMessage={t('common.noMatches')}
+                    />
                   </div>
                   <Button
                     onClick={() => {
