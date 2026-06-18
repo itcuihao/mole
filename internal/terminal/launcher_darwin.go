@@ -3,6 +3,7 @@
 package terminal
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -565,9 +566,22 @@ func launchGhostty(terminal TerminalApp, spec LaunchSpec) error {
 	args = append(args, "-e")
 	args = append(args, spec.ExecArgs...)
 	cmd := exec.Command(ghosttyBin, args...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Ghostty failed: %s: %w", string(output), err)
+
+	// Ghostty is a long-running process — do NOT use CombinedOutput/Run here.
+	// Those block until the terminal exits, which would freeze the Wails IPC
+	// call (and the frontend's "open" loading state) for the lifetime of the
+	// Ghostty window. Start() returns once the process is launched, and we
+	// log any later exit error asynchronously.
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("Ghostty failed to start: %w", err)
 	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("⚠️ Ghostty exited with error: %v, stderr: %s", err, strings.TrimSpace(stderr.String()))
+		}
+	}()
 	return nil
 }
 
