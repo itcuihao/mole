@@ -80,7 +80,7 @@ func (PowerShellBackend) EnsureAvailable() error {
 	return nil
 }
 
-func (PowerShellBackend) Create(name string, env map[string]string, command string, cwd string, runCommand bool) error {
+func (PowerShellBackend) Create(sessionID, name string, env map[string]string, command string, cwd string, runCommand bool) error {
 	state := powerShellRuntimeState{
 		env:        copyStringMap(env),
 		command:    strings.TrimSpace(command),
@@ -146,7 +146,7 @@ func (PowerShellBackend) SyncEnv(name string, env map[string]string) error {
 
 func (PowerShellBackend) SessionCwd(string) string { return "" }
 
-func (PowerShellBackend) BuildAttachSpec(name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
+func (PowerShellBackend) BuildAttachSpec(sessionID, name string, env map[string]string, den string, cwd string) (terminal.LaunchSpec, error) {
 	state, ok := powerShellRuntimes.get(name)
 	if !ok {
 		return terminal.LaunchSpec{}, fmt.Errorf("powershell runtime %q not found", name)
