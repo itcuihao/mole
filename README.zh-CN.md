@@ -69,7 +69,7 @@ Windows 上每个 Burrow 可以选择运行时 backend：
 ### Den 分组支持
 
 - **iTerm2**：基于 AppleScript 的窗口/Tab 管理 — 查找或创建名为 `Mole: <den>` 的窗口，同 Den 会话添加到同一窗口的 Tab，支持聚焦和关闭
-- **Ghostty**：通过 `--window-id=mole-<den>` 实现窗口分组
+- **Ghostty**：不支持 Den 分组——Ghostty 没有 window-id/分组配置项，每个会话独立窗口
 - 其他终端：每个会话独立窗口
 
 ### Clipboard 回退

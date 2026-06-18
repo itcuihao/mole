@@ -559,12 +559,10 @@ func launchGhostty(terminal TerminalApp, spec LaunchSpec) error {
 		}
 	}
 
-	args := []string{}
-	if windowID := ghosttyWindowIDForDen(group); windowID != "" {
-		args = append(args, "--window-id="+windowID)
-	}
-	args = append(args, "-e")
-	args = append(args, spec.ExecArgs...)
+	// Ghostty has no Den/window-grouping option (no --window-id or equivalent config
+	// key exists as of 1.3.x), so we just run the command directly. Each launch opens
+	// its own window; den-level dedup is handled upstream in session.Attach.
+	args := append([]string{"-e"}, spec.ExecArgs...)
 	cmd := exec.Command(ghosttyBin, args...)
 
 	// Ghostty is a long-running process — do NOT use CombinedOutput/Run here.

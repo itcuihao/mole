@@ -69,7 +69,7 @@ On Windows, each Burrow can choose its runtime backend:
 ### Den grouping support
 
 - **iTerm2**: AppleScript-based window/tab management — finds or creates a window named "Mole: <den>", adds tabs for same-den sessions, supports focus and close
-- **Ghostty**: `--window-id=mole-<den>` for grouped windows
+- **Ghostty**: no Den grouping — Ghostty exposes no window-id/grouping config key, so each session opens in a separate window
 - Other terminals: sessions open in separate windows
 
 ### Clipboard fallback
