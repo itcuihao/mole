@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal, GetTmuxMouseEnabled, SetTmuxMouseEnabled } from '../../wailsjs/go/main/App'
+import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal, GetTmuxMouseEnabled, SetTmuxMouseEnabled, GetVersion } from '../../wailsjs/go/main/App'
 import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
 import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
@@ -221,6 +221,7 @@ function Settings({
   const [integrationStatuses, setIntegrationStatuses] = useState<IntegrationStatus[]>([])
   const [integrationBusy, setIntegrationBusy] = useState<string | null>(null)
   const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('')
+  const [appVersion, setAppVersion] = useState('dev')
 
   useEffect(() => {
     loadSettings()
@@ -238,6 +239,19 @@ function Settings({
           setRuntimeScriptPlatform('other')
         }
       })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void GetVersion()
+      .then(v => {
+        if (cancelled) return
+        setAppVersion(v || 'dev')
+      })
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -1325,6 +1339,9 @@ function Settings({
 ││││ ││  ├╴
 ╵ ╵└─┘└─╴└─╴`}
             </pre>
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t('settings.about.versionLabel')} {appVersion}
+            </p>
           </div>
 
           <div className="surface-panel rounded-2xl border border-border p-6">

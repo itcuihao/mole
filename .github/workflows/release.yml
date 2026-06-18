@@ -40,6 +40,10 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      - name: Read version
+        id: ver
+        run: echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Build release archives
         run: ./scripts/release.sh --version "${GITHUB_REF_NAME}"
 
@@ -84,7 +88,8 @@ jobs:
       - name: Build Windows executable
         shell: pwsh
         run: |
-          wails build -platform windows/amd64 -nsis -o Mole.exe
+          $ver = (Get-Content VERSION).Trim()
+          wails build -platform windows/amd64 -nsis -o Mole.exe -ldflags "-X main.Version=$ver"
 
       - name: Package Windows artifact
         shell: pwsh
@@ -148,6 +153,11 @@ jobs:
       - build-windows
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -173,3 +183,23 @@ jobs:
               --title "${TAG_NAME}" \
               --generate-notes
           fi
+
+      - name: Update Casks/mole.rb with release SHA256
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+          mkdir -p ./dl
+          gh release download "${TAG_NAME}" --repo "${GH_REPO}" \
+            --pattern "Mole-${TAG_NAME}-macos-*.zip" --dir ./dl
+          ARM_SHA="$(sha256sum "./dl/Mole-${TAG_NAME}-macos-arm64.zip"  | awk '{print $1}')"
+          INTEL_SHA="$(sha256sum "./dl/Mole-${TAG_NAME}-macos-amd64.zip" | awk '{print $1}')"
+          ./scripts/update-cask.sh --version "${VERSION}" \
+            --arm-sha "${ARM_SHA}" --intel-sha "${INTEL_SHA}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/mole.rb
+          git commit -m "chore(cask): bump to ${VERSION} with release sha256" || exit 0
+          git push

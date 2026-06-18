@@ -106,6 +106,10 @@ export function GetTmuxMouseEnabled() {
   return window['go']['main']['App']['GetTmuxMouseEnabled']();
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function ImportBurrow(arg1) {
   return window['go']['main']['App']['ImportBurrow'](arg1);
 }

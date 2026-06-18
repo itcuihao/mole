@@ -65,6 +65,8 @@ export function GetProviderPresets():Promise<Array<provider.Preset>>;
 
 export function GetTmuxMouseEnabled():Promise<boolean>;
 
+export function GetVersion():Promise<string>;
+
 export function ImportBurrow(arg1:string):Promise<workspace.ImportResult>;
 
 export function ImportSSHConfig(arg1:inventory.SSHConfigImportRequest):Promise<void>;

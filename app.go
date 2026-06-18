@@ -364,6 +364,12 @@ func (a *App) GetInstalledTerminals() []terminal.TerminalApp {
 	return terminal.DetectInstalled()
 }
 
+// GetVersion returns the application version injected at build time.
+// Returns "dev" when built without -ldflags (e.g. wails dev).
+func (a *App) GetVersion() string {
+	return Version
+}
+
 // GetDefaultTerminal returns the user's configured default terminal.
 func (a *App) GetDefaultTerminal() (string, error) {
 	settings, err := config.LoadSettings()

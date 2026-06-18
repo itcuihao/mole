@@ -85,6 +85,14 @@ resolve_version() {
 		return
 	fi
 
+	local version_file="${ROOT_DIR}/VERSION"
+	if [ -f "${version_file}" ]; then
+		VERSION="$(tr -d '[:space:]' < "${version_file}")"
+		if [ -n "${VERSION}" ]; then
+			return
+		fi
+	fi
+
 	if git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		VERSION="$(git -C "${ROOT_DIR}" describe --tags --always --dirty)"
 	else
@@ -164,7 +172,7 @@ build_target() {
 
 	log_info "Building ${target}"
 
-	build_args=(-platform "${target}" -o "${APP_NAME}")
+	build_args=(-platform "${target}" -o "${APP_NAME}" -ldflags "-X main.Version=${VERSION}")
 	if [ "${skip_frontend}" = "1" ]; then
 		build_args=(-s "${build_args[@]}")
 	fi
@@ -175,6 +183,20 @@ build_target() {
 	)
 
 	package_macos_bundle "${archive_base}"
+}
+
+update_cask_version() {
+	local cask_path="${ROOT_DIR}/Casks/mole.rb"
+	[ -f "${cask_path}" ] || return 0
+
+	# Only refresh the version line. The sha256 line is rewritten by CI
+	# (scripts/update-cask.sh) using the real release artifact hash; for
+	# local builds we leave whatever is currently in the file.
+	sed -i.bak -E \
+		-e "s|^  version \".*\"|  version \"${VERSION}\"|" \
+		"${cask_path}"
+	rm -f "${cask_path}.bak"
+	log_success "Updated Casks/mole.rb version to ${VERSION}"
 }
 
 parse_args() {
@@ -227,6 +249,7 @@ main() {
 	done
 
 	write_checksums
+	update_cask_version
 
 	log_success "Release artifacts are ready in ${DIST_DIR}"
 }

@@ -591,6 +591,7 @@ export const en: Record<string, string> = {
   'settings.about.supportedDesc': 'Mole supports iTerm2, Ghostty, Rio, Alacritty, Warp, Kitty, and macOS Terminal. Install your preferred terminal and it will be automatically detected.',
   'settings.about.aboutMole': 'About Mole',
   'settings.about.aboutDesc': 'Mole is a tmux-based desktop tool for organizing terminals, host configurations, and launch commands, inspired by a mole\'s “one den, many burrows” way of working.',
+  'settings.about.versionLabel': 'Version',
 
   // Theme toggle
   'theme.toggle': 'Toggle theme',

@@ -591,6 +591,7 @@ export const zh: Record<string, string> = {
   'settings.about.supportedDesc': 'Mole 支持 iTerm2、Ghostty、Rio、Alacritty、Warp、Kitty 和 macOS 终端。安装你喜欢的终端即可自动检测。',
   'settings.about.aboutMole': '关于 Mole',
   'settings.about.aboutDesc': 'Mole 是一个基于 tmux 的桌面工具，用于组织和管理终端、主机配置与启动命令，灵感来自鼹鼠“一巢多窟”的工作方式。',
+  'settings.about.versionLabel': '版本',
 
   // Theme toggle
   'theme.toggle': '切换主题',

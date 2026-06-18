@@ -75,6 +75,14 @@ resolve_version() {
 		return
 	fi
 
+	local version_file="${ROOT_DIR}/VERSION"
+	if [ -f "${version_file}" ]; then
+		VERSION="$(tr -d '[:space:]' < "${version_file}")"
+		if [ -n "${VERSION}" ]; then
+			return
+		fi
+	fi
+
 	if git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 		if [ "${USE_GIT_HASH}" = "1" ]; then
 			# Use latest tag + commit count + short hash (e.g. 0.1.10-3-abc1234)
@@ -116,7 +124,7 @@ install_frontend_deps_if_needed() {
 
 build_windows_binary() {
 	local -a args
-	args=(-platform windows/amd64 -o "${APP_NAME}.exe")
+	args=(-platform windows/amd64 -o "${APP_NAME}.exe" -ldflags "-X main.Version=${VERSION}")
 	if [ "${WITH_NSIS}" = "1" ]; then
 		args=(-nsis "${args[@]}")
 	fi
