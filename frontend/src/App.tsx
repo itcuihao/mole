@@ -187,7 +187,7 @@ function App() {
           </div>
         </div>
 
-        <TabsContent value="sessions" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden p-6">
+        <TabsContent value="sessions" className="no-drag mt-0 flex-1 min-h-0 overflow-hidden px-4 py-6">
           <Suspense fallback={pageFallback}>
             <Sessions
               onNavigate={handleNavigate}

@@ -1194,7 +1194,7 @@ function Sessions({
               )}
               <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
             </div>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <div className="flex w-full flex-col gap-2 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center">
               {sessions.length > 0 && (
                 <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
                   <SelectTrigger className="h-9 w-full rounded-xl border-border/80 bg-background/80 sm:w-[148px]">
@@ -1208,14 +1208,14 @@ function Sessions({
                 </Select>
               )}
               {sessions.length > 0 && (
-                <div className="relative w-full sm:w-auto">
+                <div className="relative w-full sm:min-w-[160px] sm:flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder={t('burrows.searchPlaceholder')}
                     aria-label={t('burrows.searchAriaLabel')}
-                    className="h-9 w-full pl-8 pr-8 sm:w-56"
+                    className="h-9 w-full pl-8 pr-8"
                   />
                   {searchQuery && (
                     <button
