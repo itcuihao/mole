@@ -1891,6 +1891,22 @@ function EmptySessionsState({
   )
 }
 
+function ClearFieldButton({ onClear, label }: { onClear: () => void; label: string }) {
+  return (
+    <Button
+      onClick={onClear}
+      variant="outline"
+      size="icon"
+      type="button"
+      className="h-9 w-9 shrink-0"
+      title={label}
+      aria-label={label}
+    >
+      <X className="w-4 h-4" />
+    </Button>
+  )
+}
+
 function NewSessionModal({
   initialDraft,
   onClose,
@@ -2407,6 +2423,9 @@ function NewSessionModal({
                     emptyMessage={t('common.noMatches')}
                   />
                 </div>
+                {selectedProfile && (
+                  <ClearFieldButton onClear={() => setSelectedProfile('')} label={t('common.clear')} />
+                )}
                 <Button
                   onClick={() => {
                     const draft = buildDraft()
@@ -2657,18 +2676,25 @@ function NewSessionModal({
               {codexConfigs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('burrows.modal.noCodex')}</p>
               ) : (
-                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={t('burrows.modal.selectCodex')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedCodexConfigs.map(cfg => (
-                      <SelectItem key={cfg.id} value={cfg.id}>
-                        {cfg.name || cfg.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectCodex')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedCodexConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedCodexConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedCodexConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
               )}
               {selectedCodexConfigId && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
@@ -2688,18 +2714,25 @@ function NewSessionModal({
               {dockerConfigs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('burrows.modal.noDocker')}</p>
               ) : (
-                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={t('burrows.modal.selectDocker')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedDockerConfigs.map(cfg => (
-                      <SelectItem key={cfg.id} value={cfg.id}>
-                        {cfg.name || cfg.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectDocker')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedDockerConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedCodexConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedCodexConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
               )}
               {selectedCodexConfigId && (() => {
                 const selectedDockerCfg = dockerConfigs.find(c => c.id === selectedCodexConfigId)
@@ -2722,18 +2755,25 @@ function NewSessionModal({
 	              {currentPluginConfigs.length === 0 ? (
 	                <p className="text-sm text-muted-foreground">{t('burrows.modal.noPluginConfigs')}</p>
 	              ) : (
-	                <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
-	                  <SelectTrigger className="bg-background">
-	                    <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
-	                  </SelectTrigger>
-	                  <SelectContent>
-	                    {currentPluginConfigs.map(cfg => (
-	                      <SelectItem key={cfg.id} value={cfg.id}>
-	                        {cfg.name || cfg.id}
-	                      </SelectItem>
-	                    ))}
-	                  </SelectContent>
-	                </Select>
+	                <div className="flex items-center gap-2">
+	                  <div className="flex-1">
+	                    <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
+	                      <SelectTrigger className="bg-background">
+	                        <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
+	                      </SelectTrigger>
+	                      <SelectContent>
+	                        {currentPluginConfigs.map(cfg => (
+	                          <SelectItem key={cfg.id} value={cfg.id}>
+	                            {cfg.name || cfg.id}
+	                          </SelectItem>
+	                        ))}
+	                      </SelectContent>
+	                    </Select>
+	                  </div>
+	                  {selectedPluginConfigId && (
+	                    <ClearFieldButton onClear={() => setSelectedPluginConfigId('')} label={t('common.clear')} />
+	                  )}
+	                </div>
 	              )}
 	              {runMode === 'k8s_pod' && (
 	                <div className="mt-3">
@@ -3428,18 +3468,25 @@ function EditSessionModal({
               {codexConfigs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('burrows.modal.noCodex')}</p>
               ) : (
-                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={t('burrows.modal.selectCodex')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedCodexConfigs.map(cfg => (
-                      <SelectItem key={cfg.id} value={cfg.id}>
-                        {cfg.name || cfg.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectCodex')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedCodexConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedCodexConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedCodexConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
               )}
               {selectedCodexConfigId && (
                 <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
@@ -3459,18 +3506,25 @@ function EditSessionModal({
               {dockerConfigs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('burrows.modal.noDocker')}</p>
               ) : (
-                <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder={t('burrows.modal.selectDocker')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortedDockerConfigs.map(cfg => (
-                      <SelectItem key={cfg.id} value={cfg.id}>
-                        {cfg.name || cfg.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedCodexConfigId} onValueChange={setSelectedCodexConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectDocker')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedDockerConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedCodexConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedCodexConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
               )}
               {selectedCodexConfigId && (() => {
                 const selectedDockerCfg = dockerConfigs.find(c => c.id === selectedCodexConfigId)
@@ -3493,18 +3547,25 @@ function EditSessionModal({
 	              {currentPluginConfigs.length === 0 ? (
 	                <p className="text-sm text-muted-foreground">{t('burrows.modal.noPluginConfigs')}</p>
 	              ) : (
-	                <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
-	                  <SelectTrigger className="bg-background">
-	                    <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
-	                  </SelectTrigger>
-	                  <SelectContent>
-	                    {currentPluginConfigs.map(cfg => (
-	                      <SelectItem key={cfg.id} value={cfg.id}>
-	                        {cfg.name || cfg.id}
-	                      </SelectItem>
-	                    ))}
-	                  </SelectContent>
-	                </Select>
+	                <div className="flex items-center gap-2">
+	                  <div className="flex-1">
+	                    <Select value={selectedPluginConfigId} onValueChange={setSelectedPluginConfigId}>
+	                      <SelectTrigger className="bg-background">
+	                        <SelectValue placeholder={t('burrows.modal.selectPluginConfig')} />
+	                      </SelectTrigger>
+	                      <SelectContent>
+	                        {currentPluginConfigs.map(cfg => (
+	                          <SelectItem key={cfg.id} value={cfg.id}>
+	                            {cfg.name || cfg.id}
+	                          </SelectItem>
+	                        ))}
+	                      </SelectContent>
+	                    </Select>
+	                  </div>
+	                  {selectedPluginConfigId && (
+	                    <ClearFieldButton onClear={() => setSelectedPluginConfigId('')} label={t('common.clear')} />
+	                  )}
+	                </div>
 	              )}
 	              {runMode === 'k8s_pod' && (
 	                <div className="mt-3">
