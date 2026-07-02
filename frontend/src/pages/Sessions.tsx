@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils"
 import { MOLE_OPEN_BURROW_EVENT, type MoleOpenBurrowDetail } from "@/lib/mascot-events"
 import { useMoleSpeaker } from "@/lib/mole-messages"
 import { useTranslation } from "@/i18n/context"
-import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle, Maximize, FileUp, Upload } from "lucide-react"
+import { Bot, Box, Play, Plus, TerminalSquare, Pencil, Trash2, X, ChevronDown, ChevronUp, FolderGit2, Server, Wrench, Check, CheckCircle2, ChevronRight, Search, MoreHorizontal, Copy, RotateCw, AlertTriangle, Maximize, FileUp, Upload, PanelLeftClose, PanelLeftOpen } from "lucide-react"
 import type { AppTab, NavigateContext } from '../App'
 
 type SessionSortMode = 'most_used' | 'name' | 'profile'
@@ -535,6 +535,26 @@ const saveLastWorkspace = (cwd: string) => {
   }
 }
 
+const DEN_SIDEBAR_COLLAPSED_KEY = 'mole:sessionsDenSidebarCollapsed'
+
+const readDenSidebarCollapsed = () => {
+  if (typeof window === 'undefined') return false
+  try {
+    return localStorage.getItem(DEN_SIDEBAR_COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const saveDenSidebarCollapsed = (collapsed: boolean) => {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(DEN_SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0')
+  } catch {
+    // ignore storage failures
+  }
+}
+
 const createSessionWithOptions = (
   profileID: string,
   name: string,
@@ -658,6 +678,7 @@ function Sessions({
   const [showDenOrderModal, setShowDenOrderModal] = useState(false)
   const [denOrderDraft, setDenOrderDraft] = useState<SessionRecord[]>([])
   const [denActionBusy, setDenActionBusy] = useState<'open' | 'restart' | 'save-order' | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(readDenSidebarCollapsed)
 
   const speakBubble = useMoleSpeaker()
 
@@ -760,6 +781,14 @@ function Sessions({
         console.error('FocusDen error:', err)
       }
     }
+  }
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      saveDenSidebarCollapsed(next)
+      return next
+    })
   }
 
   const handleOpenSession = async (sess: SessionRecord, terminalID?: string) => {
@@ -1140,193 +1169,153 @@ function Sessions({
   }, [sessions])
 
   return (
-    <div className="min-w-0 h-full flex flex-col gap-4">
-      <div className="shrink-0">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-            {sessions.length > 0 && (
-              <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
-                <SelectTrigger className="h-9 w-full rounded-xl border-border/80 bg-background/80 sm:w-[148px]">
-                  <SelectValue aria-label={t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="most_used">{t('burrows.sort.mostUsed')}</SelectItem>
-                  <SelectItem value="name">{t('burrows.sort.nameAZ')}</SelectItem>
-                  <SelectItem value="profile">{t('burrows.sort.profile')}</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            {sessions.length > 0 && (
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={t('burrows.searchPlaceholder')}
-                  aria-label={t('burrows.searchAriaLabel')}
-                  className="h-9 w-full pl-8 pr-8 sm:w-56"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label={t('burrows.clearSearch')}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-            )}
-            <Button onClick={() => setShowNewModal(true)} size="sm">
-              <Plus className="w-4 h-4" />
-              {t('burrows.newBurrow')}
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
-            <span className="flex-1">{error}</span>
-            <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
-              <X className="w-3.5 h-3.5" />
-            </Button>
-          </div>
-        )}
-
-        {sessions.length > 0 && (
-          <>
-            <div className="mb-3 space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDenFilter('')}
-                  aria-pressed={!selectedDenFilter}
-                  className={`interactive-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                    !selectedDenFilter
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                  }`}
-                >
-                  {t('burrows.den.all')}
-                  <span className="text-[11px] opacity-80">{sessions.length}</span>
-                </button>
-                {denOptions.map(option => {
-                  const isSelected = selectedDenFilter === option.key
-                  return (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => setSelectedDenFilter(isSelected ? '' : option.key)}
-                      aria-pressed={isSelected}
-                      className={`interactive-chip inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground'
-                      }`}
-                    >
-                      <span>{option.den || t('burrows.den.none')}</span>
-                      <span className="text-[11px] opacity-80">{option.count}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {selectedDenFilter && selectedDenFilter !== NO_DEN_FILTER_VALUE && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button onClick={openDen} size="sm" disabled={denActionBusy !== null} className="shadow-sm">
-                    <Play className="w-3.5 h-3.5" />
-                    {denActionBusy === 'open' ? t('burrows.den.opening') : t('burrows.den.open')}
-                  </Button>
-                  <Button onClick={restartDen} variant="secondary" size="sm" disabled={denActionBusy !== null}>
-                    <RotateCw className="w-3.5 h-3.5" />
-                    {denActionBusy === 'restart' ? t('burrows.den.restarting') : t('burrows.den.restart')}
-                  </Button>
-                  <Button onClick={openDenOrderEditor} variant="outline" size="sm" disabled={denActionBusy !== null}>
-                    <ChevronDown className="w-3.5 h-3.5" />
-                    {t('burrows.den.reorder')}
-                  </Button>
-                </div>
+    <div className="min-w-0 h-full flex flex-row gap-4">
+      {sessions.length > 0 && !sidebarCollapsed && (
+        <DenSidebar
+          totalSessions={sessions.length}
+          dens={denOptions}
+          selectedDen={selectedDenFilter}
+          onSelectDen={setSelectedDenFilter}
+          busy={denActionBusy}
+          onOpenDen={openDen}
+          onRestartDen={restartDen}
+          onReorder={openDenOrderEditor}
+          onCollapse={toggleSidebar}
+        />
+      )}
+      <div className="min-w-0 flex-1 min-h-0 flex flex-col gap-4">
+        <div className="shrink-0">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              {sessions.length > 0 && sidebarCollapsed && (
+                <Button onClick={toggleSidebar} variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0" aria-label={t('burrows.sidebar.expand')} title={t('burrows.sidebar.expand')}>
+                  <PanelLeftOpen className="h-4 w-4" />
+                </Button>
               )}
-              {profilesInUse.length > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="inline-flex h-8 items-center rounded-full border border-border bg-background px-3 text-xs font-medium text-muted-foreground">
-                    {t('burrows.profileFilter')}
-                  </span>
-                  <Select
-                    value={selectedProfileFilter || ALL_PROFILE_FILTER_VALUE}
-                    onValueChange={value => setSelectedProfileFilter(value === ALL_PROFILE_FILTER_VALUE ? '' : value)}
-                  >
-                    <SelectTrigger className="h-8 w-full rounded-full border-border bg-background px-3 text-xs sm:w-56">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_PROFILE_FILTER_VALUE}>{t('burrows.all')}</SelectItem>
-                      {profilesInUse.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name || t('common.none')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <h1 className="text-2xl font-semibold text-foreground">{t('burrows.title')}</h1>
             </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+              {sessions.length > 0 && (
+                <Select value={sortMode} onValueChange={value => setSortMode(value as SessionSortMode)}>
+                  <SelectTrigger className="h-9 w-full rounded-xl border-border/80 bg-background/80 sm:w-[148px]">
+                    <SelectValue aria-label={t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="most_used">{t('burrows.sort.mostUsed')}</SelectItem>
+                    <SelectItem value="name">{t('burrows.sort.nameAZ')}</SelectItem>
+                    <SelectItem value="profile">{t('burrows.sort.profile')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {sessions.length > 0 && (
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder={t('burrows.searchPlaceholder')}
+                    aria-label={t('burrows.searchAriaLabel')}
+                    className="h-9 w-full pl-8 pr-8 sm:w-56"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground transition-colors"
+                      aria-label={t('burrows.clearSearch')}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+              {sessions.length > 0 && profilesInUse.length > 1 && (
+                <Select
+                  value={selectedProfileFilter || ALL_PROFILE_FILTER_VALUE}
+                  onValueChange={value => setSelectedProfileFilter(value === ALL_PROFILE_FILTER_VALUE ? '' : value)}
+                >
+                  <SelectTrigger className="h-9 w-full rounded-xl border-border/80 bg-background/80 px-3 text-xs sm:w-[160px]">
+                    <SelectValue aria-label={t('burrows.profileFilter')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_PROFILE_FILTER_VALUE}>{t('burrows.all')}</SelectItem>
+                    {profilesInUse.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name || t('common.none')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <Button onClick={() => setShowNewModal(true)} size="sm">
+                <Plus className="w-4 h-4" />
+                {t('burrows.newBurrow')}
+              </Button>
+            </div>
+          </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/50 rounded text-destructive text-sm flex items-start justify-between gap-2">
+              <span className="flex-1">{error}</span>
+              <Button onClick={() => setError('')} variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-destructive/20">
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+
+          {sessions.length > 0 && (
             <div className="mb-3 text-xs text-muted-foreground">
               {searchQuery || selectedProfileFilter || selectedDenFilter
                 ? t('burrows.showing', { filtered: filteredSessions.length, total: sessions.length })
                 : t('burrows.sortedBy', { mode: t(SESSION_SORT_LABEL_KEYS[sortMode]) })}
             </div>
-          </>
-        )}
-      </div>
-
-      {sessions.length === 0 ? (
-        <EmptySessionsState
-          profileCount={profiles.length}
-          hostCount={inventoryCount}
-          onCreateSession={() => setShowNewModal(true)}
-          onNavigate={onNavigate}
-        />
-      ) : (
-        <div className="app-scroll flex-1 min-h-0 overflow-auto pr-1">
-          {filteredSessions.length === 0 ? (
-            <div className="surface-panel rounded-2xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
-              {selectedProfileFilter
-                ? (searchQuery ? t('burrows.noMatchInProfileSearch', { query: searchQuery }) : t('burrows.noMatchInProfile'))
-                : t('burrows.noMatch', { query: searchQuery })}
-            </div>
-          ) : (
-            <div className="grid gap-3 pb-2">
-              {filteredSessions.map(s => {
-                const host = s.host_id ? pageHostMap.get(s.host_id) : undefined
-                const health = s.host_id ? hostsHealth[s.host_id] : undefined
-                return (
-                  <SessionCard
-                    key={s.id}
-                    session={s}
-                    terminals={terminals}
-                    host={host}
-                    health={health}
-                    onOpen={handleOpenSession}
-                    onKill={handleKill}
-                    onRestart={handleRestart}
-                    onEdit={setEditingSession}
-                    onDuplicate={handleDuplicateSession}
-                    onFocusBurrow={handleFocusBurrow}
-                    onFocusDen={handleFocusDen}
-                    isWorking={sessionAction?.id === s.id}
-                    currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
-                  />
-                )
-              })}
-            </div>
           )}
         </div>
-      )}
+
+        {sessions.length === 0 ? (
+          <EmptySessionsState
+            profileCount={profiles.length}
+            hostCount={inventoryCount}
+            onCreateSession={() => setShowNewModal(true)}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <div className="app-scroll flex-1 min-h-0 overflow-auto pr-1">
+            {filteredSessions.length === 0 ? (
+              <div className="surface-panel rounded-2xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
+                {selectedProfileFilter
+                  ? (searchQuery ? t('burrows.noMatchInProfileSearch', { query: searchQuery }) : t('burrows.noMatchInProfile'))
+                  : t('burrows.noMatch', { query: searchQuery })}
+              </div>
+            ) : (
+              <div className="grid gap-3 pb-2">
+                {filteredSessions.map(s => {
+                  const host = s.host_id ? pageHostMap.get(s.host_id) : undefined
+                  const health = s.host_id ? hostsHealth[s.host_id] : undefined
+                  return (
+                    <SessionCard
+                      key={s.id}
+                      session={s}
+                      terminals={terminals}
+                      host={host}
+                      health={health}
+                      onOpen={handleOpenSession}
+                      onKill={handleKill}
+                      onRestart={handleRestart}
+                      onEdit={setEditingSession}
+                      onDuplicate={handleDuplicateSession}
+                      onFocusBurrow={handleFocusBurrow}
+                      onFocusDen={handleFocusDen}
+                      isWorking={sessionAction?.id === s.id}
+                      currentAction={sessionAction?.id === s.id ? sessionAction.kind : null}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {showDenOrderModal && selectedDenFilter && (
         <ModalShell
@@ -1396,6 +1385,90 @@ function Sessions({
         />
       )}
     </div>
+  )
+}
+
+function DenSidebar({
+  totalSessions,
+  dens,
+  selectedDen,
+  onSelectDen,
+  busy,
+  onOpenDen,
+  onRestartDen,
+  onReorder,
+  onCollapse,
+}: {
+  totalSessions: number
+  dens: { key: string; den: string; count: number }[]
+  selectedDen: string
+  onSelectDen: (key: string) => void
+  busy: 'open' | 'restart' | 'save-order' | null
+  onOpenDen: () => void
+  onRestartDen: () => void
+  onReorder: () => void
+  onCollapse: () => void
+}) {
+  const { t } = useTranslation()
+  const denActionsVisible = Boolean(selectedDen) && selectedDen !== NO_DEN_FILTER_VALUE
+  const rowClass = (active: boolean) =>
+    `mb-0.5 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
+      active ? 'bg-primary/10 font-medium text-primary' : 'text-foreground hover:bg-muted/60'
+    }`
+
+  return (
+    <aside className="flex w-[200px] shrink-0 flex-col gap-2 rounded-2xl border border-border bg-card/50 p-2">
+      <div className="flex items-center justify-between px-1 pt-1">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('burrows.dens')}</span>
+        <button
+          type="button"
+          onClick={onCollapse}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          aria-label={t('burrows.sidebar.collapse')}
+          title={t('burrows.sidebar.collapse')}
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="app-scroll min-h-0 flex-1 overflow-auto">
+        <button type="button" onClick={() => onSelectDen('')} className={rowClass(!selectedDen)}>
+          <span className="truncate">{t('burrows.all')}</span>
+          <span className="text-[11px] opacity-70">{totalSessions}</span>
+        </button>
+        {dens.map(option => {
+          const isSelected = selectedDen === option.key
+          return (
+            <button
+              key={option.key}
+              type="button"
+              onClick={() => onSelectDen(isSelected ? '' : option.key)}
+              className={rowClass(isSelected)}
+            >
+              <span className="truncate">{option.den || t('burrows.den.none')}</span>
+              <span className="text-[11px] opacity-70">{option.count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {denActionsVisible && (
+        <div className="flex shrink-0 flex-col gap-1.5 border-t border-border pt-2">
+          <Button onClick={onOpenDen} size="sm" disabled={busy !== null}>
+            <Play className="h-3.5 w-3.5" />
+            {busy === 'open' ? t('burrows.den.opening') : t('burrows.den.open')}
+          </Button>
+          <Button onClick={onRestartDen} variant="secondary" size="sm" disabled={busy !== null}>
+            <RotateCw className="h-3.5 w-3.5" />
+            {busy === 'restart' ? t('burrows.den.restarting') : t('burrows.den.restart')}
+          </Button>
+          <Button onClick={onReorder} variant="outline" size="sm" disabled={busy !== null}>
+            <ChevronDown className="h-3.5 w-3.5" />
+            {t('burrows.den.reorder')}
+          </Button>
+        </div>
+      )}
+    </aside>
   )
 }
 
