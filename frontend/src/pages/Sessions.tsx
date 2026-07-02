@@ -836,6 +836,11 @@ function Sessions({
     setError('')
     try {
       await RestartSession(sess.id)
+      // RestartSession only recreates the background tmux session — it does not
+      // reopen a terminal. Killing the old session closes whatever window was
+      // attached to it, so we must re-attach or the burrow just vanishes
+      // ("only closed, never restarted").
+      await AttachSession(sess.id)
       refresh()
     } catch (err) {
       setError(String(err))
@@ -922,6 +927,19 @@ function Sessions({
             name: sess.name || sess.id,
             error: String(err),
           })
+        }
+      }
+
+      // Reopen the den so every restarted burrow actually reappears in its
+      // terminal. Like the single-burrow restart, RestartSession only recreates
+      // the background sessions; without reopening, the den's windows just close.
+      const openMethod = getAppMethod('OpenDen')
+      if (restarted.length > 0 && typeof openMethod === 'function') {
+        try {
+          await openMethod(selectedDenFilter)
+        } catch {
+          // reopening is best-effort; the per-session restart results below
+          // still surface any real failures.
         }
       }
 
