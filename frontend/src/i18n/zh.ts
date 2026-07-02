@@ -32,7 +32,7 @@ export const zh: Record<string, string> = {
 
   // Burrows (Sessions page)
   'burrows.title': '地洞',
-  'burrows.newBurrow': '新建地洞',
+  'burrows.newBurrow': '挖洞',
   'burrows.searchPlaceholder': '搜索地洞',
   'burrows.searchAriaLabel': '按名称搜索地洞',
   'burrows.clearSearch': '清除搜索',
@@ -85,14 +85,14 @@ export const zh: Record<string, string> = {
   'burrows.status.restoring': '恢复中...',
   'burrows.status.opening': '打开中...',
   'burrows.status.removing': '移除中...',
-  'burrows.status.killing': '销毁中...',
+  'burrows.status.killing': '填洞中...',
   'burrows.status.restarting': '重启中...',
 
   // Actions
   'burrows.openBurrow': '打开地洞',
   'burrows.restoreBurrow': '恢复地洞',
-  'burrows.destroy': '销毁',
-  'burrows.confirmDestroy': '确认销毁？',
+  'burrows.destroy': '填洞',
+  'burrows.confirmDestroy': '确认填洞？',
   'burrows.remove': '移除',
   'burrows.restart': '重启',
 
@@ -131,18 +131,18 @@ export const zh: Record<string, string> = {
   'burrows.empty.hostDesc': '可选，但当你想让 Mole 自动生成 SSH 启动命令时很有用。',
   'burrows.empty.manageHosts': '管理主机',
   'burrows.empty.addHost': '添加主机',
-  'burrows.empty.sessionTitle': '创建地洞',
+  'burrows.empty.sessionTitle': '挖洞',
   'burrows.empty.sessionDesc': '选择一个配置，然后运行本地 Shell、已保存的主机命令或自定义命令。',
 
   // New / Edit / Duplicate modal
   'burrows.modal.copyTitle': '复制地洞',
-  'burrows.modal.newTitle': '新建地洞',
+  'burrows.modal.newTitle': '挖洞',
   'burrows.modal.copyDesc': '检查复制的配置，然后用不同的名称创建地洞。',
   'burrows.modal.newDesc': '选择配置和地洞的启动方式。',
   'burrows.modal.creatingCopy': '正在创建副本...',
-  'burrows.modal.creating': '正在创建...',
+  'burrows.modal.creating': '正在挖洞...',
   'burrows.modal.createCopy': '创建副本',
-  'burrows.modal.create': '创建',
+  'burrows.modal.create': '挖洞',
   'burrows.modal.profile': '配置',
   'burrows.modal.noProfiles': '还没有配置。',
   'burrows.modal.createOne': '去创建',
