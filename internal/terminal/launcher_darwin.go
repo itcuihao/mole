@@ -274,7 +274,27 @@ func launchITerm2(spec LaunchSpec) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
+							-- The hint is a fast-path index only; user.mole_den
+							-- is the authoritative owner. A stale id (window
+							-- closed or reused by iTerm) must NOT merge a
+							-- different den's sessions into this window, so
+							-- re-verify the marker before adopting the window.
+							set confirmed to false
+							repeat with t in tabs of w
+								repeat with s in sessions of t
+									tell s
+										set denVar to variable named "user.mole_den"
+										if denVar is not missing value and denVar is windowName then
+											set confirmed to true
+										end if
+									end tell
+									if confirmed then exit repeat
+								end repeat
+								if confirmed then exit repeat
+							end repeat
+							if confirmed then
+								set targetWindow to w
+							end if
 							exit repeat
 						end if
 					end repeat
@@ -365,7 +385,27 @@ func closeITerm2GroupedWindow(group string) error {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
+							-- The hint is a fast-path index only; user.mole_den
+							-- is the authoritative owner. A stale id (window
+							-- closed or reused by iTerm) must NOT merge a
+							-- different den's sessions into this window, so
+							-- re-verify the marker before adopting the window.
+							set confirmed to false
+							repeat with t in tabs of w
+								repeat with s in sessions of t
+									tell s
+										set denVar to variable named "user.mole_den"
+										if denVar is not missing value and denVar is windowName then
+											set confirmed to true
+										end if
+									end tell
+									if confirmed then exit repeat
+								end repeat
+								if confirmed then exit repeat
+							end repeat
+							if confirmed then
+								set targetWindow to w
+							end if
 							exit repeat
 						end if
 					end repeat
@@ -432,7 +472,27 @@ func focusITerm2GroupedWindow(group string) (bool, error) {
 				try
 					repeat with w in windows
 						if id of w is hintedWindowID then
-							set targetWindow to w
+							-- The hint is a fast-path index only; user.mole_den
+							-- is the authoritative owner. A stale id (window
+							-- closed or reused by iTerm) must NOT merge a
+							-- different den's sessions into this window, so
+							-- re-verify the marker before adopting the window.
+							set confirmed to false
+							repeat with t in tabs of w
+								repeat with s in sessions of t
+									tell s
+										set denVar to variable named "user.mole_den"
+										if denVar is not missing value and denVar is windowName then
+											set confirmed to true
+										end if
+									end tell
+									if confirmed then exit repeat
+								end repeat
+								if confirmed then exit repeat
+							end repeat
+							if confirmed then
+								set targetWindow to w
+							end if
 							exit repeat
 						end if
 					end repeat
