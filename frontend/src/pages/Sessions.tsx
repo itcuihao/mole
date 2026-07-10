@@ -451,7 +451,7 @@ function CommandText({
             className={cn('flex min-w-0 flex-wrap items-start gap-x-[1ch]', lineIndex > 0 && 'mt-1')}
           >
             {parts.map((part, partIndex) => (
-              <span key={`${lineIndex}-${partIndex}`} className="whitespace-nowrap">
+              <span key={`${lineIndex}-${partIndex}`} className="break-all">
                 {part}
               </span>
             ))}
