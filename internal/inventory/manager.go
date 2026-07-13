@@ -280,7 +280,9 @@ func buildSSHCommand(host Host, defaults HostDefaults, hostMap map[string]Host) 
 	parts = append(parts, "-o", "ControlMaster=auto", "-o", "ControlPath=~/.ssh/mole-%r@%h:%p", "-o", "ControlPersist=10m")
 
 	if targetConn.identity != "" {
-		parts = append(parts, "-i", targetConn.identity)
+		// -F none: keep the command self-contained, ignore ~/.ssh/config.
+		// IdentitiesOnly=yes: only use the -i key, never ssh-agent/other keys.
+		parts = append(parts, "-F", "none", "-o", "IdentitiesOnly=yes", "-i", targetConn.identity)
 	}
 	if targetConn.port != 0 && targetConn.port != 22 {
 		parts = append(parts, "-p", fmt.Sprintf("%d", targetConn.port))
@@ -379,7 +381,7 @@ func buildNestedProxyCommand(hops []hostConnection) string {
 	last := hops[len(hops)-1]
 	args := []string{"ssh"}
 	if last.identity != "" {
-		args = append(args, "-i", last.identity)
+		args = append(args, "-F", "none", "-o", "IdentitiesOnly=yes", "-i", last.identity)
 	}
 	if last.port != 0 && last.port != 22 {
 		args = append(args, "-p", fmt.Sprintf("%d", last.port))

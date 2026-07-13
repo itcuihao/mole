@@ -29,7 +29,7 @@ func TestBuildSSHCommandUsesProxyCommandForJumpIdentity(t *testing.T) {
 		JumpHostIDs:  []string{"jump"},
 	}, defaults, hostMap)
 
-	expected := "ssh -i ~/.ssh/prod -o ProxyCommand='ssh -i ~/.ssh/jump -p 2201 -W %h:%p jumper@jump.example.com' deploy@prod.example.com"
+	expected := "ssh -o ControlMaster=auto -o ControlPath=~/.ssh/mole-%r@%h:%p -o ControlPersist=10m -F none -o IdentitiesOnly=yes -i ~/.ssh/prod -o ProxyCommand='ssh -F none -o IdentitiesOnly=yes -i ~/.ssh/jump -p 2201 -W %h:%p jumper@jump.example.com' deploy@prod.example.com"
 	if cmd != expected {
 		t.Fatalf("unexpected SSH command:\nwant: %s\ngot:  %s", expected, cmd)
 	}

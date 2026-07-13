@@ -333,7 +333,7 @@ const resolveSessionCommandForSubmit = ({
 const buildNestedProxyCommand = (hops: HostConnection[]): string => {
   const last = hops[hops.length - 1]
   const args = ['ssh']
-  if (last.identity) args.push('-i', quoteShellArgIfNeeded(last.identity))
+  if (last.identity) args.push('-F', 'none', '-o', 'IdentitiesOnly=yes', '-i', quoteShellArgIfNeeded(last.identity))
   if (last.port && last.port !== 22) args.push('-p', String(last.port))
   if (hops.length > 1) {
     args.push('-o', `ProxyCommand=${shellQuote(buildNestedProxyCommand(hops.slice(0, -1)))}`)
@@ -351,7 +351,9 @@ const buildSSHCommand = (
   const targetConn = resolveHostConnection(host, defaults)
   const parts = ['ssh']
   if (targetConn.identity) {
-    parts.push('-i', quoteShellArgIfNeeded(targetConn.identity))
+    // -F none: keep the command self-contained, ignore ~/.ssh/config.
+    // IdentitiesOnly=yes: only use the -i key, never ssh-agent/other keys.
+    parts.push('-F', 'none', '-o', 'IdentitiesOnly=yes', '-i', quoteShellArgIfNeeded(targetConn.identity))
   }
   if (targetConn.port && targetConn.port !== 22) {
     parts.push('-p', String(targetConn.port))
