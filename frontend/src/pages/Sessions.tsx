@@ -1997,6 +1997,20 @@ function NewSessionModal({
   }, [selectedProfile, denTouched, initialDraft?.den, den])
 
   useEffect(() => {
+    // Workspace recall is a local-mode convenience only. For SSH/host burrows a
+    // recalled path is almost certainly a local one (e.g. /Users/...) that won't
+    // exist on the remote host, so `cd` would fail and the login shell wouldn't
+    // start. Drop recalled (untouched) values in ssh mode; re-recall for local.
+    if (cwdTouched || initialDraft?.cwd) return
+    if (execEnv === 'ssh') {
+      if (cwd.trim()) setCwd('')
+    } else if (!cwd.trim()) {
+      const last = readLastWorkspace()
+      if (last) setCwd(last)
+    }
+  }, [execEnv, cwdTouched, initialDraft?.cwd, cwd])
+
+  useEffect(() => {
     let cancelled = false
     void Environment()
       .then(info => {
@@ -2023,7 +2037,7 @@ function NewSessionModal({
 
       ListSessions()
         .then(items => {
-          if (!cwdTouched && !initialDraft?.cwd && !cwd.trim()) {
+          if (execEnv === 'local' && !cwdTouched && !initialDraft?.cwd && !cwd.trim()) {
             const recentWorkspace = [...(items || [])]
               .filter(item => (item.cwd || '').trim())
               .sort((left, right) => {
