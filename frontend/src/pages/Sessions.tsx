@@ -259,6 +259,16 @@ const formatWorkspaceForCd = (workspace: string) => {
   return quoteShellArgIfNeeded(trimmed)
 }
 
+// Heuristic for "this saved workspace path is a local one" (macOS /Users, Linux
+// /home & /root, mounted /Volumes, or a ~-relative path). Used to drop a recalled
+// local cwd in SSH mode, where it would not exist on the remote host.
+const isLikelyLocalPath = (value: string) => {
+  const s = value.trim()
+  if (!s) return false
+  if (s === '~' || s.startsWith('~/')) return true
+  return /^(\/Users\/|\/home\/|\/root\/?|\/Volumes\/)/.test(s)
+}
+
 const withWorkspace = (workspace: string, command: string, fallbackToShell: boolean) => {
   const normalizedWorkspace = workspace.trim()
   const normalizedCommand = command.trim()
@@ -2914,6 +2924,7 @@ function EditSessionModal({
     initialSession.run_mode === 'host' || initialSession.host_id ? 'ssh' : 'local'
   )
   const [cwd, setCwd] = useState(initialSession.cwd || '')
+  const [cwdTouched, setCwdTouched] = useState(false)
   const [den, setDen] = useState(initialSession.den || '')
   const [pickingCwd, setPickingCwd] = useState(false)
   const [updating, setUpdating] = useState(false)
@@ -3125,6 +3136,16 @@ function EditSessionModal({
   }, [execEnv, scriptFallback, selectedScriptID])
 
   useEffect(() => {
+    // SSH mode: a saved local workspace (e.g. /Users/...) won't exist on the
+    // remote host, so `cd` would fail and the login shell wouldn't start. If the
+    // cwd looks local and the user hasn't typed one this session, clear it.
+    if (cwdTouched) return
+    if (execEnv === 'ssh' && cwd.trim() && isLikelyLocalPath(cwd)) {
+      setCwd('')
+    }
+  }, [execEnv, cwdTouched, cwd])
+
+  useEffect(() => {
     if (commandMode !== 'auto') return
     if (!(runMode === 'shell' || runMode === 'host' || runMode === 'custom')) return
 
@@ -3182,7 +3203,6 @@ function EditSessionModal({
   }, [runMode, selectedHostId, selectedHost, hostCommand, inv.hosts, inv.defaults, hostMap, selectedCodexConfigId, sortedCodexConfigs, sortedDockerConfigs, selectedPluginConfigId, currentPluginConfigs])
 
   const handleUpdate = async () => {
-    if (!selectedProfile) return
     if (execEnv === 'ssh' && !selectedHostId) {
       setError(t('burrows.modal.selectHostRequiredEdit'))
       return
@@ -3278,7 +3298,7 @@ function EditSessionModal({
           </Button>
           <Button
             onClick={handleUpdate}
-            disabled={updating || !selectedProfile}
+            disabled={updating}
           >
             {updating ? t('burrows.edit.saving') : t('burrows.edit.saveRestart')}
           </Button>
@@ -3297,16 +3317,21 @@ function EditSessionModal({
             {profiles.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t('burrows.edit.loadingProfiles')}</p>
             ) : (
-              <Select value={selectedProfile} onValueChange={setSelectedProfile}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder={t('burrows.modal.selectProfile')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sortedProfiles.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <Combobox
+                    value={selectedProfile}
+                    onValueChange={setSelectedProfile}
+                    options={sortedProfiles.map(p => ({ value: p.id, label: p.name || '' }))}
+                    placeholder={t('burrows.modal.selectProfile')}
+                    searchPlaceholder={t('common.search')}
+                    emptyMessage={t('common.noMatches')}
+                  />
+                </div>
+                {selectedProfile && (
+                  <ClearFieldButton onClear={() => setSelectedProfile('')} label={t('common.clear')} />
+                )}
+              </div>
             )}
           </div>
 
@@ -3391,7 +3416,10 @@ function EditSessionModal({
               <input
                 type="text"
                 value={cwd}
-                onChange={e => setCwd(e.target.value)}
+                onChange={e => {
+                  setCwdTouched(true)
+                  setCwd(e.target.value)
+                }}
                 placeholder={t('burrows.modal.workspacePlaceholder')}
                 className="w-full px-3 py-2 bg-background border border-input rounded text-foreground text-sm font-mono placeholder:text-[hsl(var(--placeholder))] placeholder:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring"
               />
