@@ -2055,7 +2055,23 @@ function OpencodeConfigModal({
         </div>
 
         <div>
-          <label className="block text-sm text-muted-foreground mb-1">{t('opencode.modal.configJson')}</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm text-muted-foreground">{t('opencode.modal.configJson')}</label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const tpl = t('opencode.modal.configJsonPlaceholder')
+                if (configJSON.trim() && configJSON !== tpl) {
+                  if (!window.confirm(t('opencode.modal.confirmOverwrite'))) return
+                }
+                setConfigJSON(tpl)
+              }}
+            >
+              {t('opencode.modal.useTemplate')}
+            </Button>
+          </div>
           <Textarea
             value={configJSON}
             onChange={e => setConfigJSON(e.target.value)}

@@ -615,6 +615,8 @@ export const en: Record<string, string> = {
   'opencode.modal.configIdHint': 'Config ID must contain only letters, digits, underscores, and dashes',
   'opencode.modal.configJson': 'opencode.json',
   'opencode.modal.configJsonPlaceholder': '{\n  "$schema": "https://opencode.ai/config.json",\n  "provider": {\n    "maxx": {\n      "id": "maxx",\n      "name": "maxx",\n      "npm": "@ai-sdk/openai-compatible",\n      "options": {\n        "baseURL": "$MAXX_BASE_URL",\n        "apiKey": "$MAXX_TOKEN"\n      },\n      "models": {\n        "glm-hko": { "name": "GLM (haoc)" }\n      }\n    }\n  }\n}',
+  'opencode.modal.useTemplate': 'Use default template',
+  'opencode.modal.confirmOverwrite': 'Replace current content with the default template?',
   'opencode.modal.nameRequired': 'Name is required',
 
   // Settings > About

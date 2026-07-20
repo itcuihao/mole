@@ -615,6 +615,8 @@ export const zh: Record<string, string> = {
   'opencode.modal.configIdHint': '配置 ID 仅限字母、数字、下划线和短横线',
   'opencode.modal.configJson': 'opencode.json',
   'opencode.modal.configJsonPlaceholder': '{\n  "$schema": "https://opencode.ai/config.json",\n  "provider": {\n    "maxx": {\n      "id": "maxx",\n      "name": "maxx",\n      "npm": "@ai-sdk/openai-compatible",\n      "options": {\n        "baseURL": "$MAXX_BASE_URL",\n        "apiKey": "$MAXX_TOKEN"\n      },\n      "models": {\n        "glm-hko": { "name": "GLM (haoc)" }\n      }\n    }\n  }\n}',
+  'opencode.modal.useTemplate': '使用默认模板',
+  'opencode.modal.confirmOverwrite': '用默认模板替换当前内容？',
   'opencode.modal.nameRequired': '名称为必填项',
 
   // Settings > About
