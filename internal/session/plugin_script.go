@@ -20,6 +20,7 @@ func (p *scriptPlugin) LabelKey() string           { return "burrows.runMode.scr
 func (p *scriptPlugin) HintKey() string            { return "burrows.runMode.scriptHint" }
 func (p *scriptPlugin) RequiresHost() bool         { return false }
 func (p *scriptPlugin) RequiresCodex() bool        { return false }
+func (p *scriptPlugin) RequiresOpencode() bool     { return false }
 func (p *scriptPlugin) RequiresCommand() bool      { return false }
 func (p *scriptPlugin) RequiresPluginConfig() bool { return false }
 

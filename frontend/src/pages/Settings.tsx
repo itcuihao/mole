@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { GetInstalledTerminals, GetDefaultTerminal, SetDefaultTerminal, GetTmuxMouseEnabled, SetTmuxMouseEnabled, GetVersion } from '../../wailsjs/go/main/App'
 import { ClipboardSetText, Environment } from '../../wailsjs/runtime/runtime'
-import { codex, docker, pluginconfig, session, terminal } from '../../wailsjs/go/models'
+import { codex, docker, opencode, pluginconfig, session, terminal } from '../../wailsjs/go/models'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ModalShell } from "@/components/ui/modal-shell"
@@ -61,7 +61,7 @@ type BurrowImportResult = {
 }
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
-const SETTINGS_PLUGIN_IDS = ['codex', 'docker', ...EXTERNAL_PLUGIN_IDS]
+const SETTINGS_PLUGIN_IDS = ['codex', 'opencode', 'docker', ...EXTERNAL_PLUGIN_IDS]
 
 const PLUGIN_CONFIG_FIELDS: Record<string, { key: string; labelKey: string; placeholderKey: string; required?: boolean }[]> = {
   k8s_pod: [
@@ -208,6 +208,8 @@ function Settings({
   const [importConfirmText, setImportConfirmText] = useState('')
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
   const [codexModal, setCodexModal] = useState<{ mode: 'new' | 'edit', config?: codex.Config } | null>(null)
+  const [opencodeConfigs, setOpencodeConfigs] = useState<opencode.Config[]>([])
+  const [opencodeModal, setOpencodeModal] = useState<{ mode: 'new' | 'edit', config?: opencode.Config } | null>(null)
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
   const [dockerModal, setDockerModal] = useState<{ mode: 'new' | 'edit', config?: docker.Config } | null>(null)
   const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
@@ -296,6 +298,19 @@ function Settings({
     }
   }
 
+  const loadOpencodeConfigs = async () => {
+    const method = getAppMethod('ListOpencodeConfigs')
+    if (typeof method !== 'function') {
+      return
+    }
+    try {
+      const configs = await method()
+      setOpencodeConfigs(configs || [])
+    } catch (err) {
+      speakBubble({ type: 'error', text: String(err) })
+    }
+  }
+
   const loadPlugins = async () => {
     const method = getAppMethod('ListLaunchPlugins')
     if (typeof method !== 'function') return
@@ -357,6 +372,7 @@ function Settings({
 
   useEffect(() => {
     loadCodexConfigs()
+    loadOpencodeConfigs()
     loadDockerConfigs()
     loadScriptConfigs()
     loadPluginConfigs()
@@ -844,9 +860,10 @@ function Settings({
                 if (!selected) return <div className="text-sm text-muted-foreground">{t('settings.plugins.desc')}</div>
 
                 const isCodex = selected.id === 'codex'
+                const isOpencode = selected.id === 'opencode'
                 const isDocker = selected.id === 'docker'
                 const isExternal = EXTERNAL_PLUGIN_IDS.includes(selected.id)
-                const isBuiltin = !isCodex && !isDocker && !isExternal
+                const isBuiltin = !isCodex && !isOpencode && !isDocker && !isExternal
                 const selectedPluginConfigs = pluginConfigs.filter(cfg => cfg.plugin_id === selected.id)
 
                 const dockerCmdPreview = (cfg: docker.Config) => {
@@ -913,6 +930,68 @@ function Settings({
                                         await method(cfg.id)
                                         await loadCodexConfigs()
                                         speakBubble({ type: 'success', text: t('settings.codex.removed') })
+                                      } catch (err) {
+                                        speakBubble({ type: 'error', text: String(err) })
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {t('common.remove')}
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {isOpencode && (
+                      <>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-foreground">{t('settings.opencode.title')}</h4>
+                          <Button size="sm" onClick={() => setOpencodeModal({ mode: 'new' })}>
+                            <Plus className="w-4 h-4" />
+                            {t('common.new')}
+                          </Button>
+                        </div>
+
+                        {opencodeConfigs.length === 0 ? (
+                          <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                            {t('settings.opencode.empty')}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {opencodeConfigs.map(cfg => (
+                              <div key={cfg.id} className="breathing-card flex flex-col gap-3 rounded-2xl border border-border bg-muted/15 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{cfg.name}</span>
+                                    <span className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                                      {cfg.id}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                                    {t('settings.opencode.desc')}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => setOpencodeModal({ mode: 'edit', config: cfg })}>
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    {t('common.edit')}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={async () => {
+                                      if (!window.confirm(t('settings.opencode.confirmRemove', { name: cfg.name }))) return
+                                      const method = getAppMethod('DeleteOpencodeConfig')
+                                      if (typeof method !== 'function') return
+                                      try {
+                                        await method(cfg.id)
+                                        await loadOpencodeConfigs()
+                                        speakBubble({ type: 'success', text: t('settings.opencode.removed') })
                                       } catch (err) {
                                         speakBubble({ type: 'error', text: String(err) })
                                       }
@@ -1459,6 +1538,19 @@ function Settings({
         />
       )}
 
+      {opencodeModal && (
+        <OpencodeConfigModal
+          mode={opencodeModal.mode}
+          config={opencodeModal.config}
+          onClose={() => setOpencodeModal(null)}
+          onSaved={async () => {
+            setOpencodeModal(null)
+            await loadOpencodeConfigs()
+            speakBubble({ type: 'success', text: t('settings.opencode.saved') })
+          }}
+        />
+      )}
+
       {dockerModal && (
         <DockerConfigModal
           mode={dockerModal.mode}
@@ -1848,6 +1940,129 @@ function CodexConfigModal({
               />
             </div>
           )}
+        </div>
+      </div>
+    </ModalShell>
+  )
+}
+
+function OpencodeConfigModal({
+  mode,
+  config,
+  onClose,
+  onSaved,
+}: {
+  mode: 'new' | 'edit'
+  config?: opencode.Config
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const { t } = useTranslation()
+  const [name, setName] = useState(config?.name || '')
+  const [id, setId] = useState(config?.id || '')
+  const [configJSON, setConfigJSON] = useState(config?.config_json || '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const validateBeforeSave = () => {
+    if (!name.trim()) return t('opencode.modal.nameRequired')
+    if (!/^[A-Za-z0-9_-]+$/.test(id.trim())) {
+      return t('opencode.modal.configIdHint')
+    }
+    if (configJSON.trim()) {
+      try {
+        const parsed = JSON.parse(configJSON)
+        if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+          return t('opencode.modal.configIdHint')
+        }
+      } catch (err) {
+        return t('codex.modal.invalidAuth', { error: String(err) })
+      }
+    }
+    return ''
+  }
+
+  const handleSave = async () => {
+    const validationError = validateBeforeSave()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    const method = getAppMethod('SaveOpencodeConfig')
+    if (typeof method !== 'function') {
+      setError('SaveOpencodeConfig is unavailable')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    try {
+      await method({
+        id: id.trim(),
+        name: name.trim(),
+        config_json: configJSON,
+      })
+      onSaved()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalShell
+      title={mode === 'new' ? t('opencode.modal.newTitle') : t('opencode.modal.editTitle', { name: config?.name || '' })}
+      description={t('opencode.modal.desc')}
+      onClose={onClose}
+      contentStyle={{ maxWidth: '760px' }}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose} variant="ghost">{t('common.cancel')}</Button>
+          <Button onClick={handleSave} disabled={saving || !name.trim() || !id.trim()}>
+            {saving ? t('profiles.form.saving') : t('common.save')}
+          </Button>
+        </div>
+      )}
+    >
+      {error && (
+        <div className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('common.name')}</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Maxx"
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-muted-foreground mb-1">{t('opencode.modal.configId')}</label>
+            <input
+              value={id}
+              onChange={e => setId(e.target.value)}
+              disabled={mode === 'edit'}
+              placeholder="maxx"
+              className="w-full rounded border border-input bg-background px-3 py-2 text-sm font-mono text-foreground disabled:opacity-70 focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-muted-foreground mb-1">{t('opencode.modal.configJson')}</label>
+          <Textarea
+            value={configJSON}
+            onChange={e => setConfigJSON(e.target.value)}
+            rows={14}
+            placeholder={t('opencode.modal.configJsonPlaceholder')}
+            className="min-h-80 font-mono text-xs"
+          />
         </div>
       </div>
     </ModalShell>

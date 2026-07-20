@@ -19,6 +19,7 @@ func (p *codexPlugin) LabelKey() string           { return "burrows.runMode.code
 func (p *codexPlugin) HintKey() string            { return "burrows.runMode.codexHint" }
 func (p *codexPlugin) RequiresHost() bool         { return false }
 func (p *codexPlugin) RequiresCodex() bool        { return true }
+func (p *codexPlugin) RequiresOpencode() bool     { return false }
 func (p *codexPlugin) RequiresCommand() bool      { return false }
 func (p *codexPlugin) RequiresPluginConfig() bool { return false }
 

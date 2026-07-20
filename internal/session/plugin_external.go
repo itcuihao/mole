@@ -24,6 +24,7 @@ func (p *presetPlugin) LabelKey() string           { return p.labelKey }
 func (p *presetPlugin) HintKey() string            { return p.hintKey }
 func (p *presetPlugin) RequiresHost() bool         { return false }
 func (p *presetPlugin) RequiresCodex() bool        { return false }
+func (p *presetPlugin) RequiresOpencode() bool     { return false }
 func (p *presetPlugin) RequiresCommand() bool      { return false }
 func (p *presetPlugin) RequiresPluginConfig() bool { return true }
 

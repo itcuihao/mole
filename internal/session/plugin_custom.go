@@ -9,6 +9,7 @@ func (p *customPlugin) LabelKey() string           { return "burrows.runMode.cus
 func (p *customPlugin) HintKey() string            { return "burrows.runMode.customHint" }
 func (p *customPlugin) RequiresHost() bool         { return false }
 func (p *customPlugin) RequiresCodex() bool        { return false }
+func (p *customPlugin) RequiresOpencode() bool     { return false }
 func (p *customPlugin) RequiresCommand() bool      { return true }
 func (p *customPlugin) RequiresPluginConfig() bool { return false }
 

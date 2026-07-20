@@ -4,23 +4,25 @@ import "sort"
 
 // LaunchRequest holds editable launch parameters before plugin normalization.
 type LaunchRequest struct {
-	Command        string            `json:"command,omitempty"`
-	RunMode        string            `json:"run_mode,omitempty"`
-	HostID         string            `json:"host_id,omitempty"`
-	ScriptID       string            `json:"script_id,omitempty"`
-	CodexConfigID  string            `json:"codex_config_id,omitempty"`
-	PluginConfigID string            `json:"plugin_config_id,omitempty"`
-	PluginData     map[string]string `json:"plugin_data,omitempty"`
+	Command          string            `json:"command,omitempty"`
+	RunMode          string            `json:"run_mode,omitempty"`
+	HostID           string            `json:"host_id,omitempty"`
+	ScriptID         string            `json:"script_id,omitempty"`
+	CodexConfigID    string            `json:"codex_config_id,omitempty"`
+	OpencodeConfigID string            `json:"opencode_config_id,omitempty"`
+	PluginConfigID   string            `json:"plugin_config_id,omitempty"`
+	PluginData       map[string]string `json:"plugin_data,omitempty"`
 }
 
 // LaunchConfig holds the normalized launch parameters produced by a plugin.
 type LaunchConfig struct {
-	Command        string
-	HostID         string
-	ScriptID       string
-	CodexConfigID  string
-	PluginConfigID string
-	PluginData     map[string]string
+	Command          string
+	HostID           string
+	ScriptID         string
+	CodexConfigID    string
+	OpencodeConfigID string
+	PluginConfigID   string
+	PluginData       map[string]string
 }
 
 // LaunchPlugin defines launch behavior for one run mode.
@@ -30,6 +32,7 @@ type LaunchPlugin interface {
 	HintKey() string
 	RequiresHost() bool
 	RequiresCodex() bool
+	RequiresOpencode() bool
 	RequiresCommand() bool
 	RequiresPluginConfig() bool
 
@@ -46,6 +49,7 @@ type PluginInfo struct {
 	HintKey              string `json:"hint_key"`
 	RequiresHost         bool   `json:"requires_host"`
 	RequiresCodex        bool   `json:"requires_codex"`
+	RequiresOpencode     bool   `json:"requires_opencode"`
 	RequiresCommand      bool   `json:"requires_command"`
 	RequiresPluginConfig bool   `json:"requires_plugin_config"`
 }
@@ -57,6 +61,7 @@ func pluginInfo(p LaunchPlugin) PluginInfo {
 		HintKey:              p.HintKey(),
 		RequiresHost:         p.RequiresHost(),
 		RequiresCodex:        p.RequiresCodex(),
+		RequiresOpencode:     p.RequiresOpencode(),
 		RequiresCommand:      p.RequiresCommand(),
 		RequiresPluginConfig: p.RequiresPluginConfig(),
 	}

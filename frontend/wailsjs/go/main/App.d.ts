@@ -9,6 +9,7 @@ import {workspace} from '../models';
 import {codex} from '../models';
 import {docker} from '../models';
 import {integration} from '../models';
+import {opencode} from '../models';
 import {pluginconfig} from '../models';
 import {profile} from '../models';
 import {scriptcfg} from '../models';
@@ -32,6 +33,8 @@ export function DeleteDockerConfig(arg1:string):Promise<void>;
 export function DeleteHost(arg1:string):Promise<void>;
 
 export function DeleteHostGroup(arg1:string):Promise<void>;
+
+export function DeleteOpencodeConfig(arg1:string):Promise<void>;
 
 export function DeletePluginConfig(arg1:string):Promise<void>;
 
@@ -83,6 +86,8 @@ export function ListIntegrationStatuses():Promise<Array<integration.IntegrationS
 
 export function ListLaunchPlugins():Promise<Array<session.PluginInfo>>;
 
+export function ListOpencodeConfigs():Promise<Array<opencode.Config>>;
+
 export function ListPluginConfigs(arg1:string):Promise<Array<pluginconfig.Config>>;
 
 export function ListProfiles():Promise<Array<profile.Profile>>;
@@ -116,6 +121,8 @@ export function SaveHostGroup(arg1:inventory.HostGroup):Promise<void>;
 export function SaveInventory(arg1:inventory.Inventory):Promise<void>;
 
 export function SaveInventoryDefaults(arg1:inventory.HostDefaults):Promise<void>;
+
+export function SaveOpencodeConfig(arg1:opencode.SaveRequest):Promise<opencode.Config>;
 
 export function SavePluginConfig(arg1:pluginconfig.SaveRequest):Promise<pluginconfig.Config>;
 

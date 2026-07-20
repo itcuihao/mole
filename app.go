@@ -19,6 +19,7 @@ import (
 	"mole/internal/integration"
 	"mole/internal/inventory"
 	"mole/internal/molecache"
+	"mole/internal/opencode"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/provider"
@@ -36,6 +37,7 @@ type App struct {
 	ctx             context.Context
 	profileMgr      *profile.Manager
 	codexMgr        *codex.Manager
+	opencodeMgr     *opencode.Manager
 	dockerMgr       *docker.Manager
 	scriptMgr       *scriptcfg.Manager
 	pluginConfigMgr *pluginconfig.Manager
@@ -75,12 +77,14 @@ func (a *App) startup(ctx context.Context) {
 	a.profileMgr = profile.NewManager(config.ProfilesPath())
 	a.seedDefaultProfiles()
 	a.codexMgr = codex.NewManager(config.CodexConfigsPath())
+	a.opencodeMgr = opencode.NewManager(config.OpencodeConfigsPath())
 	a.dockerMgr = docker.NewManager(config.DockerConfigsPath())
 	a.scriptMgr = scriptcfg.NewManager(config.ScriptConfigsPath())
 	a.pluginConfigMgr = pluginconfig.NewManager(config.PluginConfigsPath())
 	a.invMgr = inventory.NewManager(config.HostsPath())
 	a.sessionMgr = session.NewPlatformManager(config.SessionsPath(), a.profileMgr, a.invMgr)
 	a.sessionMgr.SetCodexManager(a.codexMgr)
+	a.sessionMgr.SetOpencodeManager(a.opencodeMgr)
 	a.sessionMgr.SetDockerManager(a.dockerMgr)
 	a.sessionMgr.SetPluginConfigManager(a.pluginConfigMgr)
 	a.sessionMgr.SetScriptManager(a.scriptMgr)
@@ -105,8 +109,8 @@ func (a *App) seedDefaultProfiles() {
 		Description:    "Free Claude Code via Maxx proxy",
 		DefaultCommand: "claude",
 		EnvVars: map[string]string{
-			"ANTHROPIC_AUTH_TOKEN": "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9",
-			"ANTHROPIC_BASE_URL":   "https://maxx-direct.cloverstd.com/project/haoc/",
+			"ANTHROPIC_AUTH_TOKEN":                     "maxx_dbaea2a29fff547a532f9151e294a7dd0daad81d960a93dde8d1ed0bc53972e9",
+			"ANTHROPIC_BASE_URL":                       "https://maxx-direct.cloverstd.com/project/haoc/",
 			"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		},
 		SecretKeys: []string{"ANTHROPIC_AUTH_TOKEN"},
@@ -187,6 +191,21 @@ func (a *App) SaveCodexConfig(req codex.SaveRequest) (codex.Config, error) {
 // DeleteCodexConfig removes Codex config metadata without deleting its home directory.
 func (a *App) DeleteCodexConfig(id string) error {
 	return a.codexMgr.Delete(id)
+}
+
+// ListOpencodeConfigs returns all opencode.json templates managed by Mole.
+func (a *App) ListOpencodeConfigs() ([]opencode.Config, error) {
+	return a.opencodeMgr.List()
+}
+
+// SaveOpencodeConfig saves an opencode.json template (provider/agent/model).
+func (a *App) SaveOpencodeConfig(req opencode.SaveRequest) (opencode.Config, error) {
+	return a.opencodeMgr.Save(req)
+}
+
+// DeleteOpencodeConfig removes an opencode config.
+func (a *App) DeleteOpencodeConfig(id string) error {
+	return a.opencodeMgr.Delete(id)
 }
 
 // ListDockerConfigs returns all Docker container launch configurations.

@@ -408,6 +408,47 @@ export namespace main {
 
 }
 
+export namespace opencode {
+	
+	export class Config {
+	    id: string;
+	    name: string;
+	    config_json: string;
+	    created_at: string;
+	    updated_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.config_json = source["config_json"];
+	        this.created_at = source["created_at"];
+	        this.updated_at = source["updated_at"];
+	    }
+	}
+	export class SaveRequest {
+	    id: string;
+	    name: string;
+	    config_json: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.config_json = source["config_json"];
+	    }
+	}
+
+}
+
 export namespace pluginconfig {
 	
 	export class Config {
@@ -670,6 +711,7 @@ export namespace session {
 	    hint_key: string;
 	    requires_host: boolean;
 	    requires_codex: boolean;
+	    requires_opencode: boolean;
 	    requires_command: boolean;
 	    requires_plugin_config: boolean;
 	
@@ -684,6 +726,7 @@ export namespace session {
 	        this.hint_key = source["hint_key"];
 	        this.requires_host = source["requires_host"];
 	        this.requires_codex = source["requires_codex"];
+	        this.requires_opencode = source["requires_opencode"];
 	        this.requires_command = source["requires_command"];
 	        this.requires_plugin_config = source["requires_plugin_config"];
 	    }
@@ -712,6 +755,7 @@ export namespace session {
 	    host_id?: string;
 	    script_id?: string;
 	    codex_config_id?: string;
+	    opencode_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
 	    den?: string;
@@ -731,6 +775,7 @@ export namespace session {
 	        this.host_id = source["host_id"];
 	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
+	        this.opencode_config_id = source["opencode_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
 	        this.den = source["den"];
@@ -749,6 +794,7 @@ export namespace session {
 	    host_id?: string;
 	    script_id?: string;
 	    codex_config_id?: string;
+	    opencode_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
 	    den?: string;
@@ -779,6 +825,7 @@ export namespace session {
 	        this.host_id = source["host_id"];
 	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
+	        this.opencode_config_id = source["opencode_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
 	        this.den = source["den"];
@@ -802,6 +849,7 @@ export namespace session {
 	    host_id?: string;
 	    script_id?: string;
 	    codex_config_id?: string;
+	    opencode_config_id?: string;
 	    plugin_config_id?: string;
 	    plugin_data?: Record<string, string>;
 	    den?: string;
@@ -821,6 +869,7 @@ export namespace session {
 	        this.host_id = source["host_id"];
 	        this.script_id = source["script_id"];
 	        this.codex_config_id = source["codex_config_id"];
+	        this.opencode_config_id = source["opencode_config_id"];
 	        this.plugin_config_id = source["plugin_config_id"];
 	        this.plugin_data = source["plugin_data"];
 	        this.den = source["den"];

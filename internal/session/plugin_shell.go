@@ -9,6 +9,7 @@ func (p *shellPlugin) LabelKey() string           { return "burrows.runMode.shel
 func (p *shellPlugin) HintKey() string            { return "burrows.runMode.shellHint" }
 func (p *shellPlugin) RequiresHost() bool         { return false }
 func (p *shellPlugin) RequiresCodex() bool        { return false }
+func (p *shellPlugin) RequiresOpencode() bool     { return false }
 func (p *shellPlugin) RequiresCommand() bool      { return false }
 func (p *shellPlugin) RequiresPluginConfig() bool { return false }
 

@@ -42,6 +42,10 @@ export function DeleteHostGroup(arg1) {
   return window['go']['main']['App']['DeleteHostGroup'](arg1);
 }
 
+export function DeleteOpencodeConfig(arg1) {
+  return window['go']['main']['App']['DeleteOpencodeConfig'](arg1);
+}
+
 export function DeletePluginConfig(arg1) {
   return window['go']['main']['App']['DeletePluginConfig'](arg1);
 }
@@ -142,6 +146,10 @@ export function ListLaunchPlugins() {
   return window['go']['main']['App']['ListLaunchPlugins']();
 }
 
+export function ListOpencodeConfigs() {
+  return window['go']['main']['App']['ListOpencodeConfigs']();
+}
+
 export function ListPluginConfigs(arg1) {
   return window['go']['main']['App']['ListPluginConfigs'](arg1);
 }
@@ -208,6 +216,10 @@ export function SaveInventory(arg1) {
 
 export function SaveInventoryDefaults(arg1) {
   return window['go']['main']['App']['SaveInventoryDefaults'](arg1);
+}
+
+export function SaveOpencodeConfig(arg1) {
+  return window['go']['main']['App']['SaveOpencodeConfig'](arg1);
 }
 
 export function SavePluginConfig(arg1) {

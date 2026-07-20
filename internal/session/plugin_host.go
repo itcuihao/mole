@@ -20,6 +20,7 @@ func (p *hostPlugin) LabelKey() string           { return "burrows.runMode.host"
 func (p *hostPlugin) HintKey() string            { return "burrows.runMode.hostHint" }
 func (p *hostPlugin) RequiresHost() bool         { return true }
 func (p *hostPlugin) RequiresCodex() bool        { return false }
+func (p *hostPlugin) RequiresOpencode() bool     { return false }
 func (p *hostPlugin) RequiresCommand() bool      { return false }
 func (p *hostPlugin) RequiresPluginConfig() bool { return false }
 

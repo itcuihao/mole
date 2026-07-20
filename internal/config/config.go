@@ -51,6 +51,11 @@ func CodexConfigsPath() string {
 	return filepath.Join(Dir(), "codex_configs.json")
 }
 
+// OpencodeConfigsPath returns the path to opencode_configs.json.
+func OpencodeConfigsPath() string {
+	return filepath.Join(Dir(), "opencode_configs.json")
+}
+
 // CodexHomeRoot returns the directory that contains isolated Codex homes.
 func CodexHomeRoot() string {
 	return filepath.Join(Dir(), "ai", "codex")

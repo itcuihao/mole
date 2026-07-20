@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { ListSessions, AttachSession, AttachSessionWithTerminal, KillSession, RestartSession, ListProfiles, GetInstalledTerminals, GetDefaultTerminal, GetInventory, GetHostsHealth, CheckHostHealth, UploadFile } from '../../wailsjs/go/main/App'
-import { codex, docker, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
+import { codex, docker, opencode, pluginconfig, session, profile, terminal, inventory } from '../../wailsjs/go/models'
 import { Environment } from '../../wailsjs/runtime/runtime'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +23,7 @@ type SessionRecord = session.SessionStatus & {
   host_id?: string
   script_id?: string
   codex_config_id?: string
+  opencode_config_id?: string
   plugin_config_id?: string
   plugin_data?: Record<string, string>
   cwd?: string
@@ -37,6 +38,7 @@ type SessionDraft = {
   runMode: string
   hostID: string
   codexConfigID?: string
+  opencodeConfigID?: string
   pluginConfigID?: string
   pluginData?: Record<string, string>
   execEnv?: 'local' | 'ssh'
@@ -72,7 +74,7 @@ const BACKEND_WSL_TMUX = 'wsl-tmux'
 const BACKEND_POWERSHELL = 'powershell'
 
 const EXTERNAL_PLUGIN_IDS = ['k8s_pod', 'tmux_attach', 'remote_tmux']
-const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'docker', 'script', ...EXTERNAL_PLUGIN_IDS])
+const KNOWN_RUN_MODES = new Set(['shell', 'host', 'custom', 'codex', 'opencode', 'docker', 'script', ...EXTERNAL_PLUGIN_IDS])
 const isExternalPluginMode = (mode: string) => EXTERNAL_PLUGIN_IDS.includes(mode)
 
 const pluginConfigSummary = (pluginID: string, cfg?: pluginconfig.Config | null) => {
@@ -577,6 +579,7 @@ const createSessionWithOptions = (
   hostID: string,
   scriptID: string,
   codexConfigID: string,
+  opencodeConfigID: string,
   pluginConfigID: string,
   pluginData: Record<string, string>,
   den: string,
@@ -593,6 +596,7 @@ const createSessionWithOptions = (
       host_id: hostID,
       script_id: scriptID,
       codex_config_id: codexConfigID,
+      opencode_config_id: opencodeConfigID,
       plugin_config_id: pluginConfigID,
       plugin_data: pluginData,
       den,
@@ -615,6 +619,7 @@ const updateSessionWithOptions = (
   hostID: string,
   scriptID: string,
   codexConfigID: string,
+  opencodeConfigID: string,
   pluginConfigID: string,
   pluginData: Record<string, string>,
   den: string,
@@ -631,6 +636,7 @@ const updateSessionWithOptions = (
       host_id: hostID,
       script_id: scriptID,
       codex_config_id: codexConfigID,
+      opencode_config_id: opencodeConfigID,
       plugin_config_id: pluginConfigID,
       plugin_data: pluginData,
       den,
@@ -1166,6 +1172,7 @@ function Sessions({
       hostID: sess.host_id || '',
       scriptID: sess.script_id || '',
       codexConfigID: sess.codex_config_id || '',
+      opencodeConfigID: sess.opencode_config_id || '',
       pluginConfigID: sess.plugin_config_id || '',
       pluginData: sess.plugin_data || {},
       commandMode: sess.run_mode === 'custom' || sess.run_mode === 'script' ? 'manual' : 'auto',
@@ -1937,6 +1944,7 @@ function NewSessionModal({
   const [selectedProfile, setSelectedProfile] = useState(initialDraft?.profileID || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
+  const [opencodeConfigs, setOpencodeConfigs] = useState<opencode.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
   const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
   const [runtimeScriptPlatform, setRuntimeScriptPlatform] = useState<RuntimeScriptPlatform>('other')
@@ -1944,6 +1952,7 @@ function NewSessionModal({
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState(initialDraft?.hostID || '')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialDraft?.codexConfigID || '')
+  const [selectedOpencodeConfigId, setSelectedOpencodeConfigId] = useState(initialDraft?.opencodeConfigID || '')
   const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialDraft?.pluginConfigID || '')
   const [pluginData, setPluginData] = useState<Record<string, string>>(initialDraft?.pluginData || {})
   const [runMode, setRunMode] = useState<string>(initialDraft?.runMode || 'shell')
@@ -1975,6 +1984,7 @@ function NewSessionModal({
         if (draft.execEnv) setExecEnv(draft.execEnv)
         if (draft.hostID) setSelectedHostId(draft.hostID)
         if (draft.codexConfigID) setSelectedCodexConfigId(draft.codexConfigID)
+        if (draft.opencodeConfigID) setSelectedOpencodeConfigId(draft.opencodeConfigID)
         if (draft.pluginConfigID) setSelectedPluginConfigId(draft.pluginConfigID)
         if (draft.pluginData) setPluginData(draft.pluginData)
         if (draft.commandMode === 'auto' || draft.commandMode === 'manual') {
@@ -2092,6 +2102,16 @@ function NewSessionModal({
           .catch(() => {})
       }
 
+      const listOpencodeConfigs = getAppMethod('ListOpencodeConfigs')
+      if (typeof listOpencodeConfigs === 'function') {
+        listOpencodeConfigs()
+          .then((configs: opencode.Config[]) => {
+            setOpencodeConfigs(configs || [])
+            if (configs && configs.length > 0) setSelectedOpencodeConfigId(configs[0].id)
+          })
+          .catch(() => {})
+      }
+
       const listDockerConfigs = getAppMethod('ListDockerConfigs')
       if (typeof listDockerConfigs === 'function') {
         listDockerConfigs()
@@ -2139,6 +2159,10 @@ function NewSessionModal({
   const sortedCodexConfigs = useMemo(() => (
     [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [codexConfigs])
+
+  const sortedOpencodeConfigs = useMemo(() => (
+    [...opencodeConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [opencodeConfigs])
 
   const sortedDockerConfigs = useMemo(() => (
     [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
@@ -2227,6 +2251,18 @@ function NewSessionModal({
       }
     }
 
+    if (runMode === 'opencode') {
+      setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
+      setSelectedPluginConfigId('')
+      setPluginData({})
+      setCommand('opencode')
+      if (!selectedOpencodeConfigId && sortedOpencodeConfigs.length > 0) {
+        setSelectedOpencodeConfigId(sortedOpencodeConfigs[0].id)
+      }
+    }
+
     if (runMode === 'docker') {
       setSelectedHostId('')
       setSelectedScriptID('')
@@ -2268,6 +2304,7 @@ function NewSessionModal({
     runMode,
     hostID: selectedHostId,
     codexConfigID: selectedCodexConfigId,
+    opencodeConfigID: selectedOpencodeConfigId,
     pluginConfigID: selectedPluginConfigId,
     pluginData,
     execEnv,
@@ -2287,6 +2324,10 @@ function NewSessionModal({
     }
     if (runMode === 'codex' && !selectedCodexConfigId) {
       setError(t('burrows.modal.selectCodexRequired'))
+      return
+    }
+    if (runMode === 'opencode' && !selectedOpencodeConfigId) {
+      setError(t('burrows.modal.selectOpencodeRequired'))
       return
     }
     if (runMode === 'docker' && !selectedCodexConfigId) {
@@ -2320,6 +2361,9 @@ function NewSessionModal({
       if (execEnv === 'ssh') {
         effectiveRunMode = 'host'
         effectiveHostId = selectedHostId
+      } else if (runMode === 'codex' || runMode === 'opencode' || runMode === 'docker' || isExternalPluginMode(runMode)) {
+        // Plugin modes keep their runMode as-is; the backend plugin supplies the command
+        // and (for codex/opencode) materializes config into the workspace.
       } else if (selectedScriptID && execEnv === 'local') {
         effectiveRunMode = 'script'
         effectiveScriptId = selectedScriptID
@@ -2342,6 +2386,7 @@ function NewSessionModal({
         effectiveHostId,
         effectiveScriptId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        runMode === 'opencode' ? selectedOpencodeConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
@@ -2505,6 +2550,18 @@ function NewSessionModal({
               {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
+
+          {execEnv === 'local' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">{t('burrows.modal.launchMode')}</label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <RunModeOption mode="shell" labelKey="burrows.runMode.shell" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="codex" labelKey="burrows.runMode.codex" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="opencode" labelKey="burrows.runMode.opencode" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="docker" labelKey="burrows.runMode.docker" activeMode={runMode} onSelect={setRunMode} />
+              </div>
+            </div>
+          )}
 
           {runtimeScriptPlatform === 'windows' && (
             <div>
@@ -2734,6 +2791,44 @@ function NewSessionModal({
             </div>
           )}
 
+          {runMode === 'opencode' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.opencodeConfig')}</label>
+              {opencodeConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noOpencode')}</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedOpencodeConfigId} onValueChange={setSelectedOpencodeConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectOpencode')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedOpencodeConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedOpencodeConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedOpencodeConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
+              )}
+              {selectedOpencodeConfigId && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                    {t('burrows.modal.launchPreview')}
+                  </div>
+                  <div className="font-mono">opencode</div>
+                </div>
+              )}
+            </div>
+          )}
+
           {runMode === 'docker' && (
             <div>
               <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.dockerConfig')}</label>
@@ -2902,6 +2997,7 @@ function EditSessionModal({
   const [command, setCommand] = useState(initialSession.command || '')
   const [inv, setInv] = useState<inventory.Inventory>(EMPTY_INVENTORY)
   const [codexConfigs, setCodexConfigs] = useState<codex.Config[]>([])
+  const [opencodeConfigs, setOpencodeConfigs] = useState<opencode.Config[]>([])
   const [dockerConfigs, setDockerConfigs] = useState<docker.Config[]>([])
   const [scriptConfigs, setScriptConfigs] = useState<ScriptConfig[]>([])
   const [runtimeScriptPlatform, setRuntimeScriptPlatform] = useState<RuntimeScriptPlatform>('other')
@@ -2909,6 +3005,7 @@ function EditSessionModal({
   const [plugins, setPlugins] = useState<session.PluginInfo[]>([])
   const [selectedHostId, setSelectedHostId] = useState('')
   const [selectedCodexConfigId, setSelectedCodexConfigId] = useState(initialSession.codex_config_id || '')
+  const [selectedOpencodeConfigId, setSelectedOpencodeConfigId] = useState(initialSession.opencode_config_id || '')
   const [selectedPluginConfigId, setSelectedPluginConfigId] = useState(initialSession.plugin_config_id || '')
   const [pluginData, setPluginData] = useState<Record<string, string>>(initialSession.plugin_data || {})
   const [selectedBackend, setSelectedBackend] = useState<string>(initialSession.backend_id || BACKEND_WSL_TMUX)
@@ -2968,6 +3065,13 @@ function EditSessionModal({
           .catch(() => {})
       }
 
+      const listOpencodeConfigs = getAppMethod('ListOpencodeConfigs')
+      if (typeof listOpencodeConfigs === 'function') {
+        listOpencodeConfigs()
+          .then((configs: opencode.Config[]) => setOpencodeConfigs(configs || []))
+          .catch(() => {})
+      }
+
       const listLaunchPlugins = getAppMethod('ListLaunchPlugins')
       if (typeof listLaunchPlugins === 'function') {
         listLaunchPlugins()
@@ -3015,6 +3119,10 @@ function EditSessionModal({
   const sortedCodexConfigs = useMemo(() => (
     [...codexConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
   ), [codexConfigs])
+
+  const sortedOpencodeConfigs = useMemo(() => (
+    [...opencodeConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
+  ), [opencodeConfigs])
 
   const sortedDockerConfigs = useMemo(() => (
     [...dockerConfigs].sort((a, b) => compareAlpha(a.name || a.id, b.name || b.id))
@@ -3075,6 +3183,16 @@ function EditSessionModal({
       setCommandMode('manual')
       setSelectedScriptID('')
       setCommand('')
+      return
+    }
+
+    if (initialSession.run_mode === 'opencode' && initialSession.opencode_config_id) {
+      setRunMode('opencode')
+      setExecEnv('local')
+      setSelectedOpencodeConfigId(initialSession.opencode_config_id)
+      setCommandMode('manual')
+      setSelectedScriptID('')
+      setCommand('opencode')
       return
     }
 
@@ -3178,6 +3296,18 @@ function EditSessionModal({
       }
     }
 
+    if (runMode === 'opencode') {
+      setSelectedHostId('')
+      setSelectedScriptID('')
+      setScriptFallback(null)
+      setSelectedPluginConfigId('')
+      setPluginData({})
+      setCommand('opencode')
+      if (!selectedOpencodeConfigId && sortedOpencodeConfigs.length > 0) {
+        setSelectedOpencodeConfigId(sortedOpencodeConfigs[0].id)
+      }
+    }
+
     if (runMode === 'docker') {
       setSelectedHostId('')
       setSelectedScriptID('')
@@ -3256,6 +3386,7 @@ function EditSessionModal({
         effectiveHostId,
         effectiveScriptId,
         (runMode === 'codex' || runMode === 'docker') ? selectedCodexConfigId : '',
+        runMode === 'opencode' ? selectedOpencodeConfigId : '',
         isExternalPluginMode(runMode) ? selectedPluginConfigId : '',
         isExternalPluginMode(runMode) ? pluginData : {},
         den.trim(),
@@ -3356,6 +3487,18 @@ function EditSessionModal({
               {execEnv === 'local' ? t('burrows.runMode.localHint') : t('burrows.runMode.sshHint')}
             </div>
           </div>
+
+          {execEnv === 'local' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-2">{t('burrows.modal.launchMode')}</label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <RunModeOption mode="shell" labelKey="burrows.runMode.shell" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="codex" labelKey="burrows.runMode.codex" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="opencode" labelKey="burrows.runMode.opencode" activeMode={runMode} onSelect={setRunMode} />
+                <RunModeOption mode="docker" labelKey="burrows.runMode.docker" activeMode={runMode} onSelect={setRunMode} />
+              </div>
+            </div>
+          )}
 
           {runtimeScriptPlatform === 'windows' && (
             <div>
@@ -3539,6 +3682,44 @@ function EditSessionModal({
                     {t('burrows.modal.launchPreview')}
                   </div>
                   <div className="font-mono">codex</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {runMode === 'opencode' && (
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1">{t('burrows.modal.opencodeConfig')}</label>
+              {opencodeConfigs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t('burrows.modal.noOpencode')}</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select value={selectedOpencodeConfigId} onValueChange={setSelectedOpencodeConfigId}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={t('burrows.modal.selectOpencode')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedOpencodeConfigs.map(cfg => (
+                          <SelectItem key={cfg.id} value={cfg.id}>
+                            {cfg.name || cfg.id}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {selectedOpencodeConfigId && (
+                    <ClearFieldButton onClear={() => setSelectedOpencodeConfigId('')} label={t('common.clear')} />
+                  )}
+                </div>
+              )}
+              {selectedOpencodeConfigId && (
+                <div className="mt-2 rounded-md border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <div className="mb-1 flex items-center gap-1 font-medium text-foreground">
+                    <Bot className="h-3.5 w-3.5" />
+                    {t('burrows.modal.launchPreview')}
+                  </div>
+                  <div className="font-mono">opencode</div>
                 </div>
               )}
             </div>

@@ -18,6 +18,7 @@ import (
 	"mole/internal/config"
 	"mole/internal/docker"
 	"mole/internal/inventory"
+	"mole/internal/opencode"
 	"mole/internal/pluginconfig"
 	"mole/internal/profile"
 	"mole/internal/scriptcfg"
@@ -34,6 +35,7 @@ type Manager struct {
 	profileMgr       *profile.Manager
 	invMgr           *inventory.Manager
 	codexMgr         *codex.Manager
+	opencodeMgr      *opencode.Manager
 	pluginConfigMgr  *pluginconfig.Manager
 	backends         map[string]SessionBackend
 	defaultBackendID string
@@ -93,6 +95,12 @@ func (m *Manager) SetCodexManager(codexMgr *codex.Manager) {
 	m.plugins.register(NewCodexPlugin(codexMgr))
 }
 
+// SetOpencodeManager wires opencode.json materialization for opencode sessions.
+func (m *Manager) SetOpencodeManager(opencodeMgr *opencode.Manager) {
+	m.opencodeMgr = opencodeMgr
+	m.plugins.register(NewOpencodePlugin(opencodeMgr))
+}
+
 // SetDockerManager wires the Docker config manager and registers the docker plugin.
 func (m *Manager) SetDockerManager(dockerMgr *docker.Manager) {
 	m.plugins.register(NewDockerPlugin(dockerMgr))
@@ -147,13 +155,14 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 	}
 
 	launchCfg, normalizedRunMode, err := m.resolveLaunchConfig(LaunchRequest{
-		Command:        req.Command,
-		RunMode:        req.RunMode,
-		HostID:         req.HostID,
-		ScriptID:       req.ScriptID,
-		CodexConfigID:  req.CodexConfigID,
-		PluginConfigID: req.PluginConfigID,
-		PluginData:     req.PluginData,
+		Command:          req.Command,
+		RunMode:          req.RunMode,
+		HostID:           req.HostID,
+		ScriptID:         req.ScriptID,
+		CodexConfigID:    req.CodexConfigID,
+		OpencodeConfigID: req.OpencodeConfigID,
+		PluginConfigID:   req.PluginConfigID,
+		PluginData:       req.PluginData,
 	})
 	if err != nil {
 		return err
@@ -188,6 +197,7 @@ func (m *Manager) CreateWithRequest(req SessionLaunchRequest) error {
 		HostID:           launchCfg.HostID,
 		ScriptID:         launchCfg.ScriptID,
 		CodexConfigID:    launchCfg.CodexConfigID,
+		OpencodeConfigID: launchCfg.OpencodeConfigID,
 		PluginConfigID:   launchCfg.PluginConfigID,
 		PluginData:       launchCfg.PluginData,
 		Den:              strings.TrimSpace(req.Den),
@@ -379,13 +389,14 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	oldSession := sess
 
 	launchCfg, normalizedRunMode, err := m.resolveLaunchConfig(LaunchRequest{
-		Command:        req.Command,
-		RunMode:        req.RunMode,
-		HostID:         req.HostID,
-		ScriptID:       req.ScriptID,
-		CodexConfigID:  req.CodexConfigID,
-		PluginConfigID: req.PluginConfigID,
-		PluginData:     req.PluginData,
+		Command:          req.Command,
+		RunMode:          req.RunMode,
+		HostID:           req.HostID,
+		ScriptID:         req.ScriptID,
+		CodexConfigID:    req.CodexConfigID,
+		OpencodeConfigID: req.OpencodeConfigID,
+		PluginConfigID:   req.PluginConfigID,
+		PluginData:       req.PluginData,
 	})
 	if err != nil {
 		return err
@@ -411,6 +422,7 @@ func (m *Manager) UpdateWithRequest(req SessionUpdateRequest) error {
 	nextSession.HostID = launchCfg.HostID
 	nextSession.ScriptID = launchCfg.ScriptID
 	nextSession.CodexConfigID = launchCfg.CodexConfigID
+	nextSession.OpencodeConfigID = launchCfg.OpencodeConfigID
 	nextSession.PluginConfigID = launchCfg.PluginConfigID
 	nextSession.PluginData = launchCfg.PluginData
 	nextSession.Den = strings.TrimSpace(req.Den)
@@ -876,11 +888,12 @@ func (m *Manager) resolveLaunchConfig(req LaunchRequest) (LaunchConfig, string, 
 	req.HostID = strings.TrimSpace(req.HostID)
 	req.ScriptID = strings.TrimSpace(req.ScriptID)
 	req.CodexConfigID = strings.TrimSpace(req.CodexConfigID)
+	req.OpencodeConfigID = strings.TrimSpace(req.OpencodeConfigID)
 	req.PluginConfigID = strings.TrimSpace(req.PluginConfigID)
 	req.PluginData = trimStringMap(req.PluginData)
 
 	if normalizedRunMode == "" {
-		normalizedRunMode = m.inferRunMode(req.Command, req.HostID, req.CodexConfigID, req.ScriptID)
+		normalizedRunMode = m.inferRunMode(req.Command, req.HostID, req.CodexConfigID, req.OpencodeConfigID, req.ScriptID)
 	}
 
 	plugin, ok := m.plugins.get(normalizedRunMode)
@@ -1103,11 +1116,12 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		hostID := strings.TrimSpace(cfg.HostID)
 		scriptID := strings.TrimSpace(cfg.ScriptID)
 		codexConfigID := strings.TrimSpace(cfg.CodexConfigID)
+		opencodeConfigID := strings.TrimSpace(cfg.OpencodeConfigID)
 		pluginConfigID := strings.TrimSpace(cfg.PluginConfigID)
 		pluginData := trimStringMap(cfg.PluginData)
 
 		if runMode == "" {
-			runMode = m.inferRunMode(command, hostID, codexConfigID, scriptID)
+			runMode = m.inferRunMode(command, hostID, codexConfigID, opencodeConfigID, scriptID)
 		}
 
 		plugin, ok := m.plugins.get(runMode)
@@ -1124,13 +1138,14 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			}
 		} else {
 			launchCfg, err := plugin.Validate(LaunchRequest{
-				Command:        command,
-				RunMode:        runMode,
-				HostID:         hostID,
-				ScriptID:       scriptID,
-				CodexConfigID:  codexConfigID,
-				PluginConfigID: pluginConfigID,
-				PluginData:     pluginData,
+				Command:          command,
+				RunMode:          runMode,
+				HostID:           hostID,
+				ScriptID:         scriptID,
+				CodexConfigID:    codexConfigID,
+				OpencodeConfigID: opencodeConfigID,
+				PluginConfigID:   pluginConfigID,
+				PluginData:       pluginData,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("session %q: %w", name, err)
@@ -1139,6 +1154,7 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 			hostID = launchCfg.HostID
 			scriptID = launchCfg.ScriptID
 			codexConfigID = launchCfg.CodexConfigID
+			opencodeConfigID = launchCfg.OpencodeConfigID
 			pluginConfigID = launchCfg.PluginConfigID
 			pluginData = launchCfg.PluginData
 		}
@@ -1160,21 +1176,22 @@ func (m *Manager) PrepareBurrowImport(configs []WorkspaceSession, profileIDs map
 		}
 
 		prepared = append(prepared, Session{
-			ID:              id,
-			Name:            name,
-			ProfileID:       profileID,
-			BackendID:       backendID,
-			TmuxSessionName: runtimeName,
-			Cwd:             strings.TrimSpace(cfg.Cwd),
-			Command:         command,
-			RunMode:         runMode,
-			HostID:          hostID,
-			ScriptID:        scriptID,
-			CodexConfigID:   codexConfigID,
-			PluginConfigID:  pluginConfigID,
-			PluginData:      pluginData,
-			Den:             strings.TrimSpace(cfg.Den),
-			CreatedAt:       createdAt,
+			ID:               id,
+			Name:             name,
+			ProfileID:        profileID,
+			BackendID:        backendID,
+			TmuxSessionName:  runtimeName,
+			Cwd:              strings.TrimSpace(cfg.Cwd),
+			Command:          command,
+			RunMode:          runMode,
+			HostID:           hostID,
+			ScriptID:         scriptID,
+			CodexConfigID:    codexConfigID,
+			OpencodeConfigID: opencodeConfigID,
+			PluginConfigID:   pluginConfigID,
+			PluginData:       pluginData,
+			Den:              strings.TrimSpace(cfg.Den),
+			CreatedAt:        createdAt,
 		})
 	}
 
@@ -1280,6 +1297,7 @@ func (m *Manager) registerBuiltinPlugins(invMgr *inventory.Manager) {
 	m.plugins.register(NewCustomPlugin())
 	m.plugins.register(NewHostPlugin(invMgr))
 	m.plugins.register(NewCodexPlugin(m.codexMgr))
+	m.plugins.register(NewOpencodePlugin(m.opencodeMgr))
 }
 
 func (m *Manager) registerPresetPlugins(resolver pluginConfigResolver) {
@@ -1288,12 +1306,14 @@ func (m *Manager) registerPresetPlugins(resolver pluginConfigResolver) {
 	m.plugins.register(NewRemoteTmuxPlugin(resolver))
 }
 
-func (m *Manager) inferRunMode(command, hostID, codexConfigID, scriptID string) string {
+func (m *Manager) inferRunMode(command, hostID, codexConfigID, opencodeConfigID, scriptID string) string {
 	switch {
 	case scriptID != "":
 		return RunModeScript
 	case codexConfigID != "":
 		return RunModeCodex
+	case opencodeConfigID != "":
+		return RunModeOpencode
 	case hostID != "":
 		return RunModeHost
 	case command != "":

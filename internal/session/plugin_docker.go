@@ -22,6 +22,7 @@ func (p *dockerPlugin) LabelKey() string           { return "burrows.runMode.doc
 func (p *dockerPlugin) HintKey() string            { return "burrows.runMode.dockerHint" }
 func (p *dockerPlugin) RequiresHost() bool         { return false }
 func (p *dockerPlugin) RequiresCodex() bool        { return false }
+func (p *dockerPlugin) RequiresOpencode() bool     { return false }
 func (p *dockerPlugin) RequiresCommand() bool      { return false }
 func (p *dockerPlugin) RequiresPluginConfig() bool { return false }
 
